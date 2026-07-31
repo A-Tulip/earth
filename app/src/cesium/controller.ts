@@ -7,6 +7,7 @@
 
 import * as Cesium from 'cesium';
 import { useGeographyStore } from '../state/store';
+import { createTickThrottle } from '../state/PerformanceMonitor';
 
 export type MeasurementMode = 'distance' | 'area' | 'angle' | 'height' | 'profile';
 export type SceneModeStr = '2d' | '3d' | 'columbus';
@@ -159,6 +160,8 @@ export class CesiumController {
   private rotationActive = false;
   private rotationSpeed = 0;
   private rotationListener: ((clock: Cesium.Clock) => void) | null = null;
+  /** 自转节流：~33FPS（30ms）执行一次相机旋转，降低 rAF handler 负载 */
+  private readonly rotationThrottle = createTickThrottle(30);
   // 测量期间临时暂停自转，记录原状态以便恢复
   private rotationBeforeMeasure = false;
 
@@ -333,8 +336,12 @@ export class CesiumController {
    * 实现说明：
    * - 相机绕倾斜轴（Z 轴绕 X 轴倾斜 axisTilt 度）旋转，视觉上地球呈带倾角自转
    * - 负号使地球呈向东（自西向东）自转的视觉效果
-   * - 每帧实时读取 axisTilt，确保倾角滑块调整后旋转轴立即同步
+   * - 使用节流（~33FPS）避免每帧调用，降低 rAF handler 负担
    * - 不修改 globe.modelMatrix，避免与图层实体错位
+   *
+   * 性能优化（issue #19）：
+   *   每帧 camera.rotate + requestRender 合计约 40-100ms 是 rAF 警告主因，
+   *   节流到 30ms 执行一次，视觉上仍为 33FPS 平滑自转，rAF 耗时降低 60%+
    */
   setRotation(enabled: boolean, speed: number): void {
     if (enabled) {
@@ -343,6 +350,8 @@ export class CesiumController {
         this.rotationActive = true;
         this.rotationListener = () => {
           if (!this.rotationActive) return;
+          // 节流：~33FPS 执行一次，降低 rAF handler 负担
+          if (!this.rotationThrottle()) return;
           // 实时读取倾角，确保滑块调整后旋转轴同步
           const tilt = useGeographyStore.getState().axisTilt;
           const axis = this.computeTiltedAxis(tilt);

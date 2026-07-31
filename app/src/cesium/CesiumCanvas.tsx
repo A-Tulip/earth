@@ -11,6 +11,7 @@ import { CesiumController } from './controller';
 import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
 import { createBasemapProvider, createTerrariumTerrainProvider } from './terrainProviders';
+import { createTickThrottle, FpsCounter } from '../state/PerformanceMonitor';
 
 interface CesiumCanvasProps {
   onReady?: (controller: CesiumController) => void;
@@ -159,10 +160,34 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     if (initStore.astronomy.rotation) controller.updateLayer('rotation', true);
     viewer.scene.requestRender();
 
+    // ======== 性能优化（issue #19：rAF handler 耗时） ========
+    // 1. requestRender 节流：每 16ms（~60FPS）最多一次，避免连续 requestRender
+    const renderThrottle = createTickThrottle(16);
+    // 2. 直射点更新节流：每 2s 一次，直射点经度变化极慢（15°/小时），无需每帧
+    const directPointThrottle = createTickThrottle(2000);
+    // 3. FPS 计数器：开发模式用于性能监控
+    const fpsCounter = new FpsCounter();
+    const devMode = import.meta.env.DEV ?? false;
+
+    // FPS 订阅：更新到 window._geographyFps 供 FpsDisplay 组件读取
+    const unsubFps = fpsCounter.subscribe((fps, ms) => {
+      const w = window as unknown as { _geographyFps?: { fps: number; ms: number } };
+      w._geographyFps = { fps, ms };
+    });
+
     // 时钟推进时请求重渲染，并动态更新太阳直射点位置（跟随 UTC 时间）
     viewer.clock.onTick.addEventListener(() => {
-      viewer.scene.requestRender();
-      controller.updateDirectPointDynamic();
+      if (devMode) {
+        fpsCounter.tick();
+      }
+      // 16ms 节流：requestRender 在连续场景下会被内部合并，仍可避免多余调用
+      if (renderThrottle()) {
+        viewer.scene.requestRender();
+      }
+      // 直射点节流：2s 更新一次足够平滑（15°/小时 ≈ 0.004°/s，2s 仅 0.008°）
+      if (directPointThrottle()) {
+        controller.updateDirectPointDynamic();
+      }
     });
 
     // 订阅 astronomy.rotation 变化，同步 controller（修复 animation.play/pause 解耦 bug）
@@ -210,6 +235,10 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       unsubscribeRotation();
       unsubscribeAxis();
       unsubscribeTilt();
+      unsubFps();
+      // 清理全局 FPS 数据
+      const w = window as unknown as { _geographyFps?: unknown };
+      delete w._geographyFps;
       commandBus.setContext({ cesium: null });
       controller.destroy();
       controllerRef.current = null;

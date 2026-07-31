@@ -3,7 +3,16 @@
  *
  * 真实地理数据封装成 Provider，课程只引用稳定的内部数据标识。
  * 第三方服务不可用时使用缓存、预置数据或简化教学图层。
+ *
+ * 性能优化（issue #18 限流 429/400）：
+ *   所有 fetch* 函数通过 apiCache（CachedFetcher）访问：
+ *   - TTL 内存缓存（按数据更新频率：10m / 1h / 24h）
+ *   - 并发请求去重（同 URL 的并发请求共享 Promise）
+ *   - 单域名并发 ≤ 3，请求间隔 ≥ 100ms
+ *   - 429/4xx/5xx 错误进入静默期，60s 内不再重复请求
  */
+
+import { apiCache, TTL_10M, TTL_1H, TTL_24H } from '../state/CachedFetcher';
 
 // ============ 数据源标识 ============
 
@@ -105,10 +114,8 @@ export interface WeatherData {
 export async function fetchWeather(city: CityData): Promise<WeatherData> {
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,weather_code&timezone=auto`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
+    // 使用缓存：天气 10 分钟 TTL
+    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_10M });
     const temp = Math.round(data.current?.temperature_2m ?? 25);
     const code = data.current?.weather_code ?? 0;
 
@@ -120,7 +127,7 @@ export async function fetchWeather(city: CityData): Promise<WeatherData> {
       weather: weatherCodeToString(code),
       weatherCode: code,
     };
-  } catch (err) {
+  } catch {
     // 回退：返回默认数据
     return {
       city: city.name,
@@ -161,10 +168,8 @@ export interface EarthquakeData {
 export async function fetchEarthquakes(minMagnitude = 4.5): Promise<EarthquakeData[]> {
   try {
     const url = `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${minMagnitude}_month.geojson`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
+    // 使用缓存：地震数据 1 小时 TTL
+    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_1H });
     return (data.features ?? []).map((f: any) => ({
       id: f.id,
       lon: f.geometry.coordinates[0],
@@ -193,10 +198,8 @@ export interface NaturalEventData {
 export async function fetchNaturalEvents(): Promise<NaturalEventData[]> {
   try {
     const url = 'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=50';
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-
-    const data = await response.json();
+    // 使用缓存：自然事件 1 小时 TTL
+    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_1H });
     return (data.events ?? []).flatMap((e: any) => {
       const geometries = e.geometry ?? [];
       return geometries.map((g: any) => ({
@@ -302,9 +305,8 @@ export interface TemperatureData {
 export async function fetchTemperature(city: CityData): Promise<TemperatureData> {
   try {
     const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&monthly=temperature_2m_mean`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
+    // 使用缓存：历史气温 24 小时 TTL（2023 年数据不变）
+    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_24H });
     const monthly: number[] = data.monthly?.temperature_2m_mean ?? [];
     const valid = monthly.filter((v: number) => v != null && !isNaN(v));
     const avg = valid.length > 0 ? valid.reduce((a: number, b: number) => a + b, 0) / valid.length : 15;
@@ -331,9 +333,8 @@ export interface PrecipitationData {
 export async function fetchPrecipitation(city: CityData): Promise<PrecipitationData> {
   try {
     const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&monthly=precipitation_sum`;
-    const response = await fetch(url);
-    if (!response.ok) throw new Error(`HTTP ${response.status}`);
-    const data = await response.json();
+    // 使用缓存：历史降水 24 小时 TTL（2023 年数据不变）
+    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_24H });
     const monthly: number[] = data.monthly?.precipitation_sum ?? [];
     const total = monthly.filter((v: number) => v != null && !isNaN(v)).reduce((a: number, b: number) => a + b, 0);
     return {
