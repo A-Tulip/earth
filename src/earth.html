@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -35,7 +35,7 @@
       font-family: 'Segoe UI', 'Microsoft YaHei', sans-serif;
       min-height: 100vh;
     }
-    canvas { display: block; touch-action: none; }
+    canvas { display: block; }
     
     /* 动态星空背景 */
     #starfield {
@@ -65,21 +65,6 @@
       50% { opacity: 1; }
     }
     
-    .city-tooltip {
-      position: fixed;
-      background: rgba(15, 23, 42, 0.95);
-      backdrop-filter: blur(10px);
-      border: 1px solid rgba(100, 255, 218, 0.3);
-      border-radius: 8px;
-      padding: 10px 14px;
-      font-size: 13px;
-      color: #e2e8f0;
-      pointer-events: none;
-      z-index: 100000;
-      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.4);
-      white-space: nowrap;
-    }
-
     #city-info-panel {
       position: fixed;
       top: 50%;
@@ -324,32 +309,13 @@
       min-width: 350px;
       min-height: 450px;
       max-width: 600px;
-      max-height: 80vh;
+      max-height: 700px;
       box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5);
-      flex-direction: column;
     }
 
     #continent-modal.dragging {
       cursor: grabbing !important;
       z-index: 10001;
-    }
-
-    #continent-modal .modal-header {
-      position: relative;
-      flex-shrink: 0;
-      background: linear-gradient(135deg, rgba(59, 130, 246, 0.2), rgba(168, 85, 247, 0.2));
-      padding: 16px 20px;
-      border-bottom: 1px solid rgba(100, 255, 218, 0.2);
-      cursor: move;
-      user-select: none;
-    }
-
-    #continent-modal .modal-body {
-      flex: 1;
-      padding: 16px 20px;
-      overflow-y: auto;
-      overflow-x: hidden;
-      min-height: 0;
     }
 
     /* 模态框基础样式 */
@@ -544,15 +510,6 @@
       width: 100%;
       height: 100%;
       object-fit: cover;
-      position: relative;
-      z-index: 10;
-    }
-
-    .continent-map canvas {
-      position: absolute;
-      top: 0;
-      left: 0;
-      z-index: 5;
     }
 
     .continent-map-label {
@@ -1313,14 +1270,10 @@
     }
 
     .climate-zones {
-      display: none;
       position: absolute; top: 20px; right: 20px;
       background: rgba(15, 23, 42, 0.9); backdrop-filter: blur(10px);
       border-radius: 10px; padding: 12px;
       border: 1px solid rgba(100,255,218,0.1);
-    }
-    .climate-zones.show {
-      display: block;
     }
     .climate-title { font-size: 11px; color: #64748b; margin-bottom: 8px; }
     .climate-item {
@@ -1798,237 +1751,117 @@
     
     /* AI学习助手模态框样式 */
     .study-assistant-modal { 
-      max-width: 900px !important; 
-      width: 85%;
-      max-height: 85vh;
-      height: 70vh;
-      display: flex;
-      flex-direction: column;
-      background: rgba(15, 23, 42, 0.98);
-      border: 1px solid rgba(99, 102, 241, 0.3);
-      position: relative;
-      min-width: 500px;
-      min-height: 400px;
-      overflow: visible !important;
-    }
-    .study-assistant-modal .modal-body {
-      flex: 1;
-      overflow-y: auto;
-      padding: 20px;
-      padding-bottom: 45px;
-      min-height: 0;
+      max-width: 900px;
+      position: absolute;
+      resize: none;
+      overflow: hidden;
     }
     .study-assistant-modal .modal-header {
       cursor: move;
       user-select: none;
-      flex-shrink: 0;
     }
     .study-assistant-resize-handle {
       position: absolute;
-      bottom: 5px;
-      right: 5px;
-      width: 24px;
-      height: 24px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3));
+      top: calc(100% - 37px);
+      left: calc(100% - 37px);
+      width: 32px;
+      height: 32px;
+      background: linear-gradient(135deg, rgba(99, 102, 241, 0.6), rgba(139, 92, 246, 0.6));
       cursor: se-resize;
-      border-radius: 0 0 15px 0;
+      border-radius: 8px;
       display: flex;
       align-items: center;
       justify-content: center;
-      transition: all 0.2s;
-      z-index: 10;
-    }
-    .study-assistant-resize-handle:hover {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.5));
+      z-index: 100;
     }
     .study-assistant-resize-handle::after {
-      content: '';
-      width: 10px;
-      height: 10px;
-      border-right: 2px solid rgba(165, 180, 252, 0.8);
-      border-bottom: 2px solid rgba(165, 180, 252, 0.8);
+      content: '⇲';
+      color: rgba(255,255,255,0.8);
+      font-size: 14px;
     }
-    .study-tabs { 
-      display: flex; 
-      gap: 4px; 
-      margin-bottom: 24px;
-      background: rgba(99, 102, 241, 0.08);
-      padding: 4px;
-      border-radius: 12px;
+    .study-assistant-modal.dragging {
+      opacity: 0.92;
+      z-index: 10001 !important;
     }
+    .chat-voice-controls {
+      display: flex;
+      gap: 8px;
+      margin-top: 8px;
+    }
+    .chat-voice-btn {
+      background: rgba(100, 255, 218, 0.15);
+      border: 1px solid rgba(100, 255, 218, 0.3);
+      border-radius: 8px;
+      color: #64ffda;
+      padding: 6px 12px;
+      font-size: 12px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .chat-voice-btn:hover {
+      background: rgba(100, 255, 218, 0.25);
+    }
+    .chat-voice-btn.speaking {
+      background: rgba(239, 68, 68, 0.3);
+      border-color: rgba(239, 68, 68, 0.5);
+      color: #ef4444;
+    }
+    .study-tabs { display: flex; gap: 8px; margin-bottom: 20px; }
     .study-tab {
-      padding: 12px 24px; 
-      background: transparent; 
-      border: none;
-      border-radius: 10px; 
-      color: #94a3b8; 
-      font-size: 14px; 
-      font-weight: 500;
-      cursor: pointer; 
-      transition: all 0.3s;
-      position: relative;
+      padding: 10px 20px; background: rgba(100,255,218,0.1); border: 1px solid rgba(100,255,218,0.2);
+      border-radius: 8px; color: #64ffda; font-size: 14px; cursor: pointer; transition: all 0.2s;
     }
-    .study-tab:hover { 
-      color: #c7d2fe; 
-      background: rgba(99, 102, 241, 0.15);
-    }
-    .study-tab.active { 
-      background: rgba(99, 102, 241, 0.25); 
-      color: #a5b4fc; 
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
-    }
-    .study-tab.active::after {
-      content: '';
-      position: absolute;
-      bottom: -2px;
-      left: 50%;
-      transform: translateX(-50%);
-      width: 20px;
-      height: 3px;
-      background: linear-gradient(90deg, #8b5cf6, #6366f1);
-      border-radius: 2px;
-    }
+    .study-tab:hover { background: rgba(100,255,218,0.2); }
+    .study-tab.active { background: rgba(100,255,218,0.3); border-color: #64ffda; }
     .study-content { display: none; }
-    .study-content.active { 
-      display: block; 
-      animation: fadeIn 0.3s ease;
-    }
+    .study-content.active { display: block; }
     
-    .quiz-category { 
-      margin-bottom: 20px; 
-      padding: 16px;
-      background: rgba(99, 102, 241, 0.08);
-      border-radius: 12px;
-      border: 1px solid rgba(99, 102, 241, 0.15);
-    }
-    .quiz-category-title { font-size: 14px; color: #94a3b8; margin-bottom: 12px; font-weight: 500; }
-    .quiz-buttons { display: flex; gap: 8px; flex-wrap: wrap; }
+    .quiz-category { margin-bottom: 20px; }
+    .quiz-category-title { font-size: 14px; color: #94a3b8; margin-bottom: 12px; }
+    .quiz-buttons { display: flex; gap: 10px; flex-wrap: wrap; }
     .quiz-cat-btn {
-      padding: 10px 18px; 
-      background: rgba(99, 102, 241, 0.1); 
-      border: 1px solid rgba(99, 102, 241, 0.2);
-      border-radius: 10px; 
-      color: #a5b4fc; 
-      font-size: 13px; 
-      cursor: pointer; 
-      transition: all 0.3s;
-      white-space: nowrap;
+      padding: 12px 20px; background: rgba(100,255,218,0.1); border: 1px solid rgba(100,255,218,0.2);
+      border-radius: 10px; color: #64ffda; font-size: 13px; cursor: pointer; transition: all 0.2s;
     }
-    .quiz-cat-btn:hover { 
-      background: rgba(99, 102, 241, 0.25); 
-      border-color: rgba(99, 102, 241, 0.4);
-      transform: translateY(-2px); 
-      box-shadow: 0 4px 12px rgba(99, 102, 241, 0.15);
-    }
-    .quiz-cat-btn:active { transform: translateY(0); }
+    .quiz-cat-btn:hover { background: rgba(100,255,218,0.2); transform: translateY(-2px); }
     
-    .quiz-main { 
-      display: grid; 
-      grid-template-columns: 55% 45%; 
-      gap: 20px; 
-      height: 100%;
-      min-height: 0;
-    }
-    .quiz-left { 
-      display: flex; 
-      flex-direction: column; 
-      gap: 16px; 
-      min-height: 0;
-    }
-    .quiz-area { 
-      background: rgba(99, 102, 241, 0.08); 
-      border-radius: 14px; 
-      padding: 24px; 
-      min-height: 220px; 
-      flex: 1;
-      border: 1px solid rgba(99, 102, 241, 0.15);
-    }
+    .quiz-main { display: grid; grid-template-columns: 1fr 1fr; gap: 20px; }
+    .quiz-left { display: flex; flex-direction: column; gap: 16px; }
+    .quiz-area { background: rgba(100,255,218,0.05); border-radius: 12px; padding: 24px; min-height: 200px; flex: 1; }
     .quiz-placeholder { text-align: center; padding: 40px 20px; }
     .quiz-placeholder-icon { font-size: 48px; margin-bottom: 16px; }
     .quiz-placeholder-text { font-size: 14px; color: #94a3b8; }
     
-    .quiz-question { font-size: 16px; color: #e2e8f0; margin-bottom: 20px; line-height: 1.6; font-weight: 500; }
+    .quiz-question { font-size: 16px; color: #fff; margin-bottom: 20px; line-height: 1.6; }
     .quiz-options { display: flex; flex-direction: column; gap: 10px; }
     .quiz-option {
-      padding: 14px 18px; 
-      background: rgba(99, 102, 241, 0.08); 
-      border: 1px solid rgba(99, 102, 241, 0.15);
-      border-radius: 10px; 
-      color: #94a3b8; 
-      font-size: 14px; 
-      cursor: pointer; 
-      transition: all 0.3s;
+      padding: 12px 16px; background: rgba(100,255,218,0.1); border: 1px solid rgba(100,255,218,0.2);
+      border-radius: 8px; color: #94a3b8; font-size: 14px; cursor: pointer; transition: all 0.2s;
       text-align: left;
-      display: flex;
-      align-items: center;
-      gap: 10px;
     }
-    .quiz-option:hover { 
-      background: rgba(99, 102, 241, 0.18); 
-      color: #e2e8f0; 
-      border-color: rgba(99, 102, 241, 0.3);
-    }
-    .quiz-option.selected { 
-      background: rgba(99, 102, 241, 0.25); 
-      color: #a5b4fc; 
-      border-color: #6366f1;
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
-    }
-    .quiz-option.correct { background: rgba(34,197,94,0.2); color: #4ade80; border-color: #22c55e; }
-    .quiz-option.wrong { background: rgba(239,68,68,0.2); color: #f87171; border-color: #ef4444; }
+    .quiz-option:hover { background: rgba(100,255,218,0.2); color: #fff; }
+    .quiz-option.selected { background: rgba(100,255,218,0.3); color: #64ffda; border-color: #64ffda; }
+    .quiz-option.correct { background: rgba(34,197,94,0.3); color: #22c55e; border-color: #22c55e; }
+    .quiz-option.wrong { background: rgba(239,68,68,0.3); color: #ef4444; border-color: #ef4444; }
     
     .quiz-result { text-align: center; padding: 24px; }
     .result-icon { font-size: 64px; margin-bottom: 16px; }
-    .result-title { font-size: 20px; color: #a5b4fc; margin-bottom: 16px; font-weight: 600; }
+    .result-title { font-size: 20px; color: #64ffda; margin-bottom: 16px; }
     .result-explanation {
-      background: rgba(99, 102, 241, 0.08); 
-      border: 1px solid rgba(99, 102, 241, 0.15);
-      border-radius: 12px; 
-      padding: 18px; 
-      margin-bottom: 20px;
-      text-align: left; 
-      font-size: 14px; 
-      color: #94a3b8; 
-      line-height: 1.8;
+      background: rgba(100,255,218,0.05); border-radius: 8px; padding: 16px; margin-bottom: 20px;
+      text-align: left; font-size: 14px; color: #94a3b8; line-height: 1.8;
     }
     .next-quiz-btn {
-      padding: 12px 32px; 
-      background: linear-gradient(135deg, #6366f1, #8b5cf6); 
-      border: none; 
-      border-radius: 10px;
-      color: #fff; 
-      font-size: 14px; 
-      font-weight: 600; 
-      cursor: pointer; 
-      transition: all 0.3s;
+      padding: 12px 32px; background: #64ffda; border: none; border-radius: 8px;
+      color: #0a0a0f; font-size: 14px; font-weight: 600; cursor: pointer; transition: all 0.2s;
     }
-    .next-quiz-btn:hover { 
-      transform: translateY(-2px); 
-      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4); 
-    }
+    .next-quiz-btn:hover { transform: translateY(-2px); box-shadow: 0 4px 12px rgba(100,255,218,0.3); }
     
     .progress-stats { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-bottom: 24px; }
-    .stat-card { 
-      background: rgba(99, 102, 241, 0.08); 
-      border: 1px solid rgba(99, 102, 241, 0.15);
-      border-radius: 14px; 
-      padding: 24px; 
-      text-align: center;
-      transition: all 0.3s;
-    }
-    .stat-card:hover {
-      background: rgba(99, 102, 241, 0.12);
-      border-color: rgba(99, 102, 241, 0.25);
-    }
-    .stat-number { font-size: 36px; font-weight: 700; color: #a5b4fc; }
+    .stat-card { background: rgba(100,255,218,0.1); border-radius: 12px; padding: 20px; text-align: center; }
+    .stat-number { font-size: 32px; font-weight: 700; color: #64ffda; }
     .stat-label { font-size: 13px; color: #94a3b8; margin-top: 8px; }
-    .progress-chart { 
-      background: rgba(99, 102, 241, 0.08); 
-      border: 1px solid rgba(99, 102, 241, 0.15);
-      border-radius: 14px; 
-      padding: 24px; 
-      min-height: 200px; 
-    }
+    .progress-chart { background: rgba(100,255,218,0.05); border-radius: 12px; padding: 24px; min-height: 200px; }
     .chart-placeholder { text-align: center; padding: 40px 20px; }
     .chart-placeholder-icon { font-size: 48px; margin-bottom: 16px; }
     .chart-placeholder-text { font-size: 14px; color: #94a3b8; }
@@ -2038,137 +1871,107 @@
     .weakness-placeholder-icon { font-size: 48px; margin-bottom: 16px; }
     .weakness-placeholder-text { font-size: 14px; color: #94a3b8; }
     .weakness-item {
-      padding: 18px; 
-      background: rgba(239,68,68,0.08); 
-      border: 1px solid rgba(239,68,68,0.15);
-      border-radius: 12px; 
-      display: flex; 
-      justify-content: space-between; 
-      align-items: center;
-      transition: all 0.3s;
-    }
-    .weakness-item:hover {
-      background: rgba(239,68,68,0.12);
-      border-color: rgba(239,68,68,0.25);
+      padding: 16px; background: rgba(239,68,68,0.1); border: 1px solid rgba(239,68,68,0.2);
+      border-radius: 10px; display: flex; justify-content: space-between; align-items: center;
     }
     .weakness-info { display: flex; align-items: center; gap: 12px; }
     .weakness-icon { font-size: 24px; }
-    .weakness-name { color: #e2e8f0; font-size: 14px; font-weight: 500; }
-    .weakness-count { color: #f87171; font-size: 13px; }
+    .weakness-name { color: #fff; font-size: 14px; }
+    .weakness-count { color: #ef4444; font-size: 13px; }
     .weakness-btn {
-      padding: 8px 18px; 
-      background: rgba(239,68,68,0.15); 
-      border: 1px solid rgba(239,68,68,0.25);
-      border-radius: 8px; 
-      color: #f87171; 
-      font-size: 12px; 
-      font-weight: 500;
-      cursor: pointer; 
-      transition: all 0.3s;
+      padding: 8px 16px; background: rgba(239,68,68,0.2); border: 1px solid rgba(239,68,68,0.3);
+      border-radius: 6px; color: #ef4444; font-size: 12px; cursor: pointer; transition: all 0.2s;
     }
-    .weakness-btn:hover { 
-      background: rgba(239,68,68,0.25); 
-      border-color: rgba(239,68,68,0.4);
-    }
+    .weakness-btn:hover { background: rgba(239,68,68,0.3); }
     
     /* 学习助手聊天区域样式 */
-    .quiz-right { display: flex; flex-direction: column; min-height: 0; }
+    .quiz-right { display: flex; flex-direction: column; }
     .chat-section {
-      background: rgba(99, 102, 241, 0.08);
-      border: 1px solid rgba(99, 102, 241, 0.15);
-      border-radius: 14px;
-      padding: 18px;
+      background: rgba(100,255,218,0.05);
+      border-radius: 12px;
+      padding: 16px;
       display: flex;
       flex-direction: column;
       height: 100%;
-      min-height: 0;
+      min-height: 400px;
     }
-    .chat-header { 
-      margin-bottom: 16px; 
-      padding-bottom: 12px;
-      border-bottom: 1px solid rgba(99, 102, 241, 0.15);
-    }
-    .chat-title { font-size: 15px; color: #a5b4fc; font-weight: 600; }
+    .chat-header { margin-bottom: 12px; }
+    .chat-title { font-size: 15px; color: #64ffda; font-weight: 600; }
     .chat-subtitle { font-size: 12px; color: #64748b; margin-top: 2px; }
     .chat-messages {
       flex: 1;
       overflow-y: auto;
       display: flex;
       flex-direction: column;
-      gap: 14px;
+      gap: 12px;
       padding-right: 8px;
     }
     .chat-messages::-webkit-scrollbar { width: 6px; }
-    .chat-messages::-webkit-scrollbar-track { background: rgba(99, 102, 241, 0.1); border-radius: 3px; }
-    .chat-messages::-webkit-scrollbar-thumb { background: rgba(99, 102, 241, 0.3); border-radius: 3px; }
+    .chat-messages::-webkit-scrollbar-track { background: rgba(100,255,218,0.1); border-radius: 3px; }
+    .chat-messages::-webkit-scrollbar-thumb { background: rgba(100,255,218,0.3); border-radius: 3px; }
     .chat-message {
       display: flex;
-      gap: 12px;
+      gap: 10px;
       max-width: 100%;
     }
     .chat-message.user { flex-direction: row-reverse; }
     .chat-avatar {
-      width: 40px;
-      height: 40px;
+      width: 36px;
+      height: 36px;
       border-radius: 50%;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3));
+      background: rgba(100,255,218,0.2);
       display: flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 16px;
       flex-shrink: 0;
-      box-shadow: 0 2px 8px rgba(99, 102, 241, 0.2);
     }
     .chat-message.user .chat-avatar {
-      background: linear-gradient(135deg, rgba(59,130,246,0.3), rgba(37,99,235,0.3));
-      box-shadow: 0 2px 8px rgba(59,130,246,0.2);
+      background: rgba(59,130,246,0.2);
     }
     .chat-content {
-      background: rgba(99, 102, 241, 0.12);
-      padding: 12px 16px;
-      border-radius: 0 14px 14px 14px;
+      background: rgba(100,255,218,0.1);
+      padding: 10px 14px;
+      border-radius: 0 12px 12px 12px;
       font-size: 13px;
       color: #94a3b8;
       line-height: 1.6;
-      max-width: calc(100% - 55px);
-      border: 1px solid rgba(99, 102, 241, 0.1);
+      max-width: calc(100% - 50px);
     }
     .chat-message.user .chat-content {
-      background: rgba(59,130,246,0.18);
-      border-radius: 14px 0 14px 14px;
-      color: #e2e8f0;
-      border-color: rgba(59,130,246,0.2);
+      background: rgba(59,130,246,0.2);
+      border-radius: 12px 0 12px 12px;
+      color: #cbd5e1;
     }
     .chat-input-area {
       display: flex;
       gap: 10px;
-      margin-top: 14px;
-      padding-top: 14px;
-      border-top: 1px solid rgba(99, 102, 241, 0.15);
+      margin-top: 12px;
+      padding-top: 12px;
+      border-top: 1px solid rgba(100,255,218,0.1);
     }
     .chat-input {
       flex: 1;
-      padding: 12px 16px;
-      background: rgba(99, 102, 241, 0.08);
-      border: 1px solid rgba(99, 102, 241, 0.2);
-      border-radius: 12px;
-      color: #e2e8f0;
+      padding: 10px 14px;
+      background: rgba(100,255,218,0.1);
+      border: 1px solid rgba(100,255,218,0.2);
+      border-radius: 8px;
+      color: #fff;
       font-size: 13px;
       outline: none;
-      transition: all 0.3s;
+      transition: all 0.2s;
     }
     .chat-input:focus {
-      border-color: #6366f1;
-      background: rgba(99, 102, 241, 0.12);
-      box-shadow: 0 0 0 3px rgba(99, 102, 241, 0.1);
+      border-color: #64ffda;
+      background: rgba(100,255,218,0.15);
     }
     .chat-input::placeholder { color: #64748b; }
     .chat-send-btn {
-      padding: 12px 22px;
-      background: linear-gradient(135deg, #6366f1, #8b5cf6);
+      padding: 10px 20px;
+      background: #64ffda;
       border: none;
-      border-radius: 12px;
-      color: #fff;
+      border-radius: 8px;
+      color: #0a0a0f;
       font-size: 13px;
       font-weight: 600;
       cursor: pointer;
@@ -2176,7 +1979,7 @@
     }
     .chat-send-btn:hover {
       transform: translateY(-2px);
-      box-shadow: 0 4px 16px rgba(99, 102, 241, 0.4);
+      box-shadow: 0 4px 12px rgba(100,255,218,0.3);
     }
 
     /* 问答弹窗样式 */
@@ -2219,8 +2022,8 @@
       position: fixed;
       bottom: 170px;
       right: 30px;
-      width: 450px;
-      height: 550px;
+      width: 380px;
+      height: 500px;
       background: rgba(15, 23, 42, 0.98);
       backdrop-filter: blur(20px);
       border-radius: 20px;
@@ -2230,45 +2033,11 @@
       display: none;
       flex-direction: column;
       overflow: hidden;
+      cursor: move;
       user-select: none;
-      resize: both;
-      min-width: 350px;
-      min-height: 400px;
-      max-width: 600px;
-      max-height: 80vh;
     }
     #ai-chat-panel.show { display: flex; }
     #ai-chat-panel.dragging { opacity: 0.9; }
-    #ai-chat-panel.resizing {
-      border-color: rgba(99, 102, 241, 0.8);
-      box-shadow: 0 0 30px rgba(99, 102, 241, 0.3);
-    }
-
-    .ai-chat-resize-handle {
-      position: absolute;
-      bottom: 0;
-      right: 0;
-      width: 24px;
-      height: 24px;
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.3), rgba(139, 92, 246, 0.3));
-      cursor: se-resize;
-      border-radius: 0 0 20px 0;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-      z-index: 10;
-    }
-    .ai-chat-resize-handle:hover {
-      background: linear-gradient(135deg, rgba(99, 102, 241, 0.5), rgba(139, 92, 246, 0.5));
-    }
-    .ai-chat-resize-handle::after {
-      content: '';
-      width: 10px;
-      height: 10px;
-      border-right: 2px solid rgba(165, 180, 252, 0.8);
-      border-bottom: 2px solid rgba(165, 180, 252, 0.8);
-    }
 
     .ai-chat-header {
       padding: 16px 20px;
@@ -2298,26 +2067,6 @@
       0%, 100% { opacity: 1; }
       50% { opacity: 0.5; }
     }
-    .ai-chat-controls {
-      display: flex;
-      align-items: center;
-      gap: 8px;
-      cursor: default;
-    }
-    .ai-lang-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: #94a3b8;
-      padding: 6px 12px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      transition: all 0.2s;
-    }
-    .ai-lang-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: white;
-    }
     .ai-close-btn {
       background: rgba(255, 255, 255, 0.1);
       border: none;
@@ -2332,24 +2081,6 @@
     .ai-close-btn:hover {
       background: rgba(255, 255, 255, 0.2);
       color: white;
-    }
-    .ai-clear-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: #94a3b8;
-      width: 30px;
-      height: 30px;
-      border-radius: 50%;
-      cursor: pointer;
-      font-size: 16px;
-      transition: all 0.2s;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-    }
-    .ai-clear-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #f87171;
     }
 
     .ai-chat-messages {
@@ -2367,58 +2098,6 @@
       font-size: 13px;
       line-height: 1.5;
       animation: fadeIn 0.3s ease;
-      position: relative;
-    }
-    .ai-message .ai-message-time {
-      font-size: 10px;
-      color: rgba(148, 163, 184, 0.7);
-      margin-top: 6px;
-      text-align: right;
-      user-select: none;
-    }
-    .ai-message.bot .ai-message-actions {
-      position: absolute;
-      top: 4px;
-      right: 4px;
-      display: none;
-      gap: 4px;
-    }
-    .ai-message.bot:hover .ai-message-actions {
-      display: flex;
-    }
-    .ai-message-copy-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: #94a3b8;
-      width: 24px;
-      height: 24px;
-      border-radius: 6px;
-      cursor: pointer;
-      font-size: 12px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-    }
-    .ai-message-copy-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #10b981;
-    }
-    .ai-message-speak-btn {
-      background: rgba(255, 255, 255, 0.1);
-      border: none;
-      color: #94a3b8;
-      width: 24px;
-      height: 24px;
-      border-radius: 4px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      transition: all 0.2s;
-    }
-    .ai-message-speak-btn:hover {
-      background: rgba(255, 255, 255, 0.2);
-      color: #f59e0b;
     }
     @keyframes fadeIn {
       from { opacity: 0; transform: translateY(10px); }
@@ -2444,6 +2123,40 @@
     .ai-message.bot .highlight {
       color: #a5b4fc;
       font-weight: 600;
+    }
+    .ai-message.bot {
+      position: relative;
+      padding-right: 48px;
+    }
+    .ai-message-voice-btn {
+      position: absolute;
+      right: 10px;
+      top: 10px;
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: rgba(99, 102, 241, 0.3);
+      color: #c7d2fe;
+      border-radius: 50%;
+      cursor: pointer;
+      font-size: 14px;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .ai-message-voice-btn:hover {
+      background: rgba(99, 102, 241, 0.5);
+      color: white;
+    }
+    .ai-message-voice-btn.speaking {
+      background: rgba(16, 185, 129, 0.4);
+      color: #34d399;
+      animation: voicePulse 1s ease infinite;
+    }
+    @keyframes voicePulse {
+      0%, 100% { transform: scale(1); }
+      50% { transform: scale(1.1); }
     }
 
     .ai-message.warning {
@@ -2524,8 +2237,6 @@
       background: rgba(99, 102, 241, 0.2);
       color: #a5b4fc;
       border: 1px solid rgba(99, 102, 241, 0.3);
-      position: relative;
-      overflow: hidden;
     }
     .ai-voice-btn:hover {
       background: rgba(99, 102, 241, 0.3);
@@ -2534,36 +2245,13 @@
       background: rgba(239, 68, 68, 0.3);
       color: #fca5a5;
       border-color: rgba(239, 68, 68, 0.5);
-      animation: voicePulse 1.5s infinite;
-    }
-    .ai-voice-btn.recording::after {
-      content: '';
-      position: absolute;
-      top: 50%;
-      left: 50%;
-      width: 100%;
-      height: 100%;
-      background: rgba(239, 68, 68, 0.3);
-      border-radius: 50%;
-      transform: translate(-50%, -50%);
-      animation: voiceWave 1.5s infinite;
-    }
-    @keyframes voicePulse {
-      0%, 100% { transform: scale(1); box-shadow: 0 0 0 0 rgba(239, 68, 68, 0.4); }
-      50% { transform: scale(1.05); box-shadow: 0 0 0 10px rgba(239, 68, 68, 0); }
-    }
-    @keyframes voiceWave {
-      0% { width: 100%; height: 100%; opacity: 0.6; }
-      100% { width: 200%; height: 200%; opacity: 0; }
     }
 
     .ai-quick-actions {
-      padding: 8px 16px 16px;
+      padding: 0 16px 16px;
       display: flex;
       flex-wrap: wrap;
       gap: 8px;
-      max-height: 80px;
-      overflow-y: auto;
     }
     .ai-quick-btn {
       padding: 6px 12px;
@@ -2571,10 +2259,9 @@
       border: 1px solid rgba(99, 102, 241, 0.3);
       border-radius: 15px;
       color: #a5b4fc;
-      font-size: 12px;
+      font-size: 11px;
       cursor: pointer;
       transition: all 0.2s;
-      flex-shrink: 0;
     }
     .ai-quick-btn:hover {
       background: rgba(99, 102, 241, 0.25);
@@ -2865,385 +2552,11 @@
      .ai-status-dot.error {
        background: #ef4444;
      }
-     
-     @media (max-width: 768px) {
-       #left-panel {
-         width: 0;
-         overflow: hidden;
-         z-index: 2000;
-         transition: width 0.3s ease;
-       }
-       #left-panel.mobile-open {
-         width: 280px;
-       }
-       #panel-resizer {
-         display: none;
-       }
-       .mobile-menu-btn {
-         display: flex !important;
-       }
-       #city-info-panel {
-         width: calc(100% - 40px);
-         right: 20px;
-         max-height: 70vh;
-       }
-       #ai-chat-panel {
-         width: calc(100% - 20px) !important;
-         max-width: none !important;
-         right: 10px !important;
-         left: 10px !important;
-         bottom: 20px !important;
-         max-height: 85vh !important;
-       }
-       .study-assistant-modal {
-         width: calc(100% - 20px) !important;
-         max-width: none !important;
-         height: 85vh !important;
-         max-height: none !important;
-       }
-       .toggle-item {
-         padding: 16px 14px !important;
-         font-size: 15px !important;
-       }
-       .toggle-icon {
-         width: 40px !important;
-         height: 40px !important;
-         font-size: 18px !important;
-       }
-       .resource-btn {
-         padding: 16px 18px !important;
-         font-size: 15px !important;
-         min-height: 52px;
-       }
-       .quiz-cat-btn {
-         padding: 14px 16px !important;
-         font-size: 14px !important;
-         min-height: 48px;
-       }
-       .ai-send-btn, .ai-voice-btn {
-         width: 52px !important;
-         height: 52px !important;
-         font-size: 22px !important;
-       }
-       #ai-input {
-         padding: 14px 18px !important;
-         font-size: 15px !important;
-       }
-       .chat-input {
-         padding: 14px 16px !important;
-         font-size: 15px !important;
-       }
-       .chat-send-btn {
-         padding: 0 24px !important;
-         font-size: 15px !important;
-       }
-       .modal-header {
-         padding: 16px 20px !important;
-       }
-       .modal-title {
-         font-size: 18px !important;
-       }
-       .modal-body {
-         padding: 16px !important;
-       }
-       .study-tab {
-         padding: 12px 16px !important;
-         font-size: 14px !important;
-       }
-       .panel-title {
-         font-size: 20px !important;
-       }
-       .panel-subtitle {
-         font-size: 13px !important;
-       }
-       .section-title {
-         font-size: 14px !important;
-       }
-       .ai-chat-title {
-         font-size: 16px !important;
-       }
-       .ai-message-content {
-         font-size: 15px !important;
-       }
-       .study-assistant-modal .modal-body {
-         padding-bottom: 55px !important;
-       }
-       .quiz-left, .quiz-right {
-         width: 100% !important;
-         padding: 0 !important;
-       }
-       .quiz-main {
-         flex-direction: column !important;
-         gap: 20px !important;
-       }
-       #status-bar {
-         position: fixed !important;
-         bottom: 85px !important;
-         left: 10px !important;
-         right: 10px !important;
-         padding: 10px 14px !important;
-         font-size: 11px !important;
-         z-index: 900 !important;
-       }
-       .status-left, .status-right {
-         gap: 8px !important;
-       }
-       .status-item {
-         padding: 5px 8px !important;
-         gap: 5px !important;
-         min-width: auto !important;
-       }
-       #ai-assistant-btn {
-         bottom: 15px !important;
-         z-index: 1000 !important;
-       }
-       #continent-modal {
-         width: calc(100% - 20px) !important;
-         max-width: none !important;
-         height: 80vh !important;
-         max-height: none !important;
-         top: 20px !important;
-         right: 10px !important;
-         left: 10px !important;
-         min-width: auto !important;
-         min-height: auto !important;
-       }
-     }
-     
-     .mobile-menu-btn {
-       display: none;
-       position: fixed;
-       top: 20px;
-       left: 10px;
-       width: 48px;
-       height: 48px;
-       background: rgba(15, 23, 42, 0.95);
-       border: 1px solid var(--theme-border);
-       border-radius: 12px;
-       color: var(--theme-accent);
-       font-size: 24px;
-       cursor: pointer;
-       z-index: 3000;
-       align-items: center;
-       justify-content: center;
-       backdrop-filter: blur(10px);
-       box-shadow: 0 4px 15px rgba(0, 0, 0, 0.3);
-       transition: all 0.2s;
-     }
-     .mobile-menu-btn:hover {
-       background: rgba(0, 245, 255, 0.1);
-       border-color: var(--theme-border-active);
-     }
-     
-     .portrait-warning {
-       display: none;
-       position: fixed;
-       top: 0;
-       left: 0;
-       width: 100%;
-       height: 100%;
-       background: rgba(15, 23, 42, 0.98);
-       backdrop-filter: blur(10px);
-       z-index: 9999;
-       align-items: center;
-       justify-content: center;
-       flex-direction: column;
-     }
-     .portrait-warning .portrait-content {
-       text-align: center;
-       padding: 40px;
-       border: 1px solid rgba(99, 102, 241, 0.3);
-       border-radius: 20px;
-       background: rgba(30, 41, 59, 0.5);
-     }
-     .portrait-warning .portrait-icon {
-       font-size: 64px;
-       margin-bottom: 20px;
-       animation: rotatePhone 2s ease-in-out infinite;
-     }
-     @keyframes rotatePhone {
-       0%, 100% { transform: rotate(0deg); }
-       50% { transform: rotate(90deg); }
-     }
-     .portrait-warning h2 {
-       color: var(--theme-text);
-       font-size: 24px;
-       margin-bottom: 12px;
-     }
-     .portrait-warning p {
-       color: var(--theme-text-muted);
-       font-size: 16px;
-     }
-     
-     @media (max-width: 768px) and (orientation: portrait) {
-       .portrait-warning {
-         display: flex;
-       }
-       #left-panel, #center-panel, #status-bar, #ai-assistant-btn, #ai-chat-panel, 
-       .mobile-menu-btn, #study-assistant-modal, #continent-modal, #city-info-panel {
-         display: none !important;
-       }
-     }
-     
-     @media (max-width: 768px) and (orientation: landscape) {
-       #left-panel {
-         width: 200px !important;
-       }
-       #panel-resizer {
-         display: none;
-       }
-       .mobile-menu-btn {
-         display: none !important;
-       }
-       #status-bar {
-         position: fixed !important;
-         bottom: 15px !important;
-         left: 220px !important;
-         right: 15px !important;
-         padding: 8px 12px !important;
-         font-size: 10px !important;
-         z-index: 900 !important;
-       }
-       .status-left, .status-right {
-         gap: 6px !important;
-       }
-       .status-item {
-         padding: 4px 6px !important;
-         gap: 4px !important;
-         min-width: auto !important;
-       }
-       #ai-assistant-btn {
-         bottom: 70px !important;
-         right: 15px !important;
-         z-index: 1000 !important;
-       }
-       #ai-chat-panel {
-         width: calc(100% - 220px) !important;
-         max-width: none !important;
-         right: 10px !important;
-         left: 210px !important;
-         bottom: 15px !important;
-         top: 15px !important;
-         max-height: none !important;
-         height: calc(100% - 90px) !important;
-       }
-       .study-assistant-modal {
-         width: calc(100% - 220px) !important;
-         max-width: none !important;
-         height: calc(100% - 30px) !important;
-         max-height: none !important;
-         top: 15px !important;
-         right: 15px !important;
-         left: 210px !important;
-       }
-       #continent-modal {
-         width: calc(100% - 220px) !important;
-         max-width: none !important;
-         height: calc(100% - 30px) !important;
-         max-height: none !important;
-         top: 15px !important;
-         right: 15px !important;
-         left: 210px !important;
-       }
-       #city-info-panel {
-         width: calc(100% - 240px) !important;
-         right: 15px !important;
-         max-height: calc(100% - 100px) !important;
-         top: 15px !important;
-       }
-       .toggle-item {
-         padding: 10px 12px !important;
-         font-size: 12px !important;
-       }
-       .toggle-icon {
-         width: 32px !important;
-         height: 32px !important;
-         font-size: 14px !important;
-       }
-       .resource-btn {
-         padding: 10px 12px !important;
-         font-size: 12px !important;
-         min-height: 40px;
-       }
-       .quiz-cat-btn {
-         padding: 8px 10px !important;
-         font-size: 11px !important;
-         min-height: 36px;
-       }
-       .ai-send-btn, .ai-voice-btn {
-         width: 40px !important;
-         height: 40px !important;
-         font-size: 16px !important;
-       }
-       #ai-input {
-         padding: 10px 14px !important;
-         font-size: 12px !important;
-       }
-       .modal-header {
-         padding: 10px 14px !important;
-       }
-       .modal-title {
-         font-size: 14px !important;
-       }
-       .modal-body {
-         padding: 10px !important;
-       }
-       .study-tab {
-         padding: 8px 10px !important;
-         font-size: 11px !important;
-       }
-       .panel-title {
-         font-size: 16px !important;
-       }
-       .panel-subtitle {
-         font-size: 10px !important;
-       }
-       .section-title {
-         font-size: 11px !important;
-       }
-       .ai-chat-title {
-         font-size: 14px !important;
-       }
-       .ai-message-content {
-         font-size: 12px !important;
-       }
-       .study-assistant-modal .modal-body {
-         padding-bottom: 45px !important;
-       }
-       .quiz-left, .quiz-right {
-         width: 50% !important;
-         padding: 0 8px !important;
-       }
-       .quiz-main {
-         flex-direction: row !important;
-         gap: 10px !important;
-       }
-       .continent-stats {
-         grid-template-columns: repeat(3, 1fr);
-         gap: 8px;
-       }
-       .stat-item {
-         padding: 6px 8px !important;
-       }
-       .stat-value {
-         font-size: 12px !important;
-       }
-     }
    </style>
 </head>
 <body>
   <!-- 动态星空背景 -->
   <div id="starfield"></div>
-  <!-- 移动端菜单按钮 -->
-  <button class="mobile-menu-btn" id="mobile-menu-btn" title="菜单">☰</button>
-  <!-- 移动端竖屏旋转提示 -->
-  <div id="portrait-warning" class="portrait-warning">
-    <div class="portrait-content">
-      <div class="portrait-icon">📱</div>
-      <h2>请横屏使用</h2>
-      <p>为获得最佳体验，请将设备旋转至横屏模式</p>
-    </div>
-  </div>
   
   <div id="loading">
     <div class="loading-spinner"></div>
@@ -3314,17 +2627,6 @@
         <div class="toggle-item" data-key="continents">
           <div class="toggle-icon" style="background: linear-gradient(135deg, #f59e0b, #d97706);">🗺️</div>
           <span class="toggle-label">板块区域</span>
-          <div class="toggle-switch"></div>
-        </div>
-        <div class="toggle-item" data-key="weather">
-          <div class="toggle-icon" style="background: linear-gradient(135deg, #3b82f6, #0ea5e9);">🌤️</div>
-          <span class="toggle-label">天气数据</span>
-          <span id="weather-status" class="toggle-status" style="font-size:10px;color:#64ffda;"></span>
-          <div class="toggle-switch"></div>
-        </div>
-        <div class="toggle-item" data-key="gdp">
-          <div class="toggle-icon" style="background: linear-gradient(135deg, #fbbf24, #f59e0b);">💰</div>
-          <span class="toggle-label">GDP数据</span>
           <div class="toggle-switch"></div>
         </div>
       </div>
@@ -3578,9 +2880,14 @@
           <!-- 上传区域（在下方） -->
           <div class="upload-section" style="background: rgba(168,85,247,0.1); padding: 15px; border-radius: 10px; margin-top: 15px;">
             <h3 style="color: #a855f7; margin-bottom: 10px; font-size: 16px;">📤 添加图片</h3>
-            <input type="text" id="upload-image-url" placeholder="图片URL或本地路径" style="width: 100%; padding: 10px; border: 1px solid rgba(168,85,247,0.3); border-radius: 8px; background: rgba(255,255,255,0.05); color: #f1f5f9; font-size: 13px; margin-bottom: 8px;">
-            <input type="text" id="upload-image-title" placeholder="图片标题" style="width: 100%; padding: 10px; border: 1px solid rgba(168,85,247,0.3); border-radius: 8px; background: rgba(255,255,255,0.05); color: #f1f5f9; font-size: 13px; margin-bottom: 8px;">
-            <button id="upload-image-btn" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px;">➕ 添加图片</button>
+            <div style="display: flex; gap: 8px; margin-bottom: 8px;">
+              <input type="text" id="upload-image-url" placeholder="图片URL" style="flex: 1; padding: 10px; border: 1px solid rgba(168,85,247,0.3); border-radius: 8px; background: rgba(255,255,255,0.05); color: #f1f5f9; font-size: 13px;">
+              <label for="upload-image-file" style="padding: 10px 15px; background: rgba(168,85,247,0.3); border: 1px solid rgba(168,85,247,0.5); border-radius: 8px; cursor: pointer; color: #f1f5f9; font-size: 13px; white-space: nowrap;">📁 选择文件</label>
+              <input type="file" id="upload-image-file" accept="image/*" style="display: none;">
+            </div>
+            <input type="text" id="upload-image-title" placeholder="图片标题（可选）" style="width: 100%; padding: 10px; border: 1px solid rgba(168,85,247,0.3); border-radius: 8px; background: rgba(255,255,255,0.05); color: #f1f5f9; font-size: 13px; margin-bottom: 8px;">
+            <button id="upload-image-btn" style="background: linear-gradient(135deg, #a855f7, #7c3aed); color: white; border: none; padding: 10px 20px; border-radius: 8px; cursor: pointer; font-size: 14px; width: 100%; margin-bottom: 8px;">➕ 添加图片</button>
+            <button id="reset-gallery-btn" style="background: rgba(239,68,68,0.2); color: #ef4444; border: 1px solid rgba(239,68,68,0.3); padding: 8px 16px; border-radius: 8px; cursor: pointer; font-size: 12px; width: 100%;">🔄 恢复默认图集</button>
           </div>
         </div>
         <div id="gallery-resize-handle" class="resize-handle"></div>
@@ -3687,21 +2994,6 @@
           <div class="info-label">坐标</div>
           <div class="info-value coord" id="city-coord">39.9°N, 116.4°E</div>
         </div>
-        
-        <div class="city-info-card">
-          <div class="info-label">时区</div>
-          <div class="info-value" id="city-timezone">UTC+8</div>
-        </div>
-        
-        <div class="city-info-card">
-          <div class="info-label">人口</div>
-          <div class="info-value" id="city-population">2189万</div>
-        </div>
-        
-        <div class="city-info-card">
-          <div class="info-label">面积</div>
-          <div class="info-value" id="city-area">16410km²</div>
-        </div>
       </div>
       
       <div class="city-info-footer">
@@ -3771,6 +3063,10 @@
                     <input type="text" id="study-chat-input" class="chat-input" placeholder="输入地理问题...">
                     <button class="chat-send-btn" id="study-chat-send">发送</button>
                   </div>
+                  <div class="chat-voice-controls">
+                    <button class="chat-voice-btn" id="study-voice-btn" title="语音播报">🔊 播报</button>
+                    <button class="chat-voice-btn" id="study-voice-stop" title="停止播报">⏹ 停止</button>
+                  </div>
                 </div>
               </div>
             </div>
@@ -3810,7 +3106,6 @@
             </div>
           </div>
         </div>
-        <div class="study-assistant-resize-handle"></div>
       </div>
     </div>
 
@@ -3825,22 +3120,16 @@
           <span>AI地理助手</span>
           <div class="ai-status-dot"></div>
         </div>
-        <div class="ai-chat-controls">
-          <button class="ai-clear-btn" id="ai-clear-btn" title="清空聊天">🗑️</button>
-          <button class="ai-lang-btn" id="ai-lang-btn" title="切换语言">中/EN</button>
-          <button class="ai-close-btn" id="ai-close-btn">✕</button>
-        </div>
+        <button class="ai-close-btn" id="ai-close-btn">✕</button>
       </div>
       <div class="ai-chat-messages" id="ai-messages">
         <div class="ai-message bot">
-          👋 你好！我是AI地理助手。我可以回答地理问题、帮你控制地球仪，或者解释地理知识。<br><br>
-          🎤 <strong>语音控制</strong>：点击麦克风按钮，说出指令即可操作！<br><br>
-          • <strong>地理知识</strong>："为什么会有四季变化？"、"什么是晨昏线？"<br>
-          • <strong>定位导航</strong>："定位到北京"、"去东京"、"飞往纽约"<br>
-          • <strong>图层控制</strong>："显示气候带"、"打开天气"、"隐藏城市"<br>
-          • <strong>视图控制</strong>："放大"、"缩小"、"重置视图"<br>
-          • <strong>功能模块</strong>："打开知识库"、"开始答题"、"打开学习助手"<br>
-          • <strong>动画控制</strong>："开始自转"、"停止公转"、"全部停止"
+          👋 你好！我是AI地理助手。我可以回答地理问题、帮你控制地球仪，或者解释地理知识。试着问我：
+          <br><br>
+          • "为什么会有四季变化？"<br>
+          • "定位到北京"<br>
+          • "显示晨昏线"<br>
+          • "地球自转一圈要多久？"
         </div>
       </div>
       <div class="ai-quick-actions">
@@ -3848,20 +3137,6 @@
         <button class="ai-quick-btn" data-query="什么是晨昏线？">🌅 晨昏线</button>
         <button class="ai-quick-btn" data-query="定位到北京">📍 定位北京</button>
         <button class="ai-quick-btn" data-query="显示气候带">🌡️ 气候带</button>
-        <button class="ai-quick-btn" data-query="显示天气数据">🌤️ 天气</button>
-        <button class="ai-quick-btn" data-query="显示GDP数据">💰 GDP</button>
-        <button class="ai-quick-btn" data-query="开启自转">🔄 自转</button>
-        <button class="ai-quick-btn" data-query="定位到东京">🗼 东京</button>
-        <button class="ai-quick-btn" data-query="定位到纽约">🗽 纽约</button>
-        <button class="ai-quick-btn" data-query="打开知识库">📚 知识库</button>
-        <button class="ai-quick-btn" data-query="打开问答">📝 答题</button>
-        <button class="ai-quick-btn" data-query="打开学习助手">🎓 学习助手</button>
-        <button class="ai-quick-btn" data-query="显示板块区域">🗺️ 板块区域</button>
-        <button class="ai-quick-btn" data-query="显示洋流">🌊 洋流</button>
-        <button class="ai-quick-btn" data-query="显示季风">💨 季风</button>
-        <button class="ai-quick-btn" data-query="放大">🔍 放大</button>
-        <button class="ai-quick-btn" data-query="缩小">🔭 缩小</button>
-        <button class="ai-quick-btn" data-query="全部停止">⏹️ 停止动画</button>
       </div>
       <div class="ai-chat-input-area">
         <button class="ai-voice-btn" id="ai-voice-btn" title="语音输入">🎤</button>
@@ -3870,7 +3145,6 @@
         </div>
         <button class="ai-send-btn" id="ai-send-btn">➤</button>
       </div>
-      <div class="ai-chat-resize-handle"></div>
     </div>
 
     <!-- 语音识别指示器 -->
@@ -3896,6 +3170,7 @@
           <div class="ai-config-label">AI模式</div>
           <select id="ai-mode-select" class="ai-config-select">
             <option value="local">📚 本地知识库</option>
+            <option value="volcano">🌋 火山引擎豆包</option>
             <option value="openai">🤖 OpenAI ChatGPT</option>
             <option value="azure">☁️ Azure OpenAI</option>
             <option value="alibaba">🐉 阿里云百炼</option>
@@ -3909,6 +3184,14 @@
             <button class="ai-password-toggle" id="ai-password-toggle" type="button">👁️</button>
           </div>
           <div class="ai-config-hint">请输入您的API密钥，密钥将保存在本地浏览器中</div>
+        </div>
+
+        <div class="ai-config-section">
+          <div class="ai-config-label">推理接入点ID</div>
+          <div class="ai-input-wrapper">
+            <input type="text" id="ai-endpoint-id" class="ai-config-input" placeholder="推理接入点ID (如 ep-xxx)...">
+          </div>
+          <div class="ai-config-hint">火山引擎方舟平台的推理接入点ID</div>
         </div>
 
         <div class="ai-config-section">
@@ -4197,173 +3480,164 @@
     // 城市数据
     const cities = {
       // ============ 中国城市 ============
-      beijing: { name: '北京', lat: 39.9, lon: 116.4, country: '中国', province: '北京', population: '2189万', timezone: 'UTC+8', area: '16410km²', type: 'capital', continent: 'asia' },
-      shanghai: { name: '上海', lat: 31.2, lon: 121.5, country: '中国', province: '上海', population: '2487万', timezone: 'UTC+8', area: '6340km²', type: 'city', continent: 'asia' },
-      tianjin: { name: '天津', lat: 39.1, lon: 117.2, country: '中国', province: '天津', population: '1387万', timezone: 'UTC+8', area: '11966km²', type: 'city', continent: 'asia' },
-      chongqing: { name: '重庆', lat: 29.4, lon: 106.9, country: '中国', province: '重庆', population: '3205万', timezone: 'UTC+8', area: '82400km²', type: 'city', continent: 'asia' },
-      hongkong: { name: '香港', lat: 22.3, lon: 114.2, country: '中国', province: '香港', population: '747万', timezone: 'UTC+8', area: '1106km²', type: 'city', continent: 'asia' },
-      macao: { name: '澳门', lat: 22.1, lon: 113.5, country: '中国', province: '澳门', population: '68万', timezone: 'UTC+8', area: '32km²', type: 'city', continent: 'asia' },
-      taipei: { name: '台北', lat: 25.1, lon: 121.5, country: '中国', province: '台湾', population: '275万', timezone: 'UTC+8', area: '271km²', type: 'city', continent: 'asia' },
+      beijing: { name: '北京', lat: 39.9, lon: 116.4, country: '中国' },
+      shanghai: { name: '上海', lat: 31.2, lon: 121.5, country: '中国' },
+      tianjin: { name: '天津', lat: 39.1, lon: 117.2, country: '中国' },
+      chongqing: { name: '重庆', lat: 29.4, lon: 106.9, country: '中国' },
+      hongkong: { name: '香港', lat: 22.3, lon: 114.2, country: '中国' },
+      macao: { name: '澳门', lat: 22.1, lon: 113.5, country: '中国' },
+      taipei: { name: '台北', lat: 25.1, lon: 121.5, country: '中国' },
       
       // 华北地区
-      shijiazhuang: { name: '石家庄', lat: 38.0, lon: 114.5, country: '中国', province: '河北', population: '1124万', timezone: 'UTC+8', area: '15848km²', type: 'city', continent: 'asia' },
-      taiyuan: { name: '太原', lat: 37.9, lon: 112.5, country: '中国', province: '山西', population: '455万', timezone: 'UTC+8', area: '6988km²', type: 'city', continent: 'asia' },
-      hohohot: { name: '呼和浩特', lat: 40.8, lon: 111.7, country: '中国', province: '内蒙古', population: '344万', timezone: 'UTC+8', area: '17224km²', type: 'city', continent: 'asia' },
+      shijiazhuang: { name: '石家庄', lat: 38.0, lon: 114.5, country: '中国' },
+      taiyuan: { name: '太原', lat: 37.9, lon: 112.5, country: '中国' },
+      hohohot: { name: '呼和浩特', lat: 40.8, lon: 111.7, country: '中国' },
       
       // 东北地区
-      shenyang: { name: '沈阳', lat: 41.8, lon: 123.4, country: '中国', province: '辽宁', population: '907万', timezone: 'UTC+8', area: '12948km²', type: 'city', continent: 'asia' },
-      dalian: { name: '大连', lat: 38.9, lon: 121.6, country: '中国', province: '辽宁', population: '745万', timezone: 'UTC+8', area: '12574km²', type: 'city', continent: 'asia' },
-      changchun: { name: '长春', lat: 43.9, lon: 125.3, country: '中国', province: '吉林', population: '906万', timezone: 'UTC+8', area: '20604km²', type: 'city', continent: 'asia' },
-      harbin: { name: '哈尔滨', lat: 45.8, lon: 126.6, country: '中国', province: '黑龙江', population: '1001万', timezone: 'UTC+8', area: '53068km²', type: 'city', continent: 'asia' },
+      shenyang: { name: '沈阳', lat: 41.8, lon: 123.4, country: '中国' },
+      dalian: { name: '大连', lat: 38.9, lon: 121.6, country: '中国' },
+      changchun: { name: '长春', lat: 43.9, lon: 125.3, country: '中国' },
+      harbin: { name: '哈尔滨', lat: 45.8, lon: 126.6, country: '中国' },
       
       // 华东地区
-      jinan: { name: '济南', lat: 36.6, lon: 116.9, country: '中国', province: '山东', population: '920万', timezone: 'UTC+8', area: '10244km²', type: 'city', continent: 'asia' },
-      qingdao: { name: '青岛', lat: 36.1, lon: 120.4, country: '中国', province: '山东', population: '1010万', timezone: 'UTC+8', area: '11293km²', type: 'city', continent: 'asia' },
-      nanjing: { name: '南京', lat: 32.1, lon: 118.8, country: '中国', province: '江苏', population: '931万', timezone: 'UTC+8', area: '6587km²', type: 'city', continent: 'asia' },
-      suzhou: { name: '苏州', lat: 31.3, lon: 120.6, country: '中国', province: '江苏', population: '1274万', timezone: 'UTC+8', area: '8657km²', type: 'city', continent: 'asia' },
-      hangzhou: { name: '杭州', lat: 30.3, lon: 120.2, country: '中国', province: '浙江', population: '1220万', timezone: 'UTC+8', area: '16850km²', type: 'city', continent: 'asia' },
-      ningbo: { name: '宁波', lat: 29.8, lon: 121.5, country: '中国', province: '浙江', population: '955万', timezone: 'UTC+8', area: '9816km²', type: 'city', continent: 'asia' },
-      fuzhou: { name: '福州', lat: 26.1, lon: 119.3, country: '中国', province: '福建', population: '829万', timezone: 'UTC+8', area: '11968km²', type: 'city', continent: 'asia' },
-      xiamen: { name: '厦门', lat: 24.5, lon: 118.1, country: '中国', province: '福建', population: '516万', timezone: 'UTC+8', area: '1700km²', type: 'city', continent: 'asia' },
-      hefei: { name: '合肥', lat: 31.8, lon: 117.2, country: '中国', province: '安徽', population: '937万', timezone: 'UTC+8', area: '11445km²', type: 'city', continent: 'asia' },
+      jinan: { name: '济南', lat: 36.6, lon: 116.9, country: '中国' },
+      qingdao: { name: '青岛', lat: 36.1, lon: 120.4, country: '中国' },
+      nanjing: { name: '南京', lat: 32.1, lon: 118.8, country: '中国' },
+      suzhou: { name: '苏州', lat: 31.3, lon: 120.6, country: '中国' },
+      hangzhou: { name: '杭州', lat: 30.3, lon: 120.2, country: '中国' },
+      ningbo: { name: '宁波', lat: 29.8, lon: 121.5, country: '中国' },
+      fuzhou: { name: '福州', lat: 26.1, lon: 119.3, country: '中国' },
+      xiamen: { name: '厦门', lat: 24.5, lon: 118.1, country: '中国' },
+      hefei: { name: '合肥', lat: 31.8, lon: 117.2, country: '中国' },
       
-      // 江西省
-      nanchang: { name: '南昌', lat: 28.6, lon: 115.9, country: '中国', province: '江西', population: '625万', timezone: 'UTC+8', area: '7402km²', type: 'city', continent: 'asia' },
-      jingdezhen: { name: '景德镇', lat: 29.2, lon: 117.2, country: '中国', province: '江西', population: '162万', timezone: 'UTC+8', area: '5256km²', type: 'city', continent: 'asia' },
-      pingxiang: { name: '萍乡', lat: 27.6, lon: 113.8, country: '中国', province: '江西', population: '180万', timezone: 'UTC+8', area: '3831km²', type: 'city', continent: 'asia' },
-      jiujiang: { name: '九江', lat: 29.7, lon: 115.9, country: '中国', province: '江西', population: '457万', timezone: 'UTC+8', area: '18823km²', type: 'city', continent: 'asia' },
-      xinyu: { name: '新余', lat: 27.8, lon: 114.9, country: '中国', province: '江西', population: '120万', timezone: 'UTC+8', area: '3178km²', type: 'city', continent: 'asia' },
-      yingtan: { name: '鹰潭', lat: 28.2, lon: 117.0, country: '中国', province: '江西', population: '115万', timezone: 'UTC+8', area: '3556km²', type: 'city', continent: 'asia' },
-      ganzhou: { name: '赣州', lat: 25.8, lon: 114.9, country: '中国', province: '江西', population: '898万', timezone: 'UTC+8', area: '39379km²', type: 'city', continent: 'asia' },
-      jian: { name: '吉安', lat: 27.1, lon: 114.9, country: '中国', province: '江西', population: '446万', timezone: 'UTC+8', area: '25283km²', type: 'city', continent: 'asia' },
-      yichun: { name: '宜春', lat: 27.8, lon: 114.3, country: '中国', province: '江西', population: '501万', timezone: 'UTC+8', area: '18680km²', type: 'city', continent: 'asia' },
-      fuzhou_jiangxi: { name: '抚州', lat: 28.0, lon: 116.3, country: '中国', province: '江西', population: '361万', timezone: 'UTC+8', area: '18817km²', type: 'city', continent: 'asia' },
-      shangrao: { name: '上饶', lat: 28.4, lon: 117.9, country: '中国', province: '江西', population: '649万', timezone: 'UTC+8', area: '22791km²', type: 'city', continent: 'asia' },
+      // 江西省（重点增加）
+      nanchang: { name: '南昌', lat: 28.6, lon: 115.9, country: '中国', province: '江西' },
+      jingdezhen: { name: '景德镇', lat: 29.2, lon: 117.2, country: '中国', province: '江西' },
+      pingxiang: { name: '萍乡', lat: 27.6, lon: 113.8, country: '中国', province: '江西' },
+      jiujiang: { name: '九江', lat: 29.7, lon: 115.9, country: '中国', province: '江西' },
+      xinyu: { name: '新余', lat: 27.8, lon: 114.9, country: '中国', province: '江西' },
+      yingtan: { name: '鹰潭', lat: 28.2, lon: 117.0, country: '中国', province: '江西' },
+      ganzhou: { name: '赣州', lat: 25.8, lon: 114.9, country: '中国', province: '江西' },
+      jian: { name: '吉安', lat: 27.1, lon: 114.9, country: '中国', province: '江西' },
+      yichun: { name: '宜春', lat: 27.8, lon: 114.3, country: '中国', province: '江西' },
+      fuzhou_jiangxi: { name: '抚州', lat: 28.0, lon: 116.3, country: '中国', province: '江西' },
+      shangrao: { name: '上饶', lat: 28.4, lon: 117.9, country: '中国', province: '江西' },
       
       // 华中地区
-      wuhan: { name: '武汉', lat: 30.6, lon: 114.3, country: '中国', province: '湖北', population: '1365万', timezone: 'UTC+8', area: '8569km²', type: 'city', continent: 'asia' },
-      changsha: { name: '长沙', lat: 28.2, lon: 112.9, country: '中国', province: '湖南', population: '1023万', timezone: 'UTC+8', area: '11819km²', type: 'city', continent: 'asia' },
-      zhengzhou: { name: '郑州', lat: 34.7, lon: 113.6, country: '中国', province: '河南', population: '1260万', timezone: 'UTC+8', area: '7567km²', type: 'city', continent: 'asia' },
+      wuhan: { name: '武汉', lat: 30.6, lon: 114.3, country: '中国' },
+      changsha: { name: '长沙', lat: 28.2, lon: 112.9, country: '中国' },
+      zhengzhou: { name: '郑州', lat: 34.7, lon: 113.6, country: '中国' },
       
       // 华南地区
-      guangzhou: { name: '广州', lat: 23.1, lon: 113.3, country: '中国', province: '广东', population: '1881万', timezone: 'UTC+8', area: '7434km²', type: 'city', continent: 'asia' },
-      shenzhen: { name: '深圳', lat: 22.5, lon: 114.1, country: '中国', province: '广东', population: '1768万', timezone: 'UTC+8', area: '1997km²', type: 'city', continent: 'asia' },
-      nanning: { name: '南宁', lat: 22.8, lon: 108.3, country: '中国', province: '广西', population: '874万', timezone: 'UTC+8', area: '22112km²', type: 'city', continent: 'asia' },
-      haikou: { name: '海口', lat: 20.0, lon: 110.3, country: '中国', province: '海南', population: '293万', timezone: 'UTC+8', area: '3126km²', type: 'city', continent: 'asia' },
+      guangzhou: { name: '广州', lat: 23.1, lon: 113.3, country: '中国' },
+      shenzhen: { name: '深圳', lat: 22.5, lon: 114.1, country: '中国' },
+      nanning: { name: '南宁', lat: 22.8, lon: 108.3, country: '中国' },
+      haikou: { name: '海口', lat: 20.0, lon: 110.3, country: '中国' },
       
       // 西南地区
-      chengdu: { name: '成都', lat: 30.6, lon: 104.0, country: '中国', province: '四川', population: '2119万', timezone: 'UTC+8', area: '14335km²', type: 'city', continent: 'asia' },
-      kunming: { name: '昆明', lat: 25.0, lon: 102.7, country: '中国', province: '云南', population: '850万', timezone: 'UTC+8', area: '21473km²', type: 'city', continent: 'asia' },
-      guiyang: { name: '贵阳', lat: 26.6, lon: 106.7, country: '中国', province: '贵州', population: '620万', timezone: 'UTC+8', area: '8034km²', type: 'city', continent: 'asia' },
-      lhasa: { name: '拉萨', lat: 29.6, lon: 91.1, country: '中国', province: '西藏', population: '86万', timezone: 'UTC+8', area: '29518km²', type: 'city', continent: 'asia' },
-      lijiang: { name: '丽江', lat: 26.9, lon: 100.2, country: '中国', province: '云南', population: '125万', timezone: 'UTC+8', area: '20600km²', type: 'city', continent: 'asia' },
+      chengdu: { name: '成都', lat: 30.6, lon: 104.0, country: '中国' },
+      kunming: { name: '昆明', lat: 25.0, lon: 102.7, country: '中国' },
+      guiyang: { name: '贵阳', lat: 26.6, lon: 106.7, country: '中国' },
+      lhasa: { name: '拉萨', lat: 29.6, lon: 91.1, country: '中国' },
+      lijiang: { name: '丽江', lat: 26.9, lon: 100.2, country: '中国' },
       
       // 西北地区
-      xian: { name: '西安', lat: 34.3, lon: 108.9, country: '中国', province: '陕西', population: '1218万', timezone: 'UTC+8', area: '10108km²', type: 'city', continent: 'asia' },
-      lanzhou: { name: '兰州', lat: 36.0, lon: 103.8, country: '中国', province: '甘肃', population: '436万', timezone: 'UTC+8', area: '13085km²', type: 'city', continent: 'asia' },
-      xining: { name: '西宁', lat: 36.6, lon: 101.8, country: '中国', province: '青海', population: '247万', timezone: 'UTC+8', area: '7665km²', type: 'city', continent: 'asia' },
-      yinchuan: { name: '银川', lat: 38.5, lon: 106.2, country: '中国', province: '宁夏', population: '288万', timezone: 'UTC+8', area: '9025km²', type: 'city', continent: 'asia' },
-      urumqi: { name: '乌鲁木齐', lat: 43.8, lon: 87.6, country: '中国', province: '新疆', population: '405万', timezone: 'UTC+6', area: '14216km²', type: 'city', continent: 'asia' },
+      xian: { name: '西安', lat: 34.3, lon: 108.9, country: '中国' },
+      lanzhou: { name: '兰州', lat: 36.0, lon: 103.8, country: '中国' },
+      xining: { name: '西宁', lat: 36.6, lon: 101.8, country: '中国' },
+      yinchuan: { name: '银川', lat: 38.5, lon: 106.2, country: '中国' },
+      urumqi: { name: '乌鲁木齐', lat: 43.8, lon: 87.6, country: '中国' },
       
       // ============ 亚洲城市 ============
-      tokyo: { name: '东京', lat: 35.7, lon: 139.7, country: '日本', population: '3740万', timezone: 'UTC+9', area: '2194km²', type: 'capital', continent: 'asia' },
-      osaka: { name: '大阪', lat: 34.6, lon: 135.5, country: '日本', population: '1913万', timezone: 'UTC+9', area: '225km²', type: 'city', continent: 'asia' },
-      kyoto: { name: '京都', lat: 35.0, lon: 135.8, country: '日本', population: '147万', timezone: 'UTC+9', area: '828km²', type: 'city', continent: 'asia' },
-      seoul: { name: '首尔', lat: 37.6, lon: 126.9, country: '韩国', population: '997万', timezone: 'UTC+9', area: '605km²', type: 'capital', continent: 'asia' },
-      busan: { name: '釜山', lat: 35.1, lon: 129.0, country: '韩国', population: '341万', timezone: 'UTC+9', area: '769km²', type: 'city', continent: 'asia' },
-      singapore: { name: '新加坡', lat: 1.3, lon: 103.8, country: '新加坡', population: '591万', timezone: 'UTC+8', area: '728km²', type: 'capital', continent: 'asia' },
-      bangkok: { name: '曼谷', lat: 13.7, lon: 100.5, country: '泰国', population: '1015万', timezone: 'UTC+7', area: '1568km²', type: 'capital', continent: 'asia' },
-      phuket: { name: '普吉', lat: 8.1, lon: 98.3, country: '泰国', population: '41万', timezone: 'UTC+7', area: '576km²', type: 'city', continent: 'asia' },
-      dubai: { name: '迪拜', lat: 25.3, lon: 55.3, country: '阿联酋', population: '340万', timezone: 'UTC+4', area: '4114km²', type: 'city', continent: 'asia' },
-      abudhabi: { name: '阿布扎比', lat: 24.4, lon: 54.4, country: '阿联酋', population: '157万', timezone: 'UTC+4', area: '67340km²', type: 'capital', continent: 'asia' },
-      mumbai: { name: '孟买', lat: 19.1, lon: 72.9, country: '印度', population: '2041万', timezone: 'UTC+5:30', area: '603km²', type: 'city', continent: 'asia' },
-      delhi: { name: '新德里', lat: 28.6, lon: 77.2, country: '印度', population: '3118万', timezone: 'UTC+5:30', area: '1484km²', type: 'capital', continent: 'asia' },
-      bangalore: { name: '班加罗尔', lat: 12.9, lon: 77.6, country: '印度', population: '1360万', timezone: 'UTC+5:30', area: '805km²', type: 'city', continent: 'asia' },
-      kolkata: { name: '加尔各答', lat: 22.5, lon: 88.3, country: '印度', population: '1531万', timezone: 'UTC+5:30', area: '185km²', type: 'city', continent: 'asia' },
-      jakarta: { name: '雅加达', lat: -6.2, lon: 106.8, country: '印度尼西亚', population: '3375万', timezone: 'UTC+7', area: '661km²', type: 'capital', continent: 'asia' },
-      bali: { name: '巴厘岛', lat: -8.4, lon: 115.2, country: '印度尼西亚', population: '431万', timezone: 'UTC+8', area: '5780km²', type: 'city', continent: 'asia' },
-      manila: { name: '马尼拉', lat: 14.6, lon: 121.0, country: '菲律宾', population: '1392万', timezone: 'UTC+8', area: '638km²', type: 'capital', continent: 'asia' },
-      hanoi: { name: '河内', lat: 21.0, lon: 105.8, country: '越南', population: '805万', timezone: 'UTC+7', area: '3324km²', type: 'capital', continent: 'asia' },
-      hoChiMinh: { name: '胡志明市', lat: 10.8, lon: 106.7, country: '越南', population: '921万', timezone: 'UTC+7', area: '2095km²', type: 'city', continent: 'asia' },
-      kualaLumpur: { name: '吉隆坡', lat: 3.1, lon: 101.7, country: '马来西亚', population: '198万', timezone: 'UTC+8', area: '243km²', type: 'capital', continent: 'asia' },
-      penang: { name: '槟城', lat: 5.4, lon: 100.3, country: '马来西亚', population: '177万', timezone: 'UTC+8', area: '1048km²', type: 'city', continent: 'asia' },
-      manama: { name: '麦纳麦', lat: 26.2, lon: 50.6, country: '巴林', population: '157万', timezone: 'UTC+3', area: '78km²', type: 'capital', continent: 'asia' },
-      doha: { name: '多哈', lat: 25.3, lon: 51.6, country: '卡塔尔', population: '293万', timezone: 'UTC+3', area: '132km²', type: 'capital', continent: 'asia' },
-      riyadh: { name: '利雅得', lat: 24.7, lon: 46.7, country: '沙特阿拉伯', population: '753万', timezone: 'UTC+3', area: '1913km²', type: 'capital', continent: 'asia' },
-      islamabad: { name: '伊斯兰堡', lat: 33.7, lon: 73.1, country: '巴基斯坦', population: '110万', timezone: 'UTC+5', area: '906km²', type: 'capital', continent: 'asia' },
-      dhaka: { name: '达卡', lat: 23.8, lon: 90.4, country: '孟加拉国', population: '2173万', timezone: 'UTC+6', area: '306km²', type: 'capital', continent: 'asia' },
-      tehran: { name: '德黑兰', lat: 35.7, lon: 51.4, country: '伊朗', population: '911万', timezone: 'UTC+3:30', area: '615km²', type: 'capital', continent: 'asia' },
-      jerusalem: { name: '耶路撒冷', lat: 31.8, lon: 35.2, country: '以色列', population: '95万', timezone: 'UTC+2', area: '125km²', type: 'capital', continent: 'asia' },
+      tokyo: { name: '东京', lat: 35.7, lon: 139.7, country: '日本' },
+      osaka: { name: '大阪', lat: 34.6, lon: 135.5, country: '日本' },
+      kyoto: { name: '京都', lat: 35.0, lon: 135.8, country: '日本' },
+      seoul: { name: '首尔', lat: 37.6, lon: 126.9, country: '韩国' },
+      busan: { name: '釜山', lat: 35.1, lon: 129.0, country: '韩国' },
+      singapore: { name: '新加坡', lat: 1.3, lon: 103.8, country: '新加坡' },
+      bangkok: { name: '曼谷', lat: 13.7, lon: 100.5, country: '泰国' },
+      phuket: { name: '普吉', lat: 8.1, lon: 98.3, country: '泰国' },
+      dubai: { name: '迪拜', lat: 25.3, lon: 55.3, country: '阿联酋' },
+      abudhabi: { name: '阿布扎比', lat: 24.4, lon: 54.4, country: '阿联酋' },
+      mumbai: { name: '孟买', lat: 19.1, lon: 72.9, country: '印度' },
+      delhi: { name: '新德里', lat: 28.6, lon: 77.2, country: '印度' },
+      bangalore: { name: '班加罗尔', lat: 12.9, lon: 77.6, country: '印度' },
+      kolkata: { name: '加尔各答', lat: 22.5, lon: 88.3, country: '印度' },
+      jakarta: { name: '雅加达', lat: -6.2, lon: 106.8, country: '印度尼西亚' },
+      bali: { name: '巴厘岛', lat: -8.4, lon: 115.2, country: '印度尼西亚' },
+      manila: { name: '马尼拉', lat: 14.6, lon: 121.0, country: '菲律宾' },
+      hanoi: { name: '河内', lat: 21.0, lon: 105.8, country: '越南' },
+      hoChiMinh: { name: '胡志明市', lat: 10.8, lon: 106.7, country: '越南' },
+      kualaLumpur: { name: '吉隆坡', lat: 3.1, lon: 101.7, country: '马来西亚' },
+      penang: { name: '槟城', lat: 5.4, lon: 100.3, country: '马来西亚' },
+      manama: { name: '麦纳麦', lat: 26.2, lon: 50.6, country: '巴林' },
+      doha: { name: '多哈', lat: 25.3, lon: 51.6, country: '卡塔尔' },
       
       // ============ 欧洲城市 ============
-      moscow: { name: '莫斯科', lat: 55.8, lon: 37.6, country: '俄罗斯', population: '1250万', timezone: 'UTC+3', area: '2561km²', type: 'capital', continent: 'europe' },
-      stpetersburg: { name: '圣彼得堡', lat: 59.9, lon: 30.3, country: '俄罗斯', population: '538万', timezone: 'UTC+3', area: '1439km²', type: 'city', continent: 'europe' },
-      london: { name: '伦敦', lat: 51.5, lon: -0.1, country: '英国', population: '930万', timezone: 'UTC±0', area: '1572km²', type: 'capital', continent: 'europe' },
-      edinburgh: { name: '爱丁堡', lat: 55.9, lon: -3.2, country: '英国', population: '52万', timezone: 'UTC±0', area: '264km²', type: 'city', continent: 'europe' },
-      paris: { name: '巴黎', lat: 48.9, lon: 2.3, country: '法国', population: '1085万', timezone: 'UTC+1', area: '105km²', type: 'capital', continent: 'europe' },
-      lyon: { name: '里昂', lat: 45.8, lon: 4.9, country: '法国', population: '500万', timezone: 'UTC+1', area: '47km²', type: 'city', continent: 'europe' },
-      berlin: { name: '柏林', lat: 52.5, lon: 13.4, country: '德国', population: '376万', timezone: 'UTC+1', area: '891km²', type: 'capital', continent: 'europe' },
-      munich: { name: '慕尼黑', lat: 48.1, lon: 11.6, country: '德国', population: '151万', timezone: 'UTC+1', area: '311km²', type: 'city', continent: 'europe' },
-      rome: { name: '罗马', lat: 41.9, lon: 12.5, country: '意大利', population: '287万', timezone: 'UTC+1', area: '1285km²', type: 'capital', continent: 'europe' },
-      venice: { name: '威尼斯', lat: 45.4, lon: 12.3, country: '意大利', population: '26万', timezone: 'UTC+1', area: '414km²', type: 'city', continent: 'europe' },
-      madrid: { name: '马德里', lat: 40.4, lon: -3.7, country: '西班牙', population: '661万', timezone: 'UTC+1', area: '607km²', type: 'capital', continent: 'europe' },
-      barcelona: { name: '巴塞罗那', lat: 41.4, lon: 2.2, country: '西班牙', population: '557万', timezone: 'UTC+1', area: '101km²', type: 'city', continent: 'europe' },
-      lisbon: { name: '里斯本', lat: 38.7, lon: -9.1, country: '葡萄牙', population: '300万', timezone: 'UTC±0', area: '84km²', type: 'capital', continent: 'europe' },
-      amsterdam: { name: '阿姆斯特丹', lat: 52.4, lon: 4.9, country: '荷兰', population: '214万', timezone: 'UTC+1', area: '219km²', type: 'capital', continent: 'europe' },
-      brussels: { name: '布鲁塞尔', lat: 50.9, lon: 4.4, country: '比利时', population: '120万', timezone: 'UTC+1', area: '162km²', type: 'capital', continent: 'europe' },
-      copenhagen: { name: '哥本哈根', lat: 55.7, lon: 12.6, country: '丹麦', population: '136万', timezone: 'UTC+1', area: '97km²', type: 'capital', continent: 'europe' },
-      stockholm: { name: '斯德哥尔摩', lat: 59.3, lon: 18.1, country: '瑞典', population: '98万', timezone: 'UTC+1', area: '188km²', type: 'capital', continent: 'europe' },
-      oslo: { name: '奥斯陆', lat: 59.9, lon: 10.8, country: '挪威', population: '69万', timezone: 'UTC+1', area: '454km²', type: 'capital', continent: 'europe' },
-      helsinki: { name: '赫尔辛基', lat: 60.2, lon: 25.0, country: '芬兰', population: '65万', timezone: 'UTC+2', area: '719km²', type: 'capital', continent: 'europe' },
-      prague: { name: '布拉格', lat: 50.1, lon: 14.4, country: '捷克', population: '130万', timezone: 'UTC+1', area: '496km²', type: 'capital', continent: 'europe' },
-      vienna: { name: '维也纳', lat: 48.2, lon: 16.3, country: '奥地利', population: '190万', timezone: 'UTC+1', area: '415km²', type: 'capital', continent: 'europe' },
-      warsaw: { name: '华沙', lat: 52.2, lon: 21.0, country: '波兰', population: '179万', timezone: 'UTC+1', area: '517km²', type: 'capital', continent: 'europe' },
-      budapest: { name: '布达佩斯', lat: 47.5, lon: 19.1, country: '匈牙利', population: '172万', timezone: 'UTC+1', area: '525km²', type: 'capital', continent: 'europe' },
-      athens: { name: '雅典', lat: 37.9, lon: 23.7, country: '希腊', population: '665万', timezone: 'UTC+2', area: '389km²', type: 'capital', continent: 'europe' },
-      istanbul: { name: '伊斯坦布尔', lat: 41.0, lon: 28.9, country: '土耳其', population: '1546万', timezone: 'UTC+3', area: '5343km²', type: 'city', continent: 'europe' },
-      zurich: { name: '苏黎世', lat: 47.4, lon: 8.5, country: '瑞士', population: '43万', timezone: 'UTC+1', area: '87km²', type: 'city', continent: 'europe' },
-      dublin: { name: '都柏林', lat: 53.3, lon: -6.2, country: '爱尔兰', population: '59万', timezone: 'UTC±0', area: '115km²', type: 'capital', continent: 'europe' },
+      moscow: { name: '莫斯科', lat: 55.8, lon: 37.6, country: '俄罗斯' },
+      stpetersburg: { name: '圣彼得堡', lat: 59.9, lon: 30.3, country: '俄罗斯' },
+      london: { name: '伦敦', lat: 51.5, lon: -0.1, country: '英国' },
+      edinburgh: { name: '爱丁堡', lat: 55.9, lon: -3.2, country: '英国' },
+      paris: { name: '巴黎', lat: 48.9, lon: 2.3, country: '法国' },
+      lyon: { name: '里昂', lat: 45.8, lon: 4.9, country: '法国' },
+      berlin: { name: '柏林', lat: 52.5, lon: 13.4, country: '德国' },
+      munich: { name: '慕尼黑', lat: 48.1, lon: 11.6, country: '德国' },
+      rome: { name: '罗马', lat: 41.9, lon: 12.5, country: '意大利' },
+      venice: { name: '威尼斯', lat: 45.4, lon: 12.3, country: '意大利' },
+      madrid: { name: '马德里', lat: 40.4, lon: -3.7, country: '西班牙' },
+      barcelona: { name: '巴塞罗那', lat: 41.4, lon: 2.2, country: '西班牙' },
+      lisbon: { name: '里斯本', lat: 38.7, lon: -9.1, country: '葡萄牙' },
+      amsterdam: { name: '阿姆斯特丹', lat: 52.4, lon: 4.9, country: '荷兰' },
+      brussels: { name: '布鲁塞尔', lat: 50.9, lon: 4.4, country: '比利时' },
+      copenhagen: { name: '哥本哈根', lat: 55.7, lon: 12.6, country: '丹麦' },
+      stockholm: { name: '斯德哥尔摩', lat: 59.3, lon: 18.1, country: '瑞典' },
+      oslo: { name: '奥斯陆', lat: 59.9, lon: 10.8, country: '挪威' },
+      helsinki: { name: '赫尔辛基', lat: 60.2, lon: 25.0, country: '芬兰' },
+      prague: { name: '布拉格', lat: 50.1, lon: 14.4, country: '捷克' },
+      vienna: { name: '维也纳', lat: 48.2, lon: 16.3, country: '奥地利' },
+      warsaw: { name: '华沙', lat: 52.2, lon: 21.0, country: '波兰' },
+      budapest: { name: '布达佩斯', lat: 47.5, lon: 19.1, country: '匈牙利' },
+      athens: { name: '雅典', lat: 37.9, lon: 23.7, country: '希腊' },
       
       // ============ 北美洲城市 ============
-      newyork: { name: '纽约', lat: 40.7, lon: -74.0, country: '美国', population: '833万', timezone: 'UTC-5', area: '783km²', type: 'city', continent: 'northAmerica' },
-      losangeles: { name: '洛杉矶', lat: 34.1, lon: -118.2, country: '美国', population: '398万', timezone: 'UTC-8', area: '1302km²', type: 'city', continent: 'northAmerica' },
-      chicago: { name: '芝加哥', lat: 41.9, lon: -87.7, country: '美国', population: '274万', timezone: 'UTC-6', area: '606km²', type: 'city', continent: 'northAmerica' },
-      washington: { name: '华盛顿', lat: 38.9, lon: -77.0, country: '美国', population: '71万', timezone: 'UTC-5', area: '177km²', type: 'capital', continent: 'northAmerica' },
-      sanfrancisco: { name: '旧金山', lat: 37.8, lon: -122.4, country: '美国', population: '81万', timezone: 'UTC-8', area: '121km²', type: 'city', continent: 'northAmerica' },
-      miami: { name: '迈阿密', lat: 25.8, lon: -80.2, country: '美国', population: '44万', timezone: 'UTC-5', area: '56km²', type: 'city', continent: 'northAmerica' },
-      lasvegas: { name: '拉斯维加斯', lat: 36.1, lon: -115.2, country: '美国', population: '65万', timezone: 'UTC-8', area: '352km²', type: 'city', continent: 'northAmerica' },
-      houston: { name: '休斯顿', lat: 29.8, lon: -95.4, country: '美国', population: '232万', timezone: 'UTC-6', area: '1625km²', type: 'city', continent: 'northAmerica' },
-      toronto: { name: '多伦多', lat: 43.7, lon: -79.4, country: '加拿大', population: '273万', timezone: 'UTC-5', area: '630km²', type: 'capital', continent: 'northAmerica' },
-      vancouver: { name: '温哥华', lat: 49.3, lon: -123.1, country: '加拿大', population: '67万', timezone: 'UTC-8', area: '115km²', type: 'city', continent: 'northAmerica' },
-      montreal: { name: '蒙特利尔', lat: 45.5, lon: -73.6, country: '加拿大', population: '176万', timezone: 'UTC-5', area: '365km²', type: 'city', continent: 'northAmerica' },
-      mexico: { name: '墨西哥城', lat: 19.4, lon: -99.1, country: '墨西哥', population: '920万', timezone: 'UTC-6', area: '1485km²', type: 'capital', continent: 'northAmerica' },
-      cancun: { name: '坎昆', lat: 21.1, lon: -86.8, country: '墨西哥', population: '82万', timezone: 'UTC-5', area: '67km²', type: 'city', continent: 'northAmerica' },
+      newyork: { name: '纽约', lat: 40.7, lon: -74.0, country: '美国' },
+      losangeles: { name: '洛杉矶', lat: 34.1, lon: -118.2, country: '美国' },
+      chicago: { name: '芝加哥', lat: 41.9, lon: -87.7, country: '美国' },
+      washington: { name: '华盛顿', lat: 38.9, lon: -77.0, country: '美国' },
+      sanfrancisco: { name: '旧金山', lat: 37.8, lon: -122.4, country: '美国' },
+      miami: { name: '迈阿密', lat: 25.8, lon: -80.2, country: '美国' },
+      lasvegas: { name: '拉斯维加斯', lat: 36.1, lon: -115.2, country: '美国' },
+      houston: { name: '休斯顿', lat: 29.8, lon: -95.4, country: '美国' },
+      toronto: { name: '多伦多', lat: 43.7, lon: -79.4, country: '加拿大' },
+      vancouver: { name: '温哥华', lat: 49.3, lon: -123.1, country: '加拿大' },
+      montreal: { name: '蒙特利尔', lat: 45.5, lon: -73.6, country: '加拿大' },
+      mexico: { name: '墨西哥城', lat: 19.4, lon: -99.1, country: '墨西哥' },
+      cancun: { name: '坎昆', lat: 21.1, lon: -86.8, country: '墨西哥' },
       
       // ============ 南美洲城市 ============
-      rio: { name: '里约热内卢', lat: -22.9, lon: -43.2, country: '巴西', population: '674万', timezone: 'UTC-3', area: '1260km²', type: 'city', continent: 'southAmerica' },
-      saoPaulo: { name: '圣保罗', lat: -23.5, lon: -46.6, country: '巴西', population: '1230万', timezone: 'UTC-3', area: '1521km²', type: 'city', continent: 'southAmerica' },
-      buenosaires: { name: '布宜诺斯艾利斯', lat: -34.6, lon: -58.4, country: '阿根廷', population: '307万', timezone: 'UTC-3', area: '203km²', type: 'capital', continent: 'southAmerica' },
-      santiago: { name: '圣地亚哥', lat: -33.5, lon: -70.6, country: '智利', population: '720万', timezone: 'UTC-4', area: '641km²', type: 'capital', continent: 'southAmerica' },
-      lima: { name: '利马', lat: -12.1, lon: -77.0, country: '秘鲁', population: '975万', timezone: 'UTC-5', area: '2672km²', type: 'capital', continent: 'southAmerica' },
-      bogota: { name: '波哥大', lat: 4.6, lon: -74.1, country: '哥伦比亚', population: '787万', timezone: 'UTC-5', area: '1587km²', type: 'capital', continent: 'southAmerica' },
+      rio: { name: '里约热内卢', lat: -22.9, lon: -43.2, country: '巴西' },
+      saoPaulo: { name: '圣保罗', lat: -23.5, lon: -46.6, country: '巴西' },
+      buenosaires: { name: '布宜诺斯艾利斯', lat: -34.6, lon: -58.4, country: '阿根廷' },
+      santiago: { name: '圣地亚哥', lat: -33.5, lon: -70.6, country: '智利' },
+      lima: { name: '利马', lat: -12.1, lon: -77.0, country: '秘鲁' },
       
       // ============ 非洲城市 ============
-      cairo: { name: '开罗', lat: 30.0, lon: 31.2, country: '埃及', population: '2132万', timezone: 'UTC+2', area: '3085km²', type: 'capital', continent: 'africa' },
-      alexandria: { name: '亚历山大', lat: 31.2, lon: 29.9, country: '埃及', population: '531万', timezone: 'UTC+2', area: '267km²', type: 'city', continent: 'africa' },
-      johannesburg: { name: '约翰内斯堡', lat: -26.2, lon: 28.1, country: '南非', population: '561万', timezone: 'UTC+2', area: '1648km²', type: 'city', continent: 'africa' },
-      capeTown: { name: '开普敦', lat: -33.9, lon: 18.4, country: '南非', population: '461万', timezone: 'UTC+2', area: '2454km²', type: 'city', continent: 'africa' },
-      nairobi: { name: '内罗毕', lat: -1.3, lon: 36.8, country: '肯尼亚', population: '439万', timezone: 'UTC+3', area: '696km²', type: 'capital', continent: 'africa' },
-      lagos: { name: '拉各斯', lat: 6.5, lon: 3.4, country: '尼日利亚', population: '2100万', timezone: 'UTC+1', area: '1171km²', type: 'city', continent: 'africa' },
-      casablanca: { name: '卡萨布兰卡', lat: 33.6, lon: -7.6, country: '摩洛哥', population: '371万', timezone: 'UTC±0', area: '230km²', type: 'city', continent: 'africa' },
+      cairo: { name: '开罗', lat: 30.0, lon: 31.2, country: '埃及' },
+      alexandria: { name: '亚历山大', lat: 31.2, lon: 29.9, country: '埃及' },
+      johannesburg: { name: '约翰内斯堡', lat: -26.2, lon: 28.1, country: '南非' },
+      capeTown: { name: '开普敦', lat: -33.9, lon: 18.4, country: '南非' },
+      nairobi: { name: '内罗毕', lat: -1.3, lon: 36.8, country: '肯尼亚' },
+      lagos: { name: '拉各斯', lat: 6.5, lon: 3.4, country: '尼日利亚' },
+      casablanca: { name: '卡萨布兰卡', lat: 33.6, lon: -7.6, country: '摩洛哥' },
       
       // ============ 大洋洲城市 ============
-      sydney: { name: '悉尼', lat: -33.9, lon: 151.2, country: '澳大利亚', population: '531万', timezone: 'UTC+10', area: '12368km²', type: 'city', continent: 'oceania' },
-      melbourne: { name: '墨尔本', lat: -37.8, lon: 145.0, country: '澳大利亚', population: '509万', timezone: 'UTC+10', area: '9990km²', type: 'city', continent: 'oceania' },
-      brisbane: { name: '布里斯班', lat: -27.5, lon: 153.0, country: '澳大利亚', population: '256万', timezone: 'UTC+10', area: '15842km²', type: 'city', continent: 'oceania' },
-      perth: { name: '珀斯', lat: -32.0, lon: 115.9, country: '澳大利亚', population: '216万', timezone: 'UTC+8', area: '6417km²', type: 'city', continent: 'oceania' },
-      auckland: { name: '奥克兰', lat: -36.9, lon: 174.8, country: '新西兰', population: '173万', timezone: 'UTC+12', area: '1086km²', type: 'city', continent: 'oceania' },
-      wellington: { name: '惠灵顿', lat: -41.3, lon: 174.8, country: '新西兰', population: '41万', timezone: 'UTC+12', area: '266km²', type: 'capital', continent: 'oceania' },
-      antarctica: { name: '南极点', lat: -90.0, lon: 0.0, country: '南极洲', population: '0', timezone: 'UTC+0', area: '1400万km²', type: 'city', continent: 'antarctica' }
+      sydney: { name: '悉尼', lat: -33.9, lon: 151.2, country: '澳大利亚' },
+      melbourne: { name: '墨尔本', lat: -37.8, lon: 145.0, country: '澳大利亚' },
+      brisbane: { name: '布里斯班', lat: -27.5, lon: 153.0, country: '澳大利亚' },
+      perth: { name: '珀斯', lat: -32.0, lon: 115.9, country: '澳大利亚' },
+      auckland: { name: '奥克兰', lat: -36.9, lon: 174.8, country: '新西兰' },
+      wellington: { name: '惠灵顿', lat: -41.3, lon: 174.8, country: '新西兰' },
+      antarctica: { name: '南极点', lat: -90.0, lon: 0.0, country: '南极洲' }
     };
 
     // 问答数据
@@ -4547,6 +3821,7 @@
 
     function loadLayer(layer) {
       const url = layerUrls[layer];
+      const encodedUrl = encodeImageUrl(url);
       if (url.startsWith('data:')) {
         const loader = new THREE.TextureLoader();
         loader.load(
@@ -4558,12 +3833,12 @@
             setDefaultMaterial(layer);
           }
         );
-      } else if (url.startsWith('../assets/images/')) {
-        loadLocalImage(url, layer);
+      } else if (url.startsWith('images/')) {
+        loadLocalImage(encodedUrl, layer);
       } else {
         const loader = new THREE.TextureLoader();
         loader.load(
-          url,
+          encodedUrl,
           (texture) => applyTexture(texture, layer),
           undefined,
           (error) => {
@@ -5019,25 +4294,12 @@
         const city = cities[key];
         const pos = lonLatToVector3(city.lon, city.lat, earthRadius + 0.005);
         
-        const isCapital = city.type === 'capital';
-        const markerSize = isCapital ? 0.02 : 0.015;
-        const markerColor = isCapital ? 0xfbbf24 : 0xef4444;
-        
-        const markerGeo = new THREE.SphereGeometry(markerSize, 8, 8);
-        const markerMat = new THREE.MeshBasicMaterial({ color: markerColor });
+        const markerGeo = new THREE.SphereGeometry(0.015, 8, 8);
+        const markerMat = new THREE.MeshBasicMaterial({ color: 0xef4444 });
         const marker = new THREE.Mesh(markerGeo, markerMat);
         marker.position.copy(pos);
         marker.userData = { city: city };
         cityGroup.add(marker);
-        
-        if (isCapital) {
-          const ringGeo = new THREE.RingGeometry(markerSize * 1.5, markerSize * 2, 16);
-          const ringMat = new THREE.MeshBasicMaterial({ color: 0xfbbf24, transparent: true, opacity: 0.5, side: THREE.DoubleSide });
-          const ring = new THREE.Mesh(ringGeo, ringMat);
-          ring.position.copy(pos);
-          ring.lookAt(0, 0, 0);
-          cityGroup.add(ring);
-        }
       });
       cityGroup.visible = false;
     }
@@ -5377,15 +4639,9 @@
       currentCity = city;
       
       const country = city.country || '';
-      const province = city.province || '';
-      const countryText = province ? `${country} · ${province}` : country;
-      
       cityInfoPanel.querySelector('.city-name').innerHTML = `📍 ${city.name}`;
-      cityInfoPanel.querySelector('.city-country').textContent = countryText;
+      cityInfoPanel.querySelector('.city-country').textContent = country;
       cityInfoPanel.querySelector('#city-coord').textContent = `${city.lat.toFixed(2)}°N, ${city.lon.toFixed(2)}°E`;
-      cityInfoPanel.querySelector('#city-timezone').textContent = city.timezone || '未知';
-      cityInfoPanel.querySelector('#city-population').textContent = city.population || '未知';
-      cityInfoPanel.querySelector('#city-area').textContent = city.area || '未知';
       
       updateCityTime(city);
       fetchWeatherData(city);
@@ -5406,6 +4662,7 @@
       }
       currentCity = null;
     }
+    window.hideCityInfoPanel = hideCityInfoPanel;
 
     function updateCityTime(city) {
       const timeElement = document.getElementById('city-time');
@@ -5553,6 +4810,7 @@
 
     window.askAIAboutCity = function() {
       if (!currentCity) return;
+      
       const cityName = currentCity.name;
       hideCityInfoPanel();
       
@@ -5565,13 +4823,14 @@
         aiChatPanel.classList.add('show');
       }
       
+      const query = `请介绍一下${cityName}的地理特点、气候和文化`;
       if (aiInput) {
-        aiInput.value = `请介绍一下${cityName}的地理特点、气候和文化`;
+        aiInput.value = query;
       }
       
       setTimeout(() => {
         if (typeof processQueryWithAI === 'function') {
-          processQueryWithAI(`请介绍一下${cityName}的地理特点、气候和文化`);
+          processQueryWithAI(query);
         } else if (aiSendBtn) {
           aiSendBtn.click();
         }
@@ -5595,8 +4854,7 @@
         centerLat: 35,
         centerLon: 105,
         zoom: 2,
-        mapImage: '../assets/images/gallery/continents/asia.jpg',
-        mapImageSimple: '../assets/images/gallery/continents/asia-simple.jpg'
+        mapImage: '../assets/images/gallery/continents/asia.jpg'
       },
       europe: {
         name: '欧洲',
@@ -5613,8 +4871,7 @@
         centerLat: 50,
         centerLon: 15,
         zoom: 3,
-        mapImage: '../assets/images/gallery/continents/europe.jpg',
-        mapImageSimple: '../assets/images/gallery/continents/europe-simple.jpg'
+        mapImage: '../assets/images/gallery/continents/europe.jpg'
       },
       africa: {
         name: '非洲',
@@ -5631,8 +4888,7 @@
         centerLat: 0,
         centerLon: 20,
         zoom: 2.5,
-        mapImage: '../assets/images/gallery/continents/africa.jpg',
-        mapImageSimple: '../assets/images/gallery/continents/africa-simple.jpg'
+        mapImage: '../assets/images/gallery/continents/africa.jpg'
       },
       northAmerica: {
         name: '北美洲',
@@ -5649,8 +4905,7 @@
         centerLat: 45,
         centerLon: -100,
         zoom: 2.5,
-        mapImage: '../assets/images/gallery/continents/northAmerica.jpg',
-        mapImageSimple: '../assets/images/gallery/continents/northAmerica-simple.jpg'
+        mapImage: '../assets/images/gallery/continents/northAmerica.jpg'
       },
       southAmerica: {
         name: '南美洲',
@@ -5667,8 +4922,7 @@
         centerLat: -15,
         centerLon: -60,
         zoom: 2.5,
-        mapImage: '../assets/images/gallery/continents/southAmerica.jpg',
-        mapImageSimple: '../assets/images/gallery/continents/southAmerica-simple.jpg'
+        mapImage: '../assets/images/gallery/continents/southAmerica.jpg'
       },
       oceania: {
         name: '大洋洲',
@@ -5685,8 +4939,7 @@
         centerLat: -25,
         centerLon: 135,
         zoom: 3,
-        mapImage: '../assets/images/gallery/continents/oceania.jpg',
-        mapImageSimple: '../assets/images/gallery/continents/oceania-simple.jpg'
+        mapImage: '../assets/images/gallery/continents/oceania.jpg'
       },
       antarctica: {
         name: '南极洲',
@@ -5703,8 +4956,7 @@
         centerLat: -90,
         centerLon: 0,
         zoom: 2,
-        mapImage: '../assets/images/gallery/continents/antarctica.jpg',
-        mapImageSimple: '../assets/images/gallery/continents/antarctica-simple.jpg'
+        mapImage: '../assets/images/gallery/continents/antarctica.jpg'
       }
     };
 
@@ -5739,10 +4991,6 @@
           <button class="modal-close">×</button>
         </div>
         <div class="modal-body">
-          <div class="map-switch-btns" style="display:flex;gap:8px;margin-bottom:8px;justify-content:center;">
-            <button id="map-btn-simple" style="flex:0 0 auto;padding:6px 16px;background:rgba(100,255,218,0.2);border:1px solid #64ffda;border-radius:6px;color:#64ffda;cursor:pointer;font-size:12px;">🗺️ 简明版</button>
-            <button id="map-btn-detailed" style="flex:0 0 auto;padding:6px 16px;background:rgba(30,41,59,0.6);border:1px solid rgba(100,255,218,0.3);border-radius:6px;color:#94a3b8;cursor:pointer;font-size:12px;">🏔️ 高清版</button>
-          </div>
           <div class="continent-map" id="continent-map">
             <img id="continent-map-image" src="" alt="大洲地图" />
             <div class="continent-map-label" id="continent-map-label">🗺️ 大洲地形图</div>
@@ -5843,10 +5091,7 @@
       // 定位按钮功能
       document.getElementById('continent-locate-btn').addEventListener('click', function() {
         if (continentModal.currentContinent) {
-          const continentKey = Object.keys(continents).find(key => continents[key].name === continentModal.currentContinent.name);
-          if (continentKey) {
-            flyToContinent(continentKey);
-          }
+          flyToContinent(continentModal.currentContinent);
         }
       });
       
@@ -5856,25 +5101,6 @@
         if (continents[continentKey]) {
           showContinentModal(continents[continentKey]);
         }
-      });
-
-      // 地图切换按钮事件
-      document.getElementById('map-btn-simple').addEventListener('click', function() {
-        currentMapMode = 'simple';
-        document.getElementById('map-btn-simple').style.background = 'rgba(100,255,218,0.2)';
-        document.getElementById('map-btn-simple').style.color = '#64ffda';
-        document.getElementById('map-btn-detailed').style.background = 'rgba(30,41,59,0.6)';
-        document.getElementById('map-btn-detailed').style.color = '#94a3b8';
-        if (currentContinentData) drawContinentMap(currentContinentData);
-      });
-
-      document.getElementById('map-btn-detailed').addEventListener('click', function() {
-        currentMapMode = 'detailed';
-        document.getElementById('map-btn-detailed').style.background = 'rgba(100,255,218,0.2)';
-        document.getElementById('map-btn-detailed').style.color = '#64ffda';
-        document.getElementById('map-btn-simple').style.background = 'rgba(30,41,59,0.6)';
-        document.getElementById('map-btn-simple').style.color = '#94a3b8';
-        if (currentContinentData) drawContinentMap(currentContinentData);
       });
     }
 
@@ -5926,7 +5152,7 @@
       }
       
       // 先显示弹窗，然后再绘制地图（确保DOM已渲染）
-      continentModal.style.display = 'flex';
+      continentModal.style.display = 'block';
       
       // 使用requestAnimationFrame确保DOM渲染完成后再绘制地图
       requestAnimationFrame(function() {
@@ -5935,47 +5161,50 @@
     }
     
     // 绘制大洲地形图
-    let currentMapMode = 'simple'; // 'simple' or 'detailed'
-    let currentContinentData = null;
-
     function drawContinentMap(continent) {
-      currentContinentData = continent;
       const mapContainer = document.getElementById('continent-map');
       const mapImage = document.getElementById('continent-map-image');
       const mapLabel = document.getElementById('continent-map-label');
       
-      const canvas = document.getElementById('continent-map-canvas');
-      if (canvas) {
-        canvas.remove();
+      // 创建canvas作为回退方案
+      let canvas = document.getElementById('continent-map-canvas');
+      if (!canvas) {
+        canvas = document.createElement('canvas');
+        canvas.id = 'continent-map-canvas';
+        canvas.style.display = 'none';
+        canvas.style.width = '100%';
+        canvas.style.height = '100%';
+        mapContainer.appendChild(canvas);
       }
       
-      const imgSrc = currentMapMode === 'simple' ? (continent.mapImageSimple || continent.mapImage) : continent.mapImage;
-      
-      if (imgSrc) {
+      // 设置图片加载成功处理
+      mapImage.onload = function() {
         mapImage.style.display = 'block';
-        mapImage.src = imgSrc;
-        mapImage.alt = `${continent.name}地形图`;
-        mapImage.onerror = function() {
-          mapImage.style.display = 'none';
-          const newCanvas = document.createElement('canvas');
-          newCanvas.id = 'continent-map-canvas';
-          newCanvas.style.width = '100%';
-          newCanvas.style.height = '100%';
-          mapContainer.appendChild(newCanvas);
-          drawDetailedTopographicMap(newCanvas, continent);
-        };
-      } else {
+        canvas.style.display = 'none';
+      };
+      
+      // 设置图片加载失败的回退
+      mapImage.onerror = function() {
         mapImage.style.display = 'none';
-        const newCanvas = document.createElement('canvas');
-        newCanvas.id = 'continent-map-canvas';
-        newCanvas.style.width = '100%';
-        newCanvas.style.height = '100%';
-        mapContainer.appendChild(newCanvas);
-        drawDetailedTopographicMap(newCanvas, continent);
+        canvas.style.display = 'block';
+        drawDetailedTopographicMap(canvas, continent);
+      };
+      
+      // 设置地图图片源（使用真实地形图URL，进行路径编码）
+      if (continent.mapImage) {
+        mapImage.src = encodeImageUrl(continent.mapImage);
+        mapImage.alt = `${continent.name}地形图`;
+      } else {
+        // 如果没有图片URL，使用Canvas绘制
+        mapImage.style.display = 'none';
+        canvas.style.display = 'block';
+        drawDetailedTopographicMap(canvas, continent);
       }
       
-      const modeText = currentMapMode === 'simple' ? '简明版' : '高清版';
-      mapLabel.textContent = `🗺️ ${continent.name}地形图（${modeText}·点击放大查看）`;
+      // 更新标签
+      mapLabel.textContent = `🗺️ ${continent.name}地形图（点击放大查看）`;
+      
+      // 添加点击放大功能
       setupMapClickZoom(continent);
     }
     
@@ -6858,9 +6087,6 @@
     }
     
     function getContinentColor(hexColor) {
-      if (typeof hexColor === 'string' && hexColor.startsWith('#')) {
-        return hexColor;
-      }
       const hex = hexColor.toString(16).padStart(6, '0');
       return `#${hex}`;
     }
@@ -6871,6 +6097,35 @@
       const g = Math.min(255, parseInt(hex.substring(2, 4), 16) + amount);
       const b = Math.min(255, parseInt(hex.substring(4, 6), 16) + amount);
       return `#${r.toString(16).padStart(2, '0')}${g.toString(16).padStart(2, '0')}${b.toString(16).padStart(2, '0')}`;
+    }
+    
+    function flyToContinent(continent) {
+      if (continent.centerLat === undefined || continent.centerLat === null || 
+          continent.centerLon === undefined || continent.centerLon === null) return;
+      
+      // 使用类似 flyToCity 的方式实现定位
+      const localTarget = lonLatToVector3(continent.centerLon, continent.centerLat, earthRadius + 0.01);
+      const target = earthGroup.localToWorld(localTarget.clone());
+      isFlying = true;
+      
+      const startPos = camera.position.clone();
+      const startTime = Date.now();
+      const duration = 1500;
+      const zoom = continent.zoom || 2.5;
+      
+      function animateFly() {
+        const elapsed = Date.now() - startTime;
+        const progress = Math.min(elapsed / duration, 1);
+        const easeProgress = 1 - Math.pow(1 - progress, 3);
+        
+        const endPos = new THREE.Vector3(target.x * zoom, target.y * zoom, target.z * zoom);
+        camera.position.lerpVectors(startPos, endPos, easeProgress);
+        camera.lookAt(target);
+        
+        if (progress < 1) requestAnimationFrame(animateFly);
+        else isFlying = false;
+      }
+      animateFly();
     }
 
     function closeContinentModal() {
@@ -7025,102 +6280,38 @@
     // ============ 天气数据层 ============
     let weatherGroup = null;
     
-    const weatherCities = [
-      { city: '北京', lon: 116.46, lat: 39.92 },
-      { city: '上海', lon: 121.48, lat: 31.22 },
-      { city: '广州', lon: 113.23, lat: 23.16 },
-      { city: '东京', lon: 139.69, lat: 35.69 },
-      { city: '纽约', lon: -73.98, lat: 40.71 },
-      { city: '伦敦', lon: -0.12, lat: 51.51 },
-      { city: '巴黎', lon: 2.35, lat: 48.86 },
-      { city: '悉尼', lon: 151.21, lat: -33.87 },
-      { city: '莫斯科', lon: 37.62, lat: 55.76 },
-      { city: '孟买', lon: 72.87, lat: 19.07 },
-      { city: '新加坡', lon: 103.82, lat: 1.35 },
-      { city: '开罗', lon: 31.23, lat: 30.04 },
-      { city: '里约热内卢', lon: -43.2, lat: -22.91 },
-      { city: '洛杉矶', lon: -118.24, lat: 34.05 },
-      { city: '多伦多', lon: -79.38, lat: 43.65 },
-      { city: '柏林', lon: 13.41, lat: 52.52 },
-      { city: '香港', lon: 114.17, lat: 22.32 },
-      { city: '首尔', lon: 126.98, lat: 37.57 },
-      { city: '迪拜', lon: 55.27, lat: 25.2 },
-      { city: '墨尔本', lon: 144.96, lat: -37.81 },
-      { city: '南昌', lon: 115.9, lat: 28.6 },
-      { city: '景德镇', lon: 117.2, lat: 29.2 },
-      { city: '九江', lon: 115.9, lat: 29.7 },
-      { city: '赣州', lon: 114.9, lat: 25.8 },
-      { city: '上饶', lon: 117.9, lat: 28.4 },
-      { city: '吉安', lon: 114.9, lat: 27.1 }
+    const weatherData = [
+      { city: '北京', lon: 116.46, lat: 39.92, temp: 25, weather: '晴', icon: '☀️' },
+      { city: '上海', lon: 121.48, lat: 31.22, temp: 28, weather: '多云', icon: '⛅' },
+      { city: '广州', lon: 113.23, lat: 23.16, temp: 32, weather: '雷阵雨', icon: '⛈️' },
+      { city: '东京', lon: 139.69, lat: 35.69, temp: 26, weather: '晴', icon: '☀️' },
+      { city: '纽约', lon: -73.98, lat: 40.71, temp: 22, weather: '多云', icon: '⛅' },
+      { city: '伦敦', lon: -0.12, lat: 51.51, temp: 18, weather: '小雨', icon: '🌧️' },
+      { city: '巴黎', lon: 2.35, lat: 48.86, temp: 20, weather: '晴', icon: '☀️' },
+      { city: '悉尼', lon: 151.21, lat: -33.87, temp: 15, weather: '阴', icon: '☁️' },
+      { city: '莫斯科', lon: 105.34, lat: 55.76, temp: 15, weather: '多云', icon: '⛅' },
+      { city: '孟买', lon: 72.87, lat: 19.07, temp: 35, weather: '雷阵雨', icon: '⛈️' },
+      { city: '新加坡', lon: 103.82, lat: 1.35, temp: 31, weather: '雷阵雨', icon: '⛈️' },
+      { city: '开罗', lon: 31.23, lat: 30.04, temp: 38, weather: '晴', icon: '☀️' },
+      { city: '里约热内卢', lon: -43.2, lat: -22.91, temp: 27, weather: '晴', icon: '☀️' },
+      { city: '洛杉矶', lon: -118.24, lat: 34.05, temp: 24, weather: '晴', icon: '☀️' },
+      { city: '多伦多', lon: -79.38, lat: 43.65, temp: 20, weather: '多云', icon: '⛅' },
+      { city: '柏林', lon: 13.41, lat: 52.52, temp: 19, weather: '小雨', icon: '🌧️' },
+      { city: '香港', lon: 114.17, lat: 22.32, temp: 30, weather: '多云', icon: '⛅' },
+      { city: '首尔', lon: 126.98, lat: 37.57, temp: 24, weather: '晴', icon: '☀️' },
+      { city: '迪拜', lon: 55.27, lat: 25.2, temp: 42, weather: '晴', icon: '☀️' },
+      { city: '墨尔本', lon: 144.96, lat: -37.81, temp: 14, weather: '阴', icon: '☁️' },
+      
+      // 江西省城市天气
+      { city: '南昌', lon: 115.9, lat: 28.6, temp: 29, weather: '晴', icon: '☀️' },
+      { city: '景德镇', lon: 117.2, lat: 29.2, temp: 28, weather: '多云', icon: '⛅' },
+      { city: '九江', lon: 115.9, lat: 29.7, temp: 28, weather: '晴', icon: '☀️' },
+      { city: '赣州', lon: 114.9, lat: 25.8, temp: 32, weather: '雷阵雨', icon: '⛈️' },
+      { city: '上饶', lon: 117.9, lat: 28.4, temp: 27, weather: '多云', icon: '⛅' },
+      { city: '吉安', lon: 114.9, lat: 27.1, temp: 31, weather: '晴', icon: '☀️' }
     ];
     
-    let weatherData = [];
-    
-    function weatherCodeToInfo(code) {
-      if (code === 0) return { weather: '晴', icon: '☀️' };
-      if (code >= 1 && code <= 3) return { weather: '多云', icon: '⛅' };
-      if (code === 45 || code === 48) return { weather: '雾', icon: '🌫️' };
-      if (code >= 51 && code <= 55) return { weather: '毛毛雨', icon: '🌧️' };
-      if (code >= 56 && code <= 57) return { weather: '冻毛毛雨', icon: '❄️' };
-      if (code >= 61 && code <= 65) return { weather: '小雨', icon: '🌧️' };
-      if (code >= 66 && code <= 67) return { weather: '冻雨', icon: '❄️' };
-      if (code >= 71 && code <= 75) return { weather: '小雪', icon: '❄️' };
-      if (code === 77) return { weather: '雪粒', icon: '❄️' };
-      if (code >= 80 && code <= 82) return { weather: '阵雨', icon: '🌧️' };
-      if (code >= 85 && code <= 86) return { weather: '阵雪', icon: '❄️' };
-      if (code === 95) return { weather: '雷阵雨', icon: '⛈️' };
-      if (code === 96 || code === 99) return { weather: '雷阵雨带冰雹', icon: '⛈️' };
-      return { weather: '晴', icon: '☀️' };
-    }
-    
-    async function fetchRealTimeWeather() {
-      const results = [];
-      for (const cityInfo of weatherCities) {
-        try {
-          const url = `https://api.open-meteo.com/v1/forecast?latitude=${cityInfo.lat}&longitude=${cityInfo.lon}&current=temperature_2m,weathercode&timezone=Asia/Shanghai`;
-          const response = await fetch(url);
-          const data = await response.json();
-          
-          if (data.current) {
-            const weatherInfo = weatherCodeToInfo(data.current.weathercode);
-            results.push({
-              city: cityInfo.city,
-              lon: cityInfo.lon,
-              lat: cityInfo.lat,
-              temp: Math.round(data.current.temperature_2m),
-              weather: weatherInfo.weather,
-              icon: weatherInfo.icon
-            });
-          } else {
-            results.push({
-              city: cityInfo.city,
-              lon: cityInfo.lon,
-              lat: cityInfo.lat,
-              temp: 25,
-              weather: '未知',
-              icon: '❓'
-            });
-          }
-        } catch (error) {
-          console.warn(`获取${cityInfo.city}天气失败:`, error);
-          results.push({
-            city: cityInfo.city,
-            lon: cityInfo.lon,
-            lat: cityInfo.lat,
-            temp: 25,
-            weather: '离线',
-            icon: '🔌'
-          });
-        }
-        await new Promise(resolve => setTimeout(resolve, 200));
-      }
-      return results;
-    }
-    
-    async function updateWeatherLayer() {
-      const newData = await fetchRealTimeWeather();
-      weatherData = newData;
-      
+    function createWeatherLayer() {
       if (weatherGroup) {
         earthGroup.remove(weatherGroup);
         weatherGroup = null;
@@ -7131,12 +6322,14 @@
       weatherData.forEach(city => {
         const pos = lonLatToVector3(city.lon, city.lat, earthRadius + 0.008);
         
+        // 创建小型天气标记点（仅显示彩色圆点）
         const geo = new THREE.SphereGeometry(0.018, 16, 16);
         const tempColor = city.temp > 30 ? 0xef4444 : city.temp < 15 ? 0x3b82f6 : 0x22c55e;
         const mat = new THREE.MeshBasicMaterial({ color: tempColor });
         const marker = new THREE.Mesh(geo, mat);
         marker.position.copy(pos);
         
+        // 存储天气信息供悬停显示
         marker.userData = { 
           type: 'weather',
           city: city.city,
@@ -7149,48 +6342,33 @@
       });
       
       earthGroup.add(weatherGroup);
-      if (weatherGroup) weatherGroup.visible = options.weather;
-      
-      const statusElem = document.getElementById('weather-status');
-      if (statusElem) {
-        statusElem.textContent = `实时天气 ✓ 更新于 ${new Date().toLocaleTimeString()}`;
-      }
-    }
-    
-    function createWeatherLayer() {
-      weatherGroup = new THREE.Group();
-      earthGroup.add(weatherGroup);
       weatherGroup.visible = options.weather;
-      
-      updateWeatherLayer();
-      
-      setInterval(updateWeatherLayer, 30 * 60 * 1000);
     }
     
     // ============ GDP数据层 ============
     let gdpGroup = null;
     
     const gdpData = [
-      { country: '美国', lon: -95.7129, lat: 37.0902, gdp: 30.6 },
-      { country: '中国', lon: 104.1954, lat: 35.8617, gdp: 19.6 },
-      { country: '德国', lon: 10.4515, lat: 51.1657, gdp: 5.0 },
+      { country: '中国', lon: 104.1954, lat: 35.8617, gdp: 18.1 },
+      { country: '美国', lon: -95.7129, lat: 37.0902, gdp: 26.8 },
       { country: '日本', lon: 138.2529, lat: 36.2048, gdp: 4.4 },
-      { country: '英国', lon: -3.4360, lat: 55.3781, gdp: 4.0 },
+      { country: '德国', lon: 10.4515, lat: 51.1657, gdp: 4.3 },
       { country: '印度', lon: 78.9629, lat: 20.5937, gdp: 3.7 },
+      { country: '英国', lon: -3.4360, lat: 55.3781, gdp: 3.1 },
       { country: '法国', lon: 2.2137, lat: 46.2276, gdp: 3.0 },
-      { country: '俄罗斯', lon: 105.3188, lat: 61.5240, gdp: 2.5 },
-      { country: '巴西', lon: -51.9253, lat: -14.2350, gdp: 2.3 },
       { country: '意大利', lon: 12.5674, lat: 41.8719, gdp: 2.1 },
+      { country: '巴西', lon: -51.9253, lat: -14.2350, gdp: 2.1 },
       { country: '加拿大', lon: -106.3468, lat: 56.1304, gdp: 2.0 },
       { country: '韩国', lon: 127.7669, lat: 35.9078, gdp: 1.7 },
-      { country: '澳大利亚', lon: 133.7751, lat: -25.2744, gdp: 1.8 },
+      { country: '俄罗斯', lon: 105.3188, lat: 61.5240, gdp: 2.2 },
+      { country: '澳大利亚', lon: 133.7751, lat: -25.2744, gdp: 1.7 },
       { country: '西班牙', lon: -3.7492, lat: 40.4637, gdp: 1.4 },
       { country: '墨西哥', lon: -102.5528, lat: 23.6345, gdp: 1.4 }
     ];
     
     function createGDPLayer() {
       if (gdpGroup) {
-        earthGroup.remove(gdpGroup);
+        scene.remove(gdpGroup);
         gdpGroup = null;
       }
       
@@ -7233,7 +6411,7 @@
         const mesh = new THREE.Mesh(geo, mat);
         mesh.position.copy(pos);
         mesh.position.y += coneHeight * 0.5 + 0.03;
-        mesh.userData = { type: 'gdp', country: country.country, gdp: country.gdp };
+        mesh.userData = { country: country.country, gdp: country.gdp };
         
         gdpGroup.add(mesh);
         
@@ -7291,7 +6469,6 @@
       const city = cities[cityKey];
       if (!city) return;
       
-      controls.enabled = false;
       const localTarget = lonLatToVector3(city.lon, city.lat, earthRadius + 0.01);
       const target = earthGroup.localToWorld(localTarget.clone());
       isFlying = true;
@@ -7312,90 +6489,7 @@
         if (progress < 1) requestAnimationFrame(animateFly);
         else {
           isFlying = false;
-          controls.enabled = true;
           showCityInfoPanel(city);
-          highlightCity(cityKey);
-        }
-      }
-      animateFly();
-    }
-
-    let cityHighlightMarker = null;
-    
-    function highlightCity(cityKey) {
-      if (cityHighlightMarker) {
-        scene.remove(cityHighlightMarker);
-        cityHighlightMarker.geometry.dispose();
-        cityHighlightMarker.material.dispose();
-        cityHighlightMarker = null;
-      }
-      
-      const city = cities[cityKey];
-      if (!city) return;
-      
-      const pos = lonLatToVector3(city.lon, city.lat, earthRadius + 0.015);
-      
-      const geometry = new THREE.SphereGeometry(0.025, 32, 32);
-      const material = new THREE.MeshBasicMaterial({ 
-        color: 0x00ffff, 
-        transparent: true, 
-        opacity: 0.8 
-      });
-      cityHighlightMarker = new THREE.Mesh(geometry, material);
-      cityHighlightMarker.position.copy(pos);
-      
-      earthGroup.add(cityHighlightMarker);
-      
-      let scale = 1;
-      let growing = true;
-      
-      function animatePulse() {
-        if (!cityHighlightMarker) return;
-        
-        if (growing) {
-          scale += 0.02;
-          if (scale >= 2) growing = false;
-        } else {
-          scale -= 0.02;
-          if (scale <= 1) growing = true;
-        }
-        
-        cityHighlightMarker.scale.set(scale, scale, scale);
-        cityHighlightMarker.material.opacity = 0.8 - (scale - 1) * 0.4;
-        
-        requestAnimationFrame(animatePulse);
-      }
-      animatePulse();
-    }
-
-    function flyToContinent(continentKey) {
-      const continent = continents[continentKey];
-      if (!continent) return;
-      
-      controls.enabled = false;
-      const localTarget = lonLatToVector3(continent.centerLon, continent.centerLat, earthRadius + 0.01);
-      const target = earthGroup.localToWorld(localTarget.clone());
-      isFlying = true;
-      
-      const startPos = camera.position.clone();
-      const startTime = Date.now();
-      const duration = 1500;
-      
-      function animateFly() {
-        const elapsed = Date.now() - startTime;
-        const progress = Math.min(elapsed / duration, 1);
-        const easeProgress = 1 - Math.pow(1 - progress, 3);
-        
-        const zoom = continent.zoom || 2;
-        const endPos = new THREE.Vector3(target.x * (2 + zoom), target.y * (2 + zoom), target.z * (2 + zoom));
-        camera.position.lerpVectors(startPos, endPos, easeProgress);
-        camera.lookAt(target);
-        
-        if (progress < 1) requestAnimationFrame(animateFly);
-        else {
-          isFlying = false;
-          controls.enabled = true;
-          showContinentModal(continent);
         }
       }
       animateFly();
@@ -7587,7 +6681,7 @@
 
     // ============ 测量工具 ============
     const measurementGroup = new THREE.Group();
-    earthGroup.add(measurementGroup);
+    scene.add(measurementGroup);
     let measurementMode = null;
     let measurementPoints = [];
     let measurementMarkers = [];
@@ -7610,16 +6704,6 @@
     }
 
     function setMeasurementMode(mode) {
-      if (measurementMode === mode) {
-        measurementMode = null;
-        clearMeasurement();
-        document.querySelectorAll('.measurement-btn').forEach(btn => {
-          btn.classList.remove('active');
-        });
-        document.getElementById('measurement-result').textContent = '点击地球开始测量';
-        return;
-      }
-      
       measurementMode = mode;
       clearMeasurement();
       
@@ -7636,7 +6720,7 @@
         angle: '角度测量'
       };
       document.getElementById('measurement-result').innerHTML = 
-        `<strong>${modeNames[mode]}</strong><br>点击地球添加测量点<br>再次点击按钮可取消`;
+        `<strong>${modeNames[mode]}</strong><br>点击地球添加测量点`;
     }
 
     function clearMeasurement() {
@@ -7658,7 +6742,8 @@
       const marker = new THREE.Mesh(markerGeo, markerMat);
       
       const localPos = lonLatToVector3(lon, lat, earthRadius + 0.01);
-      marker.position.copy(localPos);
+      const worldPos = earthGroup.localToWorld(localPos.clone());
+      marker.position.copy(worldPos);
       measurementGroup.add(marker);
       measurementMarkers.push(marker);
       
@@ -7681,7 +6766,8 @@
           const lat = measurementPoints[i].lat + t * (measurementPoints[i + 1].lat - measurementPoints[i].lat);
           const lon = measurementPoints[i].lon + t * (measurementPoints[i + 1].lon - measurementPoints[i].lon);
           const localPos = lonLatToVector3(lon, lat, earthRadius + 0.008);
-          points.push(localPos.clone());
+          const worldPos = earthGroup.localToWorld(localPos.clone());
+          points.push(worldPos);
         }
         
         const lineGeo = new THREE.BufferGeometry().setFromPoints(points);
@@ -7702,7 +6788,8 @@
             const lat = measurementPoints[i].lat + t * (measurementPoints[next].lat - measurementPoints[i].lat);
             const lon = measurementPoints[i].lon + t * (measurementPoints[next].lon - measurementPoints[i].lon);
             const localPos = lonLatToVector3(lon, lat, earthRadius + 0.008);
-            points.push(localPos.clone());
+            const worldPos = earthGroup.localToWorld(localPos.clone());
+            points.push(worldPos);
           }
         }
         
@@ -7948,7 +7035,7 @@
         const theta = Math.atan2(localPoint.z, -localPoint.x);
         
         const clickLat = 90 - (phi * 180 / Math.PI);
-        let clickLon = ((theta * 180 / Math.PI - 180 + 540) % 360) - 180;
+        let clickLon = (theta * 180 / Math.PI + 180) % 360 - 180;
         
         if (measurementMode) {
           addMeasurementPoint(clickLat, clickLon);
@@ -7974,16 +7061,16 @@
         
         if (earthIntersects.length > 0) {
           const worldPoint = earthIntersects[0].point;
+          draggingMarker.position.copy(worldPoint);
           
           const localPoint = worldPoint.clone();
           earthGroup.worldToLocal(localPoint);
-          draggingMarker.position.copy(localPoint);
           
           const phi = Math.acos(Math.max(-1, Math.min(1, localPoint.y / earthRadius)));
           const theta = Math.atan2(localPoint.z, -localPoint.x);
           
           measurementPoints[draggingIndex].lat = 90 - (phi * 180 / Math.PI);
-          measurementPoints[draggingIndex].lon = ((theta * 180 / Math.PI - 180 + 540) % 360) - 180;
+          measurementPoints[draggingIndex].lon = (theta * 180 / Math.PI + 180) % 360 - 180;
           
           updateMeasurementLines();
           calculateMeasurement();
@@ -8122,8 +7209,23 @@
       list.querySelector('.knowledge-sub-item')?.click();
     }
 
+    // 安全编码图片URL，处理路径中的空格和特殊字符
+    function encodeImageUrl(url) {
+      if (!url) return url;
+      // 跳过已经是base64或data URL的情况
+      if (url.startsWith('data:') || url.startsWith('http://') || url.startsWith('https://')) {
+        return url;
+      }
+      // 对相对路径进行编码，保留斜杠等路径分隔符
+      // 先按斜杠分割，对每一部分单独编码，再重新拼接
+      return url.split('/').map(part => encodeURI(part)).join('/');
+    }
+
     // 地理图集数据 - 用户上传的图片
-    const galleryData = {
+    const GALLERY_STORAGE_KEY = 'earthExplorerGallery';
+    
+    // 默认图集数据
+    const defaultGalleryData = {
       'my-maps': [
         { id: 'world-color', title: '世界政区地图', description: '', url: '../assets/images/gallery/world-color.jpg' },
         { id: 'world-political1', title: '世界政区地图（1）', description: '', url: '../assets/images/gallery/World Political1.jpg' },
@@ -8136,6 +7238,83 @@
         { id: 'world-timezone', title: '世界时区', description: '', url: '../assets/images/gallery/world time zone.png' }
       ]
     };
+    
+    // 加载图集数据（从localStorage或使用默认值）
+    function loadGalleryData() {
+      try {
+        const saved = localStorage.getItem(GALLERY_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // 验证数据结构
+          if (parsed && typeof parsed === 'object' && Array.isArray(parsed['my-maps'])) {
+            // 确保所有图片都有必要的字段
+            Object.keys(parsed).forEach(cat => {
+              parsed[cat] = parsed[cat].filter(img => img && img.url);
+            });
+            // 如果过滤后没有图片，使用默认数据
+            if (parsed['my-maps'].length === 0) {
+              throw new Error('图集数据为空，使用默认数据');
+            }
+            return parsed;
+          }
+        }
+      } catch (e) {
+        console.warn('加载图集数据失败，使用默认数据:', e);
+        // 清除损坏的数据
+        localStorage.removeItem(GALLERY_STORAGE_KEY);
+      }
+      // 返回默认数据
+      return JSON.parse(JSON.stringify(defaultGalleryData));
+    }
+    
+    // 保存图集数据到localStorage
+    function saveGalleryData() {
+      try {
+        localStorage.setItem(GALLERY_STORAGE_KEY, JSON.stringify(galleryData));
+      } catch (e) {
+        console.warn('保存图集数据失败:', e);
+        if (e.name === 'QuotaExceededError') {
+          // 存储满了，删除一些旧数据或提示用户
+          console.warn('图集存储已满');
+          alert('本地存储空间已满，部分图片可能无法保存。建议删除一些不需要的图片。');
+        }
+      }
+    }
+    
+    // 恢复默认图集
+    function resetGalleryData() {
+      if (confirm('确定要恢复默认图集吗？您添加的所有图片将会被清除。')) {
+        localStorage.removeItem(GALLERY_STORAGE_KEY);
+        galleryData = JSON.parse(JSON.stringify(defaultGalleryData));
+        renderGallery('my-maps');
+        alert('已恢复默认图集！');
+      }
+    }
+    
+    // 初始化图集数据
+    // 清理可能损坏的旧版本数据（编码过的URL数据）
+    (function cleanOldGalleryData() {
+      try {
+        const saved = localStorage.getItem(GALLERY_STORAGE_KEY);
+        if (saved) {
+          const parsed = JSON.parse(saved);
+          // 检查是否是旧版本数据（URL被编码存储）
+          if (parsed['my-maps'] && parsed['my-maps'].length > 0) {
+            const firstUrl = parsed['my-maps'][0].url || '';
+            // 如果URL中包含%编码，说明是旧版本数据
+            if (firstUrl.includes('%') && !firstUrl.startsWith('data:') && !firstUrl.startsWith('http')) {
+              console.warn('检测到旧版本图集数据，正在清理...');
+              localStorage.removeItem(GALLERY_STORAGE_KEY);
+            }
+          }
+        }
+      } catch (e) {
+        console.warn('检查旧图集数据失败:', e);
+        localStorage.removeItem(GALLERY_STORAGE_KEY);
+      }
+    })();
+    
+    let galleryData = loadGalleryData();
 
     let currentGalleryCategory = 'my-maps';
     let currentImageIndex = 0;
@@ -8158,7 +7337,7 @@
         container.className = 'gallery-item';
         
         const imgEl = document.createElement('img');
-        imgEl.src = img.url;
+        imgEl.src = encodeImageUrl(img.url);
         imgEl.alt = img.title;
         imgEl.className = 'gallery-thumbnail';
         imgEl.dataset.index = index;
@@ -8175,6 +7354,7 @@
           e.stopPropagation();
           if (confirm(`确定要删除图片 "${img.title}" 吗？`)) {
             galleryData[category].splice(index, 1);
+            saveGalleryData(); // 保存更改
             renderGallery(category);
           }
         };
@@ -8201,7 +7381,7 @@
       fsOffsetX = 0;
       fsOffsetY = 0;
       
-      fsImage.src = img.url;
+      fsImage.src = encodeImageUrl(img.url);
       // 重置为居中状态，初始显示正常大小（适应屏幕）
       fsImage.style.transform = 'translate(-50%, -50%) scale(1)';
       fsImage.style.maxWidth = '90vw';
@@ -8272,39 +7452,82 @@
         document.removeEventListener('mouseup', stopDrag);
       }
 
-      // 添加上传图片功能
+      // 添加上传图片功能（支持URL和本地文件）
+      let selectedFile = null;
+      
+      // 监听文件选择
+      document.getElementById('upload-image-file').addEventListener('change', (e) => {
+        const file = e.target.files[0];
+        if (file) {
+          selectedFile = file;
+          // 自动填充标题
+          const titleInput = document.getElementById('upload-image-title');
+          if (!titleInput.value.trim()) {
+            titleInput.value = file.name.replace(/\.[^/.]+$/, ''); // 去除扩展名
+          }
+          // 显示文件名在URL输入框
+          document.getElementById('upload-image-url').value = '(已选择文件: ' + file.name + ')';
+        }
+      });
+      
       document.getElementById('upload-image-btn').onclick = () => {
-        const url = document.getElementById('upload-image-url').value.trim();
+        const urlInput = document.getElementById('upload-image-url').value.trim();
         const title = document.getElementById('upload-image-title').value.trim() || '未命名图片';
         
-        if (!url) {
-          alert('请输入图片URL或本地路径');
-          return;
+        if (selectedFile) {
+          // 处理本地文件上传
+          const reader = new FileReader();
+          reader.onload = (e) => {
+            const base64Url = e.target.result;
+            const newImage = {
+              id: 'img-' + Date.now(),
+              title: title,
+              description: '',
+              url: base64Url, // 使用base64直接嵌入
+              isBase64: true
+            };
+            
+            galleryData['my-maps'].push(newImage);
+            saveGalleryData(); // 保存更改
+            renderGallery('my-maps');
+            
+            // 清空输入
+            selectedFile = null;
+            document.getElementById('upload-image-file').value = '';
+            document.getElementById('upload-image-url').value = '';
+            document.getElementById('upload-image-title').value = '';
+          };
+          reader.onerror = () => {
+            alert('文件读取失败，请重试');
+          };
+          reader.readAsDataURL(selectedFile);
+        } else if (urlInput && !urlInput.startsWith('(已选择')) {
+          // 处理URL输入
+          let relativeUrl = urlInput;
+          // 直接添加URL（可能是外部URL或相对路径）
+          const newImage = {
+            id: 'img-' + Date.now(),
+            title: title,
+            description: '',
+            url: encodeImageUrl(relativeUrl),
+            isBase64: false
+          };
+          
+          galleryData['my-maps'].push(newImage);
+          saveGalleryData(); // 保存更改
+          renderGallery('my-maps');
+          
+          // 清空输入
+          document.getElementById('upload-image-url').value = '';
+          document.getElementById('upload-image-title').value = '';
+        } else {
+          alert('请选择图片文件或输入图片URL');
         }
-        
-        // 将绝对路径转换为相对路径
-        let relativeUrl = url;
-        if (url.startsWith('C:\\') || url.startsWith('C:/')) {
-          const galleryPath = '/../assets/images/gallery/';
-          const idx = url.toLowerCase().indexOf(galleryPath.toLowerCase());
-          if (idx !== -1) {
-            relativeUrl = '../assets/images/gallery/' + url.substring(idx + galleryPath.length);
-          }
-        }
-        
-        const newImage = {
-          id: 'img-' + Date.now(),
-          title: title,
-          description: '',
-          url: relativeUrl
-        };
-        
-        galleryData['my-maps'].push(newImage);
-        renderGallery('my-maps');
-        
-        // 清空输入框
-        document.getElementById('upload-image-url').value = '';
-        document.getElementById('upload-image-title').value = '';
+      };
+      
+      // 恢复默认图集按钮
+      document.getElementById('reset-gallery-btn').onclick = () => {
+        resetGalleryData();
       };
 
     } // 关闭 openGalleryModal 函数
@@ -8425,7 +7648,6 @@
         if (key === 'climate') {
             climateGroup.visible = options.climate;
             climateGroup.children.forEach(c => c.visible = options.climate);
-            document.getElementById('climate-legend').classList.toggle('show', options.climate);
           }
         if (key === 'cities') cityGroup.visible = options.cities;
         if (key === 'continents') {
@@ -8720,10 +7942,6 @@
       dateline: {
         keywords: ['日界线', '日期变更线', '国际日期', '180度'],
         answer: '🌍 国际日期变更线大致沿<span class="highlight">180°经线</span>，是新一天开始的地方。自西向东跨越变更线，日期减一天；自东向西跨越，日期加一天。'
-      },
-      continents: {
-        keywords: ['板块', '大陆', '七大洲', '亚洲', '欧洲', '非洲', '北美洲', '南美洲', '大洋洲', '南极洲'],
-        answer: '🌍 地球上共有七大洲：<br>• <span class="highlight">亚洲</span>：面积最大，人口最多<br>• <span class="highlight">非洲</span>：热带大陆，野生动物丰富<br>• <span class="highlight">北美洲</span>：包含加拿大、美国、墨西哥等<br>• <span class="highlight">南美洲</span>：亚马逊雨林所在地<br>• <span class="highlight">欧洲</span>：发达国家集中，历史文化悠久<br>• <span class="highlight">大洋洲</span>：岛屿大陆，澳大利亚为主<br>• <span class="highlight">南极洲</span>：冰封大陆，无人定居<br><br>💡 提示：点击左侧面板"板块区域"开关或说"打开板块区域"，可以查看各大陆的详细信息！'
       }
     };
 
@@ -8735,86 +7953,45 @@
       '南昌': 'nanchang', '景德镇': 'jingdezhen', '九江': 'jiujiang', '赣州': 'ganzhou'
     };
 
-    const countryKeywords = {
-      '中国': 'beijing', '中华人民共和国': 'beijing',
-      '美国': 'newyork', '美利坚合众国': 'newyork', 'USA': 'newyork',
-      '日本': 'tokyo', '日本国': 'tokyo',
-      '英国': 'london', '大不列颠及北爱尔兰联合王国': 'london',
-      '法国': 'paris', '法兰西': 'paris',
-      '德国': 'berlin', '德意志': 'berlin',
-      '俄罗斯': 'moscow', '俄罗斯联邦': 'moscow',
-      '韩国': 'seoul', '大韩民国': 'seoul',
-      '新加坡': 'singapore', '新加坡共和国': 'singapore',
-      '泰国': 'bangkok', '泰王国': 'bangkok',
-      '澳大利亚': 'sydney', '澳洲': 'sydney',
-      '加拿大': 'toronto',
-      '意大利': 'rome',
-      '西班牙': 'madrid',
-      '印度': 'delhi',
-      '巴西': 'rio',
-      '墨西哥': 'mexico',
-      '印尼': 'jakarta', '印度尼西亚': 'jakarta',
-      '荷兰': 'amsterdam',
-      '瑞士': 'zurich',
-      '瑞典': 'stockholm',
-      '挪威': 'oslo',
-      '丹麦': 'copenhagen',
-      '芬兰': 'helsinki',
-      '波兰': 'warsaw',
-      '奥地利': 'vienna',
-      '比利时': 'brussels',
-      '葡萄牙': 'lisbon',
-      '爱尔兰': 'dublin',
-      '希腊': 'athens',
-      '土耳其': 'istanbul',
-      '埃及': 'cairo',
-      '南非': 'capeTown',
-      '尼日利亚': 'lagos',
-      '肯尼亚': 'nairobi',
-      '阿根廷': 'buenosaires',
-      '智利': 'santiago',
-      '哥伦比亚': 'bogota',
-      '秘鲁': 'lima',
-      '越南': 'hanoi',
-      '马来西亚': 'kualaLumpur',
-      '菲律宾': 'manila',
-      '巴基斯坦': 'islamabad',
-      '孟加拉国': 'dhaka',
-      '伊朗': 'tehran',
-      '沙特': 'riyadh', '沙特阿拉伯': 'riyadh',
-      '阿联酋': 'dubai', '阿拉伯联合酋长国': 'dubai',
-      '以色列': 'jerusalem',
-      '新西兰': 'auckland'
+    const controlKeywords = {
+      '自转': 'rotation', '旋转': 'rotation', '转动': 'rotation',
+      '公转': 'revolution',
+      '经纬线': 'grid', '网格': 'grid',
+      '地轴': 'axis',
+      '直射点': 'direct', '太阳直射': 'direct',
+      '晨昏线': 'twilight', '昼夜分界': 'twilight',
+      '日间模式': 'daymode', '白天': 'daymode', '日间': 'daymode',
+      '日界线': 'dateline', '日期变更线': 'dateline',
+      '气候带': 'climate', '五带': 'climate',
+      '城市': 'cities', '城市标记': 'cities',
+      '板块区域': 'continents', '板块': 'continents'
     };
 
-    const controlKeywords = {
-      '自转': 'rotation', '旋转': 'rotation', '转动': 'rotation', '地球自转': 'rotation', '开始自转': 'rotation', '停止自转': 'rotation',
-      '公转': 'revolution', '地球公转': 'revolution', '开始公转': 'revolution', '停止公转': 'revolution',
-      '经纬线': 'grid', '网格': 'grid', '显示网格': 'grid', '隐藏网格': 'grid', '经纬度': 'grid',
-      '地轴': 'axis', '显示地轴': 'axis', '隐藏地轴': 'axis',
-      '直射点': 'direct', '太阳直射': 'direct', '太阳直射点': 'direct', '显示直射点': 'direct',
-      '晨昏线': 'twilight', '昼夜分界': 'twilight', '昼夜分界线': 'twilight', '显示晨昏线': 'twilight',
-      '日间模式': 'daymode', '白天模式': 'daymode', '显示白天': 'daymode', '夜间模式': 'daymode',
-      '日界线': 'dateline', '日期变更线': 'dateline', '国际日期变更线': 'dateline', '显示日界线': 'dateline',
-      '气候带': 'climate', '五带': 'climate', '显示气候带': 'climate', '显示五带': 'climate',
-      '城市': 'cities', '城市标记': 'cities', '城市标签': 'cities', '显示城市': 'cities', '城市地标': 'cities',
-      '板块区域': 'continents', '板块': 'continents', '大陆': 'continents', '大洲': 'continents', '显示板块': 'continents', '显示大陆': 'continents',
-      '天气': 'weather', '天气数据': 'weather', '显示天气': 'weather', '气象': 'weather',
-      'gdp': 'gdp', '经济': 'gdp', '生产总值': 'gdp', '经济数据': 'gdp', '显示GDP': 'gdp',
-      '洋流': 'currents', '洋流图': 'currents', '海洋环流': 'currents', '显示洋流': 'currents',
-      '季风': 'monsoon', '季风图': 'monsoon', '季风气候': 'monsoon', '显示季风': 'monsoon',
-      '全屏': 'fullscreen', '全屏模式': 'fullscreen', '切换全屏': 'fullscreen',
-      '截图': 'screenshot', '截图导出': 'screenshot', '保存图片': 'screenshot', '屏幕截图': 'screenshot',
-      '知识库': 'knowledge', '打开知识库': 'knowledge',
-      '问答': 'quiz', '打开问答': 'quiz', '答题': 'quiz', '题目': 'quiz', '测验': 'quiz',
-      '学习助手': 'study', '打开学习助手': 'study',
-      '亚洲': 'continent_asia', '欧洲': 'continent_europe', '非洲': 'continent_africa',
-      '北美洲': 'continent_northAmerica', '南美洲': 'continent_southAmerica',
-      '大洋洲': 'continent_oceania', '南极洲': 'continent_antarctica',
-      '放大': 'zoom_in', '拉近': 'zoom_in', '靠近': 'zoom_in',
-      '缩小': 'zoom_out', '拉远': 'zoom_out', '远离': 'zoom_out',
-      '重置视图': 'reset_view', '恢复视图': 'reset_view', '回到初始': 'reset_view',
-      '全部停止': 'stop_all', '暂停所有': 'stop_all'
+    // 测量工具关键词
+    const measureKeywords = {
+      '距离': 'distance', '测距': 'distance', '距离测量': 'distance', '测量距离': 'distance',
+      '面积': 'area', '面积测量': 'area', '测量面积': 'area',
+      '角度': 'angle', '角度测量': 'angle', '测量角度': 'angle',
+      '清除': 'clear', '清除测量': 'clear', '重置': 'clear'
+    };
+
+    // 面板控制关键词
+    const panelKeywords = {
+      '图集': 'gallery', '图片集': 'gallery', '打开图集': 'gallery',
+      '知识库': 'knowledge', '地理知识': 'knowledge', '打开知识库': 'knowledge',
+      '互动问答': 'quiz', '问答': 'quiz', '测验': 'quiz',
+      '学习助手': 'assistant', 'ai助手': 'assistant', 'ai学习': 'assistant', '打开ai': 'assistant',
+      '打开设置': 'settings', '系统设置': 'settings',
+      '全屏': 'fullscreen', '全屏模式': 'fullscreen',
+      '截图': 'screenshot', '拍照': 'screenshot', '导出图片': 'screenshot'
+    };
+
+    // 节气关键词
+    const seasonKeywords = {
+      '春分': 'spring', '春分点': 'spring',
+      '夏至': 'summer', '夏至点': 'summer',
+      '秋分': 'autumn', '秋分点': 'autumn',
+      '冬至': 'winter', '冬至点': 'winter'
     };
 
     function findBestAnswer(query) {
@@ -8908,109 +8085,136 @@
             if (optionKey === 'climate') {
                 climateGroup.visible = options.climate;
                 climateGroup.children.forEach(c => c.visible = options.climate);
-                document.getElementById('climate-legend').classList.toggle('show', options.climate);
               }
             if (optionKey === 'cities') cityGroup.visible = options.cities;
             if (optionKey === 'weather' && weatherGroup) weatherGroup.visible = options.weather;
             if (optionKey === 'gdp' && gdpGroup) gdpGroup.visible = options.gdp;
-            if (optionKey === 'continents' && continentGroup) {
-              continentGroup.visible = options.continents;
-              if (options.continents && showContinentModal) {
-                showContinentModal(continents.asia);
-              } else {
-                if (closeContinentModal) closeContinentModal();
-              }
-            }
+            if (optionKey === 'continents' && continentGroup) continentGroup.visible = options.continents;
             if (optionKey === 'currents' && currentsGroup) currentsGroup.visible = options.currents;
             if (optionKey === 'monsoon' && monsoonGroup) monsoonGroup.visible = options.monsoon;
-            
-            if (optionKey.startsWith('continent_')) {
-              const continentKey = optionKey.replace('continent_', '');
-              flyToContinent(continentKey);
-              const continentData = continents[continentKey];
-              if (continentData) {
-                actions.push(`已定位到${continentData.name}`);
-              }
-            }
-            
-            if (optionKey === 'knowledge') {
-              const knowledgeModal = document.getElementById('knowledge-modal');
-              if (knowledgeModal) {
-                knowledgeModal.classList.add('show');
-                actions.push('已打开知识库');
-              }
-            }
-            
-            if (optionKey === 'quiz') {
-              const quizModal = document.getElementById('quiz-modal');
-              if (quizModal) {
-                quizModal.classList.add('show');
-                actions.push('已打开问答系统');
-              }
-            }
-            
-            if (optionKey === 'study') {
-              const studyModal = document.getElementById('study-assistant-modal');
-              if (studyModal) {
-                studyModal.classList.add('show');
-                actions.push('已打开AI学习助手');
-              }
-            }
-            
-            if (optionKey === 'zoom_in') {
-              camera.position.z = Math.max(3, camera.position.z - 1);
-              actions.push('已放大视图');
-            }
-            
-            if (optionKey === 'zoom_out') {
-              camera.position.z = Math.min(10, camera.position.z + 1);
-              actions.push('已缩小视图');
-            }
-            
-            if (optionKey === 'reset_view') {
-              camera.position.set(0, 0, 5);
-              controls.reset();
-              actions.push('已重置视图');
-            }
-            
-            if (optionKey === 'stop_all') {
-              options.rotation = false;
-              options.revolution = false;
-              updateToggleUI('rotation', false);
-              updateToggleUI('revolution', false);
-              actions.push('已停止所有动画');
-            }
           }
         }
       }
 
       for (const [cityName, cityKey] of Object.entries(cityKeywords)) {
         if (lowerQuery.includes(cityName)) {
-          // 只要提到城市名，就定位过去（更智能）
           flyToCity(cityKey);
           actions.push(`已定位到${cityName}`);
           break;
         }
       }
 
-      for (const [countryName, cityKey] of Object.entries(countryKeywords)) {
-        if (lowerQuery.includes(countryName)) {
-          flyToCity(cityKey);
-          actions.push(`已定位到${countryName}`);
+      // 测量工具控制
+      for (const [keyword, tool] of Object.entries(measureKeywords)) {
+        if (lowerQuery.includes(keyword)) {
+          if (tool === 'clear') {
+            if (typeof window.clearMeasurements === 'function') {
+              window.clearMeasurements();
+            } else {
+              document.querySelectorAll('.measure-point, .measure-line, .measure-area').forEach(el => el.remove());
+            }
+            actions.push('已清除所有测量');
+          } else {
+            if (typeof window.startMeasurement === 'function') {
+              window.startMeasurement(tool);
+            } else {
+              const btnId = tool === 'distance' ? 'measure-distance' : tool === 'area' ? 'measure-area' : 'measure-angle';
+              const btn = document.getElementById(btnId);
+              if (btn) btn.click();
+            }
+            const toolNames = { distance: '距离测量', area: '面积测量', angle: '角度测量' };
+            actions.push(`已开始${toolNames[tool]}`);
+          }
           break;
         }
       }
 
-      if (lowerQuery.includes('全屏')) {
-        const fullscreenBtn = document.getElementById('fullscreen-btn');
-        if (fullscreenBtn) fullscreenBtn.click();
-        actions.push('已切换全屏模式');
+      // 面板/功能控制
+      for (const [keyword, panel] of Object.entries(panelKeywords)) {
+        if (lowerQuery.includes(keyword)) {
+          const isNegative = lowerQuery.includes('关闭') || lowerQuery.includes('隐藏') || lowerQuery.includes('退出');
+          if (panel === 'gallery') {
+            if (isNegative) {
+              document.getElementById('gallery-close')?.click();
+              actions.push('已关闭图集');
+            } else {
+              document.getElementById('open-gallery-btn')?.click();
+              actions.push('已打开图集');
+            }
+          } else if (panel === 'knowledge') {
+            if (isNegative) {
+              document.getElementById('knowledge-close')?.click();
+              actions.push('已关闭知识库');
+            } else {
+              document.getElementById('knowledge-btn')?.click();
+              actions.push('已打开知识库');
+            }
+          } else if (panel === 'quiz') {
+            if (isNegative) {
+              document.getElementById('quiz-close')?.click();
+              actions.push('已关闭互动问答');
+            } else {
+              document.getElementById('quiz-btn')?.click();
+              actions.push('已打开互动问答');
+            }
+          } else if (panel === 'assistant') {
+            if (isNegative) {
+              document.getElementById('ai-close-btn')?.click();
+              actions.push('已关闭AI助手');
+            } else {
+              const aiBtn = document.getElementById('ai-assistant-btn') || document.querySelector('.ai-float-btn');
+              if (aiBtn) aiBtn.click();
+              actions.push('已打开AI助手');
+            }
+          } else if (panel === 'settings') {
+            if (isNegative) {
+              document.getElementById('settings-close')?.click();
+              actions.push('已关闭设置');
+            } else {
+              document.getElementById('settings-btn')?.click();
+              actions.push('已打开设置');
+            }
+          } else if (panel === 'fullscreen') {
+            if (document.fullscreenElement) {
+              document.exitFullscreen();
+              actions.push('已退出全屏');
+            } else {
+              document.documentElement.requestFullscreen();
+              actions.push('已进入全屏模式');
+            }
+          } else if (panel === 'screenshot') {
+            if (typeof window.takeScreenshot === 'function') {
+              window.takeScreenshot();
+            } else {
+              document.getElementById('screenshot-btn')?.click();
+            }
+            actions.push('正在生成截图...');
+          }
+          break;
+        }
       }
 
-      if (lowerQuery.includes('截图')) {
-        const screenshotBtn = document.getElementById('screenshot-btn');
-        if (screenshotBtn) screenshotBtn.click();
-        actions.push('已截图导出');
+      // 节气控制
+      for (const [keyword, season] of Object.entries(seasonKeywords)) {
+        if (lowerQuery.includes(keyword)) {
+          const dateMap = {
+            spring: '2024-03-20',
+            summer: '2024-06-21',
+            autumn: '2024-09-23',
+            winter: '2024-12-22'
+          };
+          const dateInput = document.getElementById('date-input') || document.getElementById('simulation-date');
+          if (dateInput) {
+            dateInput.value = dateMap[season];
+            dateInput.dispatchEvent(new Event('change'));
+          }
+          const btnMap = { spring: 'btn-spring', summer: 'btn-summer', autumn: 'btn-autumn', winter: 'btn-winter' };
+          const btn = document.getElementById(btnMap[season]);
+          if (btn) btn.click();
+          const seasonNames = { spring: '春分', summer: '夏至', autumn: '秋分', winter: '冬至' };
+          actions.push(`已设置为${seasonNames[season]}`);
+          break;
+        }
       }
 
       if (actions.length > 0) {
@@ -9033,236 +8237,35 @@
       }
     }
 
-    let chatHistory = [];
-    let inputHistory = [];
-    let inputHistoryIndex = -1;
-
-    function loadChatHistory() {
-      try {
-        const saved = localStorage.getItem('earth_explorer_chat_history');
-        if (saved) {
-          chatHistory = JSON.parse(saved);
-        }
-        const savedInput = localStorage.getItem('earth_explorer_input_history');
-        if (savedInput) {
-          inputHistory = JSON.parse(savedInput);
-        }
-      } catch (e) {
-        chatHistory = [];
-        inputHistory = [];
-      }
-    }
-
-    function saveChatHistory() {
-      try {
-        localStorage.setItem('earth_explorer_chat_history', JSON.stringify(chatHistory));
-        localStorage.setItem('earth_explorer_input_history', JSON.stringify(inputHistory));
-      } catch (e) {}
-    }
-
     function addMessage(text, isUser = false, isWarning = false) {
       const messagesContainer = document.getElementById('ai-messages');
       const messageDiv = document.createElement('div');
       messageDiv.className = `ai-message ${isUser ? 'user' : 'bot'} ${isWarning ? 'warning' : ''}`;
       
-      const now = new Date();
-      const timeStr = now.getHours().toString().padStart(2, '0') + ':' + now.getMinutes().toString().padStart(2, '0');
-      
-      let content = '';
-      if (!isUser && !isWarning) {
-        content += `<div class="ai-message-actions">
-          <button class="ai-message-copy-btn" title="复制">📋</button>
-          <button class="ai-message-speak-btn" title="语音播报">🔊</button>
-        </div>`;
-      }
-      content += `<div class="ai-message-content">${text}</div>`;
-      content += `<div class="ai-message-time">${timeStr}</div>`;
-      
-      messageDiv.innerHTML = content;
-      messagesContainer.appendChild(messageDiv);
-      messagesContainer.scrollTop = messagesContainer.scrollHeight;
-      
-      if (!isUser || !text.startsWith('正在') && !text.includes('思考中')) {
-        chatHistory.push({
-          text: text,
-          isUser: isUser,
-          isWarning: isWarning,
-          time: timeStr
-        });
-        if (chatHistory.length > 100) chatHistory = chatHistory.slice(-100);
-        saveChatHistory();
-      }
-      
       if (!isUser) {
-        const copyBtn = messageDiv.querySelector('.ai-message-copy-btn');
-        if (copyBtn) {
-          copyBtn.addEventListener('click', () => {
-            const textContent = messageDiv.querySelector('.ai-message-content').textContent;
-            navigator.clipboard.writeText(textContent).then(() => {
-              copyBtn.textContent = '✅';
-              setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
-            });
-          });
-        }
-        
-        const speakBtn = messageDiv.querySelector('.ai-message-speak-btn');
-        if (speakBtn) {
-          speakBtn.addEventListener('click', () => {
-            const textContent = messageDiv.querySelector('.ai-message-content').textContent;
-            speakText(textContent, speakBtn);
-          });
-        }
-      }
-    }
-    
-    let isSpeaking = false;
-    let currentUtterance = null;
-    let currentSpeakBtn = null;
-    
-    function getChineseVoice() {
-      const voices = window.speechSynthesis.getVoices();
-      const chineseVoices = voices.filter(v => v.lang.startsWith('zh') || v.lang.startsWith('zh-CN'));
-      return chineseVoices.length > 0 ? chineseVoices[0] : null;
-    }
-    
-    function resetSpeakBtn() {
-      if (currentSpeakBtn) {
-        currentSpeakBtn.textContent = '🔊';
-        currentSpeakBtn = null;
-      }
-    }
-    
-    function speakText(text, btn) {
-      if ('speechSynthesis' in window) {
-        if (isSpeaking) {
-          window.speechSynthesis.cancel();
-          isSpeaking = false;
-          
-          const wasCurrentBtn = btn === currentSpeakBtn;
-          resetSpeakBtn();
-          
-          if (!wasCurrentBtn && btn) {
-            currentSpeakBtn = btn;
-            btn.textContent = '⏹️';
-            const utterance = new SpeechSynthesisUtterance(text);
-            utterance.lang = 'zh-CN';
-            utterance.rate = 1;
-            utterance.pitch = 1;
-            utterance.volume = 1;
-            
-            const chineseVoice = getChineseVoice();
-            if (chineseVoice) utterance.voice = chineseVoice;
-            
-            utterance.onstart = () => {
-              isSpeaking = true;
-            };
-            
-            utterance.onend = () => {
-              isSpeaking = false;
-              resetSpeakBtn();
-            };
-            
-            utterance.onerror = () => {
-              isSpeaking = false;
-              resetSpeakBtn();
-            };
-            
-            currentUtterance = utterance;
-            window.speechSynthesis.speak(utterance);
+        const voiceBtn = document.createElement('button');
+        voiceBtn.className = 'ai-message-voice-btn';
+        voiceBtn.innerHTML = '🔊';
+        voiceBtn.title = '点击播放语音';
+        voiceBtn.onclick = (e) => {
+          e.stopPropagation();
+          const isSpeaking = voiceBtn.classList.contains('speaking');
+          if (isSpeaking) {
+            window.speechSynthesis.cancel();
+            voiceBtn.classList.remove('speaking');
+          } else {
+            speakText(text, voiceBtn);
           }
-          return;
-        }
-        
-        currentSpeakBtn = btn;
-        if (btn) btn.textContent = '⏹️';
-        
-        const utterance = new SpeechSynthesisUtterance(text);
-        utterance.lang = 'zh-CN';
-        utterance.rate = 1;
-        utterance.pitch = 1;
-        utterance.volume = 1;
-        
-        const chineseVoice = getChineseVoice();
-        if (chineseVoice) utterance.voice = chineseVoice;
-        
-        utterance.onstart = () => {
-          isSpeaking = true;
         };
-        
-        utterance.onend = () => {
-          isSpeaking = false;
-          resetSpeakBtn();
-        };
-        
-        utterance.onerror = () => {
-          isSpeaking = false;
-          resetSpeakBtn();
-        };
-        
-        currentUtterance = utterance;
-        window.speechSynthesis.speak(utterance);
-      } else {
-        alert('您的浏览器不支持语音播报功能');
+        messageDiv.appendChild(voiceBtn);
       }
-    }
-
-    function clearChat() {
-      const messagesContainer = document.getElementById('ai-messages');
-      messagesContainer.innerHTML = `<div class="ai-message bot">
-          👋 你好！我是AI地理助手。我可以回答地理问题、帮你控制地球仪，或者解释地理知识。试着问我：
-          <br><br>
-          • "为什么会有四季变化？"<br>
-          • "定位到北京"<br>
-          • "显示晨昏线"<br>
-          • "地球自转一圈要多久？"
-        </div>`;
-      chatHistory = [];
-      saveChatHistory();
-    }
-
-    function renderChatHistory() {
-      const messagesContainer = document.getElementById('ai-messages');
-      if (chatHistory.length === 0) return;
       
-      messagesContainer.innerHTML = '';
-      chatHistory.forEach(msg => {
-        const messageDiv = document.createElement('div');
-        messageDiv.className = `ai-message ${msg.isUser ? 'user' : 'bot'} ${msg.isWarning ? 'warning' : ''}`;
-        
-        let content = '';
-        if (!msg.isUser && !msg.isWarning) {
-          content += `<div class="ai-message-actions">
-            <button class="ai-message-copy-btn" title="复制">📋</button>
-            <button class="ai-message-speak-btn" title="语音播报">🔊</button>
-          </div>`;
-        }
-        content += `<div class="ai-message-content">${msg.text}</div>`;
-        content += `<div class="ai-message-time">${msg.time}</div>`;
-        
-        messageDiv.innerHTML = content;
-        messagesContainer.appendChild(messageDiv);
-        
-        if (!msg.isUser) {
-          const copyBtn = messageDiv.querySelector('.ai-message-copy-btn');
-          if (copyBtn) {
-            copyBtn.addEventListener('click', () => {
-              const textContent = messageDiv.querySelector('.ai-message-content').textContent;
-              navigator.clipboard.writeText(textContent).then(() => {
-                copyBtn.textContent = '✅';
-                setTimeout(() => { copyBtn.textContent = '📋'; }, 1500);
-              });
-            });
-          }
-          
-          const speakBtn = messageDiv.querySelector('.ai-message-speak-btn');
-          if (speakBtn) {
-            speakBtn.addEventListener('click', () => {
-              const textContent = messageDiv.querySelector('.ai-message-content').textContent;
-              speakText(textContent, speakBtn);
-            });
-          }
-        }
-      });
+      const textSpan = document.createElement('span');
+      textSpan.className = 'ai-message-text';
+      textSpan.innerHTML = text;
+      messageDiv.appendChild(textSpan);
+      
+      messagesContainer.appendChild(messageDiv);
       messagesContainer.scrollTop = messagesContainer.scrollHeight;
     }
 
@@ -9279,6 +8282,42 @@
     function hideTyping() {
       const typingIndicator = document.getElementById('ai-typing-indicator');
       if (typingIndicator) typingIndicator.remove();
+    }
+
+    // ============ 语音播报功能 ============
+    var currentSpeakBtn = null;
+    function speakText(text, btnElement) {
+      if (!window.speechSynthesis) {
+        addMessage('抱歉，您的浏览器不支持语音合成功能。');
+        return;
+      }
+      window.speechSynthesis.cancel();
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'zh-CN';
+      utterance.rate = 1.0;
+      utterance.pitch = 1.0;
+      window.speechSynthesis.speak(utterance);
+      
+      if (currentSpeakBtn && currentSpeakBtn !== btnElement) {
+        currentSpeakBtn.classList.remove('speaking');
+      }
+      if (btnElement) {
+        btnElement.classList.add('speaking');
+        currentSpeakBtn = btnElement;
+      }
+      utterance.onend = () => {
+        if (btnElement) btnElement.classList.remove('speaking');
+        if (currentSpeakBtn === btnElement) currentSpeakBtn = null;
+      };
+    }
+    function stopSpeak() {
+      if (window.speechSynthesis) {
+        window.speechSynthesis.cancel();
+      }
+      if (currentSpeakBtn) {
+        currentSpeakBtn.classList.remove('speaking');
+        currentSpeakBtn = null;
+      }
     }
 
     function processQuery(query) {
@@ -9301,44 +8340,25 @@
 
     document.getElementById('ai-assistant-btn').addEventListener('click', () => {
       const panel = document.getElementById('ai-chat-panel');
-      panel.classList.toggle('show');
-    });
-    
-    const mobileMenuBtn = document.getElementById('mobile-menu-btn');
-    const leftPanel = document.getElementById('left-panel');
-    if (mobileMenuBtn && leftPanel) {
-      mobileMenuBtn.addEventListener('click', () => {
-        leftPanel.classList.toggle('mobile-open');
-        mobileMenuBtn.textContent = leftPanel.classList.contains('mobile-open') ? '✕' : '☰';
-      });
-      
-      document.addEventListener('click', (e) => {
-        if (leftPanel.classList.contains('mobile-open') && 
-            !leftPanel.contains(e.target) && 
-            e.target !== mobileMenuBtn) {
-          leftPanel.classList.remove('mobile-open');
-          mobileMenuBtn.textContent = '☰';
-        }
-      });
-    }
-    
-    window.addEventListener('orientationchange', () => {
-      console.log('Orientation changed:', window.orientation);
-      setTimeout(() => {
-        if (window.responsiveManager && typeof window.responsiveManager.updateLayout === 'function') {
-          window.responsiveManager.updateLayout();
-        }
-      }, 200);
+      if (panel.classList.contains('show')) {
+        panel.classList.remove('show');
+        panel.style.display = 'none';
+      } else {
+        panel.classList.add('show');
+        panel.style.display = 'flex';
+      }
     });
 
     document.getElementById('ai-close-btn').addEventListener('click', (e) => {
       e.stopPropagation();
       const panel = document.getElementById('ai-chat-panel');
       panel.classList.remove('show');
+      panel.style.display = 'none';
       panel.style.left = '';
       panel.style.right = '30px';
       panel.style.top = '';
       panel.style.bottom = '170px';
+      if (window.speechSynthesis) window.speechSynthesis.cancel();
     });
 
     const aiChatPanel = document.getElementById('ai-chat-panel');
@@ -9347,7 +8367,6 @@
     let dragOffset = { x: 0, y: 0 };
 
     aiChatHeader.addEventListener('mousedown', (e) => {
-      if (e.target.closest('.ai-chat-controls') || isAIChatResizing) return;
       isAIChatDragging = true;
       aiChatPanel.classList.add('dragging');
       
@@ -9384,64 +8403,10 @@
       document.removeEventListener('mouseup', stopDrag);
     }
 
-    let isAIChatResizing = false;
-    let resizeStartWidth = 0;
-    let resizeStartHeight = 0;
-    let resizeStartX = 0;
-    let resizeStartY = 0;
-
-    const aiResizeHandle = aiChatPanel.querySelector('.ai-chat-resize-handle');
-    aiResizeHandle.addEventListener('mousedown', (e) => {
-      e.stopPropagation();
-      isAIChatResizing = true;
-      aiChatPanel.classList.add('resizing');
-      
-      const rect = aiChatPanel.getBoundingClientRect();
-      resizeStartWidth = rect.width;
-      resizeStartHeight = rect.height;
-      resizeStartX = e.clientX;
-      resizeStartY = e.clientY;
-      
-      document.addEventListener('mousemove', handleAIChatResize);
-      document.addEventListener('mouseup', stopAIChatResize);
-    });
-
-    function handleAIChatResize(e) {
-      if (!isAIChatResizing) return;
-      
-      const deltaX = e.clientX - resizeStartX;
-      const deltaY = e.clientY - resizeStartY;
-      
-      const minWidth = parseInt(getComputedStyle(aiChatPanel).minWidth);
-      const minHeight = parseInt(getComputedStyle(aiChatPanel).minHeight);
-      const maxWidth = parseInt(getComputedStyle(aiChatPanel).maxWidth);
-      const maxHeight = parseInt(getComputedStyle(aiChatPanel).maxHeight);
-      
-      let newWidth = resizeStartWidth + deltaX;
-      let newHeight = resizeStartHeight + deltaY;
-      
-      newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
-      newHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
-      
-      aiChatPanel.style.width = newWidth + 'px';
-      aiChatPanel.style.height = newHeight + 'px';
-    }
-
-    function stopAIChatResize() {
-      isAIChatResizing = false;
-      aiChatPanel.classList.remove('resizing');
-      document.removeEventListener('mousemove', handleAIChatResize);
-      document.removeEventListener('mouseup', stopAIChatResize);
-    }
-
     document.getElementById('ai-send-btn').addEventListener('click', () => {
       const input = document.getElementById('ai-input');
       const query = input.value.trim();
       if (query) {
-        inputHistory.push(query);
-        if (inputHistory.length > 50) inputHistory = inputHistory.slice(-50);
-        inputHistoryIndex = inputHistory.length;
-        saveChatHistory();
         processQueryWithAI(query);
         input.value = '';
       }
@@ -9451,42 +8416,9 @@
       if (e.key === 'Enter') {
         const query = e.target.value.trim();
         if (query) {
-          inputHistory.push(query);
-          if (inputHistory.length > 50) inputHistory = inputHistory.slice(-50);
-          inputHistoryIndex = inputHistory.length;
-          saveChatHistory();
           processQueryWithAI(query);
           e.target.value = '';
         }
-      }
-    });
-
-    document.getElementById('ai-input').addEventListener('keydown', (e) => {
-      const input = e.target;
-      if (e.key === 'ArrowUp') {
-        e.preventDefault();
-        if (inputHistory.length === 0) return;
-        if (inputHistoryIndex > 0) {
-          inputHistoryIndex--;
-          input.value = inputHistory[inputHistoryIndex];
-          input.setSelectionRange(input.value.length, input.value.length);
-        }
-      } else if (e.key === 'ArrowDown') {
-        e.preventDefault();
-        if (inputHistory.length === 0) return;
-        if (inputHistoryIndex < inputHistory.length - 1) {
-          inputHistoryIndex++;
-          input.value = inputHistory[inputHistoryIndex];
-        } else {
-          inputHistoryIndex = inputHistory.length;
-          input.value = '';
-        }
-      }
-    });
-
-    document.getElementById('ai-clear-btn').addEventListener('click', () => {
-      if (confirm('确定要清空聊天记录吗？')) {
-        clearChat();
       }
     });
 
@@ -9500,6 +8432,9 @@
     // ============ AI语音识别控制 ============
     let recognition = null;
     let isRecording = false;
+    let retryCount = 0;
+    const MAX_RETRIES = 3;
+    let manualStop = false;
 
     if ('webkitSpeechRecognition' in window || 'SpeechRecognition' in window) {
       const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
@@ -9507,59 +8442,77 @@
       recognition.continuous = false;
       recognition.interimResults = true;
       recognition.lang = 'zh-CN';
+      recognition.maxAlternatives = 3;
 
       recognition.onstart = () => {
         isRecording = true;
+        manualStop = false;
         document.getElementById('ai-voice-btn').classList.add('recording');
         document.getElementById('ai-assistant-btn').classList.add('recording');
         document.getElementById('ai-voice-indicator').classList.add('show');
-        document.getElementById('ai-voice-result').textContent = '';
+        document.getElementById('ai-voice-result').textContent = '请说话...';
       };
 
       recognition.onresult = (event) => {
+        retryCount = 0; // 成功识别后重置重试次数
         const result = event.results[event.results.length - 1];
         const transcript = result[0].transcript;
         document.getElementById('ai-voice-result').textContent = transcript;
         
-        const aiInput = document.getElementById('ai-input');
-        if (aiInput && !result.isFinal) {
-          aiInput.value = transcript;
-        }
-        
         if (result.isFinal) {
           document.getElementById('ai-voice-indicator').classList.remove('show');
-          if (aiInput) {
-            aiInput.value = transcript;
+          if (transcript.trim()) {
+            processQueryWithAI(transcript);
+          } else {
+            addMessage('抱歉，没有识别到内容，请重新说话。');
           }
-          processQueryWithAI(transcript);
         }
       };
 
       recognition.onerror = (event) => {
         console.error('语音识别错误:', event.error);
         document.getElementById('ai-voice-indicator').classList.remove('show');
-        let errorMsg = '';
+        
         switch (event.error) {
-          case 'not-allowed':
-          case 'permission-denied':
-            errorMsg = '❌ 麦克风权限被拒绝，请在浏览器设置中允许麦克风权限。';
+          case 'no-speech':
+            // 没有检测到语音，自动重试
+            if (!manualStop && retryCount < MAX_RETRIES) {
+              retryCount++;
+              addMessage(`没有检测到语音，正在重试... (${retryCount}/${MAX_RETRIES})`);
+              setTimeout(() => {
+                if (!manualStop && !isRecording) {
+                  try {
+                    recognition.start();
+                  } catch (e) {
+                    console.warn('重启语音识别失败:', e);
+                  }
+                }
+              }, 500);
+            } else if (retryCount >= MAX_RETRIES) {
+              addMessage('抱歉，多次尝试后仍未检测到语音。请检查麦克风是否正常工作。');
+              retryCount = 0;
+              isRecording = false;
+            }
             break;
-          case 'not-supported':
-            errorMsg = '❌ 当前浏览器不支持语音识别，请使用Chrome或Edge浏览器。';
+          case 'not-allowed':
+          case 'service-not-allowed':
+            addMessage('麦克风权限被拒绝。请在浏览器设置中允许访问麦克风。');
+            retryCount = 0;
+            isRecording = false;
             break;
           case 'network':
-            errorMsg = '❌ 网络连接异常，请检查网络后重试。';
+            addMessage('网络连接问题，语音识别需要网络支持。');
+            retryCount = 0;
+            isRecording = false;
             break;
-          case 'no-speech':
-            errorMsg = '🎤 未检测到语音，请大声说话或检查麦克风是否正常。';
-            break;
-          case 'audio-capture':
-            errorMsg = '❌ 无法访问麦克风，请确保麦克风已连接并可用。';
+          case 'aborted':
+            // 被手动停止，不提示错误
             break;
           default:
-            errorMsg = '❌ 语音识别出现问题，请尝试文字输入。';
+            addMessage(`语音识别出现问题: ${event.error}。请尝试文字输入。`);
+            retryCount = 0;
+            isRecording = false;
         }
-        addMessage(errorMsg);
       };
 
       recognition.onend = () => {
@@ -9576,8 +8529,11 @@
       }
 
       if (isRecording) {
+        manualStop = true;
+        retryCount = 0;
         recognition.stop();
       } else {
+        retryCount = 0;
         recognition.start();
       }
     });
@@ -9586,6 +8542,7 @@
       if (e.button === 2 && recognition) {
         e.preventDefault();
         if (!isRecording) {
+          retryCount = 0;
           recognition.start();
         }
       }
@@ -9600,6 +8557,7 @@
       mode: 'local',
       apiKey: '',
       model: 'gpt-4o',
+      endpointId: '',
       fallback: true
     };
 
@@ -9611,6 +8569,9 @@
           document.getElementById('ai-mode-select').value = aiConfig.mode;
           document.getElementById('ai-api-key').value = aiConfig.apiKey;
           document.getElementById('ai-model-select').value = aiConfig.model;
+          if (document.getElementById('ai-endpoint-id')) {
+            document.getElementById('ai-endpoint-id').value = aiConfig.endpointId || '';
+          }
           document.getElementById('ai-fallback-switch').classList.toggle('active', aiConfig.fallback);
         }
       } catch (e) {
@@ -9627,75 +8588,67 @@
     }
 
     async function callCloudAI(prompt) {
-      const apiKey = aiConfig.apiKey.trim();
+      const apiKey = document.getElementById('ai-api-key') ? document.getElementById('ai-api-key').value.trim() : aiConfig.apiKey;
+      const endpointId = document.getElementById('ai-endpoint-id') ? document.getElementById('ai-endpoint-id').value.trim() : '';
       if (!apiKey) {
         throw new Error('请先配置API密钥');
       }
 
       const systemPrompt = `
-        你是一个专业的地理知识助手，运行在一个3D地球仪应用中。
+        你是一个专业的地理知识助手，擅长回答关于地球科学、地理知识、气候变化等方面的问题。
         
-        【系统能力】
-        你可以通过自然语言指令控制3D地球仪的各种功能，系统会自动执行以下操作：
-        - 城市定位：提到城市名（如北京、东京、纽约）会自动定位到该城市
-        - 图层控制：显示/隐藏各种图层（经纬线、晨昏线、气候带、城市标记、天气数据、GDP数据、洋流、季风等）
-        - 地球控制：开启/停止自转、切换全屏模式、截图导出
-        - 地理问答：回答关于地球科学、地理知识、气候变化等问题
+        【重要提示】3D地球仪的控制功能已经由本地系统自动处理（包括定位城市、显示/隐藏图层、控制自转等），你不需要担心如何操作，只需要友好地回答用户的问题即可。
         
-        【支持的控制指令】
-        - "显示气候带" / "隐藏气候带"
-        - "显示城市标记" / "隐藏城市标记"
-        - "显示天气数据" / "隐藏天气数据"
-        - "显示GDP数据" / "隐藏GDP数据"
-        - "显示洋流" / "隐藏洋流"
-        - "显示季风" / "隐藏季风"
-        - "开启自转" / "停止自转"
-        - "切换全屏"
-        - "截图导出"
-        - "定位到北京"（或其他城市名）
+        如果用户的指令已经被执行，请简单确认操作成功，然后继续回答用户的其他问题（如果有的话）。
         
-        【重要提示】
-        如果用户的指令涉及以上操作，系统会自动执行。你只需要：
-        1. 简单确认操作成功（如："好的，已显示气候带！"）
-        2. 如果用户还有其他问题，继续回答
-        
-        请用友好自然的语气回答，保持专业但亲切。
+        请用中文回答，保持友好自然的语气。
       `.trim();
 
-      if (aiConfig.mode === 'alibaba') {
-        return await callAlibabaAPI(prompt, systemPrompt);
-      } else {
-        return await callOpenAICompatibleAPI(prompt, systemPrompt);
+      // 根据模式选择API调用方式
+      switch (aiConfig.mode) {
+        case 'alibaba':
+          return await callAlibabaAPI(prompt, systemPrompt);
+        case 'volcano':
+        case 'openai':
+        case 'azure':
+        default:
+          // 火山引擎、OpenAI、Azure 都走火山引擎代理（需配置对应的endpointId）
+          return await callVolcanoEngineAPI(prompt, systemPrompt, apiKey, endpointId);
       }
     }
 
-    async function callOpenAICompatibleAPI(prompt, systemPrompt) {
-      const apiKey = aiConfig.apiKey.trim();
-      const url = 'https://api.openai.com/v1/chat/completions';
+    async function callVolcanoEngineAPI(prompt, systemPrompt, apiKey, endpointId) {
+      const proxyUrl = 'http://localhost:3001/api/doubao/v1/chat/completions';
+      
+      const body = {
+        model: endpointId || 'doubao-seed-2-1-pro',
+        messages: [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt }
+        ],
+        temperature: 0.7,
+        max_tokens: 1000
+      };
 
-      const response = await fetch(url, {
+      const response = await fetch(proxyUrl, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`
         },
-        body: JSON.stringify({
-          model: aiConfig.model,
-          messages: [
-            { role: 'system', content: systemPrompt },
-            { role: 'user', content: prompt }
-          ],
-          temperature: 0.7,
-          max_tokens: 1000
-        })
+        body: JSON.stringify(body)
       });
 
       if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: { message: 'API调用失败' } }));
-        throw new Error(errorData.error?.message || `HTTP错误: ${response.status}`);
+        const errorText = await response.text();
+        console.error('火山API错误:', errorText);
+        throw new Error(`API调用失败 (${response.status})`);
       }
 
       const data = await response.json();
+      if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+        throw new Error('API响应格式错误: ' + JSON.stringify(data).substring(0, 200));
+      }
       return data.choices[0].message.content.trim();
     }
 
@@ -9823,7 +8776,8 @@
         }
       } catch (error) {
         hideTyping();
-        addMessage(`❌ 抱歉，AI服务出现问题: ${error.message}`);
+        const errMsg = error ? (error.message || String(error)) : '未知错误';
+        addMessage(`❌ 抱歉，AI服务出现问题: ${errMsg}`);
         
         const statusDot = document.getElementById('ai-api-status')?.querySelector('.ai-status-dot');
         const statusText = document.getElementById('ai-api-status')?.querySelector('.ai-status-text');
@@ -9834,14 +8788,23 @@
 
     function updateModeBadge() {
       let badge = document.querySelector('.ai-mode-badge');
+      const modeLabels = {
+        'local': { text: '📚 本地', class: 'local' },
+        'volcano': { text: '🌋 豆包', class: 'cloud' },
+        'openai': { text: '🤖 GPT', class: 'cloud' },
+        'azure': { text: '☁️ Azure', class: 'cloud' },
+        'alibaba': { text: '🐉 阿里云', class: 'cloud' }
+      };
+      const modeInfo = modeLabels[aiConfig.mode] || modeLabels['local'];
+      
       if (!badge) {
         badge = document.createElement('div');
-        badge.className = `ai-mode-badge ${aiConfig.mode === 'local' ? 'local' : 'cloud'}`;
-        badge.textContent = aiConfig.mode === 'local' ? '本地' : '云端';
+        badge.className = `ai-mode-badge ${modeInfo.class}`;
+        badge.textContent = modeInfo.text;
         document.querySelector('.ai-chat-header')?.appendChild(badge);
       } else {
-        badge.className = `ai-mode-badge ${aiConfig.mode === 'local' ? 'local' : 'cloud'}`;
-        badge.textContent = aiConfig.mode === 'local' ? '本地' : '云端';
+        badge.className = `ai-mode-badge ${modeInfo.class}`;
+        badge.textContent = modeInfo.text;
       }
     }
 
@@ -9853,6 +8816,11 @@
 
     document.getElementById('ai-api-key').addEventListener('input', (e) => {
       aiConfig.apiKey = e.target.value;
+      saveAIConfig();
+    });
+
+    document.getElementById('ai-endpoint-id').addEventListener('input', (e) => {
+      aiConfig.endpointId = e.target.value;
       saveAIConfig();
     });
 
@@ -9914,11 +8882,13 @@
         mode: 'local',
         apiKey: '',
         model: 'gpt-4o',
+        endpointId: '',
         fallback: true
       };
       saveAIConfig();
       document.getElementById('ai-mode-select').value = 'local';
       document.getElementById('ai-api-key').value = '';
+      document.getElementById('ai-endpoint-id').value = '';
       document.getElementById('ai-model-select').value = 'gpt-4o';
       document.getElementById('ai-fallback-switch').classList.add('active');
       
@@ -9932,7 +8902,6 @@
 
     document.getElementById('ai-config-close-btn').addEventListener('click', () => {
       document.getElementById('ai-config-panel').classList.remove('show');
-      document.getElementById('ai-chat-panel').classList.add('show');
     });
 
     // 添加配置按钮到聊天面板
@@ -9965,19 +8934,6 @@
       configPanel.classList.toggle('show');
     });
 
-    let currentLang = 'zh';
-    const langBtn = document.getElementById('ai-lang-btn');
-    langBtn.addEventListener('click', () => {
-      currentLang = currentLang === 'zh' ? 'en' : 'zh';
-      langBtn.textContent = currentLang === 'zh' ? '中/EN' : 'EN/中';
-      langBtn.title = currentLang === 'zh' ? '切换语言' : 'Switch Language';
-      if (currentLang === 'en') {
-        addMessage('Language switched to English.');
-      } else {
-        addMessage('语言已切换为中文。');
-      }
-    });
-
     setTimeout(() => {
       const header = document.querySelector('.ai-chat-header');
       if (header) {
@@ -9986,8 +8942,6 @@
     }, 100);
 
     loadAIConfig();
-    loadChatHistory();
-    renderChatHistory();
     updateModeBadge();
 
     // 替换原来的processQuery函数
@@ -10364,7 +9318,7 @@
         // 初始化核心功能，每项都有错误处理
         try { createStars(); } catch(e) { console.warn('初始化星空失败:', e); }
         try { createBackgroundPlanets(); } catch(e) { console.warn('初始化背景行星失败:', e); }
-        try { createEarth(); } catch(e) { console.warn('初始化地球失败:', e); throw e; }
+        try { createEarth(); } catch(e) { console.warn('初始化地球失败:', e); }
         try { createGrid(); } catch(e) { console.warn('初始化网格失败:', e); }
         try { createAxis(); } catch(e) { console.warn('初始化地轴失败:', e); }
         try { createSunSystem(); } catch(e) { console.warn('初始化太阳系统失败:', e); }
@@ -10415,112 +9369,6 @@
             const modal = document.getElementById('study-assistant-modal');
             if (modal) modal.classList.remove('show');
           });
-        }
-        
-        // 学习助手模态框拖拽功能
-        const studyModal = document.getElementById('study-assistant-modal');
-        const studyModalContent = studyModal?.querySelector('.study-assistant-modal');
-        const studyModalHeader = studyModalContent?.querySelector('.modal-header');
-        
-        let isStudyModalDragging = false;
-        let studyDragOffset = { x: 0, y: 0 };
-        
-        studyModalHeader?.addEventListener('mousedown', (e) => {
-          if (e.target.closest('.modal-close')) return;
-          isStudyModalDragging = true;
-          
-          const rect = studyModalContent.getBoundingClientRect();
-          studyDragOffset.x = e.clientX - rect.left;
-          studyDragOffset.y = e.clientY - rect.top;
-          
-          studyModalContent.style.position = 'absolute';
-          studyModalContent.style.margin = '0';
-          studyModalContent.style.left = rect.left + 'px';
-          studyModalContent.style.top = rect.top + 'px';
-          studyModalContent.style.right = 'auto';
-          studyModalContent.style.bottom = 'auto';
-          
-          document.addEventListener('mousemove', handleStudyModalDrag);
-          document.addEventListener('mouseup', stopStudyModalDrag);
-        });
-        
-        function handleStudyModalDrag(e) {
-          if (!isStudyModalDragging || !studyModalContent) return;
-          
-          const x = e.clientX - studyDragOffset.x;
-          const y = e.clientY - studyDragOffset.y;
-          
-          const maxX = window.innerWidth - studyModalContent.offsetWidth;
-          const maxY = window.innerHeight - studyModalContent.offsetHeight;
-          
-          const boundedX = Math.max(0, Math.min(x, maxX));
-          const boundedY = Math.max(0, Math.min(y, maxY));
-          
-          studyModalContent.style.left = boundedX + 'px';
-          studyModalContent.style.top = boundedY + 'px';
-        }
-        
-        function stopStudyModalDrag() {
-          isStudyModalDragging = false;
-          document.removeEventListener('mousemove', handleStudyModalDrag);
-          document.removeEventListener('mouseup', stopStudyModalDrag);
-        }
-        
-        // 学习助手模态框resize功能
-        let isStudyModalResizing = false;
-        let studyResizeStartWidth = 0;
-        let studyResizeStartHeight = 0;
-        let studyResizeStartX = 0;
-        let studyResizeStartY = 0;
-        
-        const studyResizeHandle = studyModalContent?.querySelector('.study-assistant-resize-handle');
-        
-        studyResizeHandle?.addEventListener('mousedown', (e) => {
-          e.stopPropagation();
-          isStudyModalResizing = true;
-          
-          const rect = studyModalContent.getBoundingClientRect();
-          studyResizeStartWidth = rect.width;
-          studyResizeStartHeight = rect.height;
-          studyResizeStartX = e.clientX;
-          studyResizeStartY = e.clientY;
-          
-          studyModalContent.style.position = 'absolute';
-          studyModalContent.style.margin = '0';
-          studyModalContent.style.left = rect.left + 'px';
-          studyModalContent.style.top = rect.top + 'px';
-          studyModalContent.style.right = 'auto';
-          studyModalContent.style.bottom = 'auto';
-          
-          document.addEventListener('mousemove', handleStudyModalResize);
-          document.addEventListener('mouseup', stopStudyModalResize);
-        });
-        
-        function handleStudyModalResize(e) {
-          if (!isStudyModalResizing || !studyModalContent) return;
-          
-          const deltaX = e.clientX - studyResizeStartX;
-          const deltaY = e.clientY - studyResizeStartY;
-          
-          const minWidth = 500;
-          const minHeight = 400;
-          const maxWidth = 900;
-          const maxHeight = window.innerHeight * 0.85;
-          
-          let newWidth = studyResizeStartWidth + deltaX;
-          let newHeight = studyResizeStartHeight + deltaY;
-          
-          newWidth = Math.max(minWidth, Math.min(newWidth, maxWidth));
-          newHeight = Math.max(minHeight, Math.min(newHeight, maxHeight));
-          
-          studyModalContent.style.width = newWidth + 'px';
-          studyModalContent.style.height = newHeight + 'px';
-        }
-        
-        function stopStudyModalResize() {
-          isStudyModalResizing = false;
-          document.removeEventListener('mousemove', handleStudyModalResize);
-          document.removeEventListener('mouseup', stopStudyModalResize);
         }
         
         // 学习助手Tab切换（带错误处理）
@@ -10876,6 +9724,85 @@
         });
         document.getElementById('study-chat-send').addEventListener('click', sendStudyChatMessage);
         
+        // AI面板拖拽和调整大小功能
+        const studyAssistantModal = document.getElementById('study-assistant-modal');
+        if (studyAssistantModal) {
+          // 添加resize handle
+          if (!studyAssistantModal.querySelector('.study-assistant-resize-handle')) {
+            const resizeHandle = document.createElement('div');
+            resizeHandle.className = 'study-assistant-resize-handle';
+            studyAssistantModal.appendChild(resizeHandle);
+          }
+          
+          const header = studyAssistantModal.querySelector('.modal-header');
+          const resizeHandle = studyAssistantModal.querySelector('.study-assistant-resize-handle');
+          
+          // 拖拽功能
+          if (header) {
+            let isDragging = false, startX, startY, startLeft, startTop;
+            header.addEventListener('mousedown', (e) => {
+              if (e.target.closest('button')) return;
+              isDragging = true;
+              studyAssistantModal.classList.add('dragging');
+              const rect = studyAssistantModal.getBoundingClientRect();
+              startX = e.clientX; startY = e.clientY;
+              startLeft = rect.left; startTop = rect.top;
+            });
+            document.addEventListener('mousemove', (e) => {
+              if (!isDragging) return;
+              const dx = e.clientX - startX;
+              const dy = e.clientY - startY;
+              studyAssistantModal.style.left = (startLeft + dx) + 'px';
+              studyAssistantModal.style.top = (startTop + dy) + 'px';
+              studyAssistantModal.style.right = 'auto';
+              studyAssistantModal.style.bottom = 'auto';
+            });
+            document.addEventListener('mouseup', () => {
+              isDragging = false;
+              studyAssistantModal.classList.remove('dragging');
+            });
+          }
+          
+          // 调整大小功能
+          if (resizeHandle) {
+            let isResizing = false, startRW, startRH, startRX, startRY;
+            resizeHandle.addEventListener('mousedown', (e) => {
+              e.stopPropagation();
+              isResizing = true;
+              const rect = studyAssistantModal.getBoundingClientRect();
+              startRW = rect.width; startRH = rect.height;
+              startRX = e.clientX; startRY = e.clientY;
+            });
+            document.addEventListener('mousemove', (e) => {
+              if (!isResizing) return;
+              const newW = startRW + (e.clientX - startRX);
+              const newH = startRH + (e.clientY - startRY);
+              studyAssistantModal.style.width = Math.max(400, newW) + 'px';
+              studyAssistantModal.style.height = Math.max(300, newH) + 'px';
+            });
+            document.addEventListener('mouseup', () => { isResizing = false; });
+          }
+        }
+        
+        // 语音控制按钮
+        const studyVoiceBtn = document.getElementById('study-voice-btn');
+        if (studyVoiceBtn) {
+          studyVoiceBtn.addEventListener('click', () => {
+            const lastBotMsg = document.querySelector('#study-chat-messages .chat-message.bot:last-of-type .chat-content');
+            if (lastBotMsg) {
+              if (studyVoiceBtn.classList.contains('speaking')) {
+                stopSpeak();
+              } else {
+                speakText(lastBotMsg.textContent, studyVoiceBtn);
+              }
+            }
+          });
+        }
+        const studyVoiceStop = document.getElementById('study-voice-stop');
+        if (studyVoiceStop) {
+          studyVoiceStop.addEventListener('click', stopSpeak);
+        }
+        
         async function sendStudyChatMessage() {
           const input = document.getElementById('study-chat-input');
           const message = input.value.trim();
@@ -11040,7 +9967,6 @@
                     if (key === 'climate' && climateGroup) {
                       climateGroup.visible = options.climate;
                       climateGroup.children.forEach(c => c.visible = options.climate);
-                      document.getElementById('climate-legend').classList.toggle('show', options.climate);
                     }
                     if (key === 'cities' && cityGroup) cityGroup.visible = options.cities;
                     if (key === 'continents' && continentGroup) continentGroup.visible = options.continents;
