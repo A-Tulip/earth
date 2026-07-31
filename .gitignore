@@ -21,3 +21,6 @@ test-results/
 playwright-report/
 coverage/
 
+
+# 调研报告不提交到仓库（本地工作文件）
+research/
