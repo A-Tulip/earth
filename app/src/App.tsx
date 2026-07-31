@@ -20,6 +20,7 @@ import { HelpPanel } from './ui/HelpPanel';
 import { isEditable } from './voice/PushToTalk';
 import { Mic } from './ui/icons';
 import { usePushToTalk } from './voice/PushToTalk';
+import { useRealtimeVoiceChat } from './voice/RealtimeVoiceChat';
 import { createASRAdapter, createTTSAdapter, createLLMAdapter } from './voice/adapters';
 import { LessonRuntime } from './lessons/runtime';
 import { commandBus } from './commands/bus';
@@ -55,11 +56,23 @@ export default function App() {
   const ttsRef = useRef(createTTSAdapter());
   const llmRef = useRef(createLLMAdapter());
 
-  // Push-to-Talk
+  // 实时对话模式状态（启用时禁用 Push-to-Talk）
+  const realtimeChatActive = useGeographyStore((s) => s.voice.realtimeChatActive);
+
+  // Push-to-Talk（实时对话模式启用时禁用）
   const { toggleRecording, interrupt } = usePushToTalk({
     asr: asrRef.current,
     tts: ttsRef.current,
     llm: llmRef.current,
+    enabled: !realtimeChatActive,
+  });
+
+  // 实时对话模式（全双工，VAD 自动检测）
+  const { toggleRealtimeChat } = useRealtimeVoiceChat({
+    asr: asrRef.current,
+    tts: ttsRef.current,
+    llm: llmRef.current,
+    enabled: realtimeChatActive,
   });
 
   // Cesium 就绪回调（命令处理器由 CesiumCanvas 内部注册一次）
@@ -121,6 +134,7 @@ export default function App() {
       <TopBar
         onOpenCommandMenu={() => setCommandMenuOpen(true)}
         onToggleMute={toggleMute}
+        onToggleRealtimeChat={toggleRealtimeChat}
         onOpenHelp={() => setHelpOpen(true)}
       />
 

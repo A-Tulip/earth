@@ -9,16 +9,17 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGeographyStore } from '../state/store';
 import { commandBus } from '../commands/bus';
-import { BookOpen, Mic, MicOff, Maximize, Globe, Sun, Camera, Search, X, MapPin } from './icons';
+import { BookOpen, Mic, MicOff, Maximize, Globe, Sun, Camera, Search, X, MapPin, RadioTower } from './icons';
 import { searchCities, type CityData } from '../data/providers';
 
 interface TopBarProps {
   onOpenCommandMenu: () => void;
   onToggleMute: () => void;
+  onToggleRealtimeChat?: () => void;
   onOpenHelp?: () => void;
 }
 
-export function TopBar({ onOpenCommandMenu, onToggleMute, onOpenHelp }: TopBarProps) {
+export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, onOpenHelp }: TopBarProps) {
   const lesson = useGeographyStore((s) => s.lesson);
   const voice = useGeographyStore((s) => s.voice);
   const solarSystemActive = useGeographyStore((s) => s.solarSystemActive);
@@ -219,6 +220,30 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onOpenHelp }: TopBarPr
         >
           {voice.muted ? <MicOff className="h-4 w-4" /> : <Mic className="h-4 w-4" />}
         </button>
+
+        {/* 实时对话模式切换（全双工，VAD 自动检测说话） */}
+        {onToggleRealtimeChat && (
+          <button
+            onClick={onToggleRealtimeChat}
+            disabled={voice.muted}
+            className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 backdrop-blur-sm transition-all ${
+              voice.muted
+                ? 'bg-ink-800/40 text-white/20 ring-white/5 cursor-not-allowed'
+                : voice.realtimeChatActive
+                  ? 'bg-geo-500/30 text-geo-200 ring-geo-400/50 animate-pulse'
+                  : 'bg-ink-800/80 text-white/70 ring-geo-500/20 hover:bg-ink-700/80 hover:text-white'
+            }`}
+            title={
+              voice.muted
+                ? '取消静音后可启用实时对话'
+                : voice.realtimeChatActive
+                  ? '实时对话中（VAD 自动检测，说话即响应）· 点击关闭'
+                  : '开启实时对话模式（全双工，无需按住空格）'
+            }
+          >
+            <RadioTower className="h-4 w-4" />
+          </button>
+        )}
 
         <button
           onClick={toggleFullscreen}

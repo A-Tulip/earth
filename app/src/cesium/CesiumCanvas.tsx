@@ -10,6 +10,7 @@ import * as Cesium from 'cesium';
 import { CesiumController } from './controller';
 import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
+import { createBasemapProvider, createTerrariumTerrainProvider } from './terrainProviders';
 
 interface CesiumCanvasProps {
   onReady?: (controller: CesiumController) => void;
@@ -24,6 +25,8 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
 
     // 设置 ion token（可选，使用 OSM 免 token 底图时不需要）
     const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
+    let cancelled = false;
+
     if (ionToken) {
       Cesium.Ion.defaultAccessToken = ionToken;
     }
@@ -43,19 +46,17 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       selectionIndicator: false,
       navigationInstructionsInitiallyVisible: false,
 
-      // 底图：ESRI World Imagery（免 token 卫星影像）
-      baseLayer: new Cesium.ImageryLayer(
-        new Cesium.UrlTemplateImageryProvider({
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          maximumLevel: 19,
-          credit: 'Esri, Maxar, Earthstar Geographics',
-        })
-      ),
+      // 底图：天地图 WMTS 主用（若有 token），否则 Esri World Imagery
+      baseLayer: new Cesium.ImageryLayer(createBasemapProvider('satellite')),
 
-      // 地形：若有 ion token 用世界地形，否则用椭球（无 terrain 选项）
+      // 地形：若有 ion token 用世界地形，否则用 AWS Terrarium 免费地形
       terrain: ionToken
         ? Cesium.Terrain.fromWorldTerrain()
         : undefined,
+
+      // 关键修复：2D 模式使用 Web Mercator 投影，匹配主流瓦片服务（OSM/CARTO/Esri/天地图 vec_w）
+      // 默认 GeographicProjection 会导致 2D 模式瓦片错位/不请求
+      mapProjection: new Cesium.WebMercatorProjection(),
 
       // 按需渲染（性能优化：静态场景降低 80%+ CPU）
       requestRenderMode: true,
@@ -70,9 +71,24 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     const creditContainer = viewer.creditDisplay.container;
     (creditContainer as HTMLElement).style.display = 'none';
 
-    // 无 ion token 时使用椭球地形（免 token 回退）
+    // 无 ion token 时使用 AWS Terrarium 免费地形（CC0 Public Domain）
+    // 椭球地形会导致等高线/高程分层/坡度/地形夸张全部失效
     if (!ionToken) {
+      // 先用椭球启动（保证地球立即显示），异步替换为 Terrarium 地形
       viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
+      useGeographyStore.getState().setTerrain({ available: false });
+      void (async () => {
+        try {
+          const terrariumProvider = await createTerrariumTerrainProvider();
+          if (cancelled) return;
+          viewer.terrainProvider = terrariumProvider;
+          useGeographyStore.getState().setTerrain({ available: true });
+        } catch {
+          // 保持椭球地形，terrain.available 已为 false
+        }
+      })();
+    } else {
+      useGeographyStore.getState().setTerrain({ available: true });
     }
 
     // 光照默认关闭（避免夜半球全黑影响地面显示），晨昏线图层开启时再启用
@@ -189,6 +205,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     onReady?.(controller);
 
     return () => {
+      cancelled = true;
       unsubscribeTime();
       unsubscribeRotation();
       unsubscribeAxis();
