@@ -59,6 +59,7 @@ export interface TerrainAnalysisState {
   slope: boolean;           // 坡度
   aspect: boolean;          // 坡向
   exaggeration: number;     // 地形夸张倍数
+  available: boolean;       // 是否有真实地形数据（椭球时为 false，地形分析功能不可用）
 }
 
 /** 镜头状态 */
@@ -101,6 +102,7 @@ export interface VoiceState {
   muted: boolean;
   asrStreaming: boolean;    // 是否使用流式 ASR
   asrReady: boolean;        // 流式 ASR 是否已就绪
+  realtimeChatActive: boolean;  // 实时对话模式（全双工，VAD 自动检测）
 }
 
 /** 课程运行时状态 */
@@ -208,6 +210,7 @@ export const initialSceneState: GeographySceneState = {
     slope: false,
     aspect: false,
     exaggeration: 1.0,
+    available: false, // 初始为 false，CesiumCanvas 加载真实地形后设为 true
   },
 
   measurement: {
@@ -247,6 +250,7 @@ export const initialSceneState: GeographySceneState = {
     muted: false,
     asrStreaming: false,
     asrReady: false,
+    realtimeChatActive: false,  // 实时对话模式默认关闭，需用户主动开启
   },
 
   lesson: {

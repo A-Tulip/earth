@@ -55,6 +55,11 @@ export class CesiumController {
     } else {
       this.viewer.scene.morphToColumbusView(1.5);
     }
+    // 关键修复：切换完成后触发重渲染，解决 requestRenderMode 下 2D 瓦片不加载
+    const removeListener = this.viewer.scene.morphComplete.addEventListener(() => {
+      this.viewer.scene.requestRender();
+      removeListener();
+    });
   }
 
   // ============ 底图 ============
@@ -63,43 +68,29 @@ export class CesiumController {
     const layers = this.viewer.imageryLayers;
     layers.removeAll();
 
-    if (basemap === 'satellite') {
-      // ESRI World Imagery：免 token 卫星影像
-      layers.addImageryProvider(
-        new Cesium.UrlTemplateImageryProvider({
-          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-          maximumLevel: 19,
-          credit: 'Esri, Maxar, Earthstar Geographics',
-        })
-      );
-    } else if (basemap === 'terrain') {
-      // 地形渲染模式：纯色底图 + 等高线
-      layers.addImageryProvider(
-        new Cesium.SingleTileImageryProvider({
-          url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII/NaturalEarthII.jpg'),
-        })
-      );
-    } else if (basemap === 'political') {
-      layers.addImageryProvider(
-        new Cesium.UrlTemplateImageryProvider({
-          url: 'https://cartodb-basemaps-{s}.global.ssl.fastly.net/light_all/{z}/{x}/{y}.png',
-          subdomains: 'abcd',
-        })
-      );
-    } else if (basemap === 'osm') {
-      layers.addImageryProvider(
-        new Cesium.OpenStreetMapImageryProvider({
-          url: 'https://tile.openstreetmap.org/',
-        })
-      );
+    // 使用统一工厂：天地图主用，Esri 回退
+    const { createBasemapProvider, createLabelOverlayProvider } = await import('./terrainProviders');
+    const provider = createBasemapProvider(basemap as 'satellite' | 'terrain' | 'political' | 'osm');
+    layers.addImageryProvider(provider);
+
+    // 天地图模式：叠加中文标注层
+    const labelProvider = createLabelOverlayProvider();
+    if (labelProvider) {
+      layers.addImageryProvider(labelProvider);
     }
   }
 
   // ============ 地形 ============
 
   async setTerrainExaggeration(value: number): Promise<void> {
-    // Cesium 1.107+ 使用 verticalExaggeration
-    (this.viewer.scene as unknown as { verticalExaggeration: number }).verticalExaggeration = value;
+    // Cesium 1.107+ 使用 verticalExaggeration + verticalExaggerationRelativeHeight
+    // relativeHeight=0 表示以海平面为参考夸张，教学推荐 2~3 倍
+    const scene = this.viewer.scene as Cesium.Scene & {
+      verticalExaggeration: number;
+      verticalExaggerationRelativeHeight: number;
+    };
+    scene.verticalExaggeration = value;
+    scene.verticalExaggerationRelativeHeight = 0;
   }
 
   async showContour(spacing: number): Promise<void> {
@@ -129,9 +120,31 @@ export class CesiumController {
   }
 
   async showAspect(): Promise<void> {
+    // Cesium 无内置 AspectRamp 材质，使用自定义 Fabric GLSL shader
+    // 通过地形法线计算坡向（方位角），映射到 8 方向色环
     const globe = this.viewer.scene.globe;
-    globe.material = Cesium.Material.fromType('AspectRamp', {
-      image: this.createAspectRampImage(),
+    globe.material = new Cesium.Material({
+      fabric: {
+        type: 'AspectRamp',
+        uniforms: {
+          u_ramp: this.createAspectRampImage(),
+        },
+        source: `
+          czm_material czm_getMaterial(czm_materialInput materialInput) {
+            czm_material material = czm_getDefaultMaterial(materialInput);
+            // 地形法线（视图空间），归一化
+            vec3 normal = normalize(materialInput.normalEC);
+            // 计算方位角：atan(y, x) 返回 [-PI, PI]
+            // normal.x 东西分量，normal.y 南北分量
+            float aspect = atan(normal.y, normal.x);
+            // 映射到 [0, 1] 采样 ramp
+            float t = (aspect + 3.14159265359) / (2.0 * 3.14159265359);
+            material.diffuse = texture2D(u_ramp, vec2(t, 0.5)).rgb;
+            material.alpha = 1.0;
+            return material;
+          }
+        `,
+      },
     });
   }
 

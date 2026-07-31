@@ -220,7 +220,37 @@ routes['/api/health'] = async () => {
     llm: !!process.env.VOLC_ARK_API_KEY,
     tts: !!process.env.VOLC_TTS_APP_ID && !!process.env.VOLC_TTS_ACCESS_KEY,
     asr: !!process.env.VOLC_ASR_APP_ID && !!process.env.VOLC_ASR_ACCESS_KEY,
+    rtc: !!process.env.VOLC_RTC_APP_ID && !!process.env.VOLC_RTC_APP_KEY,
   });
+};
+
+// ============ /api/rtc/token —— 火山引擎 RTC Token（未来升级路径） ============
+//
+// 当前实现：方案 B（WebSocket 流式 ASR + VAD）已满足教学场景需求。
+// 本端点为未来升级到火山引擎 rtc_conversational_ai（方案 A）预留：
+//   1. 前端通过 WebRTC 接入 RTC 房间
+//   2. 服务端调用 StartVoiceChat API 启动智能体
+//   3. 智能体在 RTC 房间内进行全双工语音对话
+//
+// 升级条件：
+//   - 需要火山引擎 RTC 账号和 AppID
+//   - 需要配置 VOLC_RTC_APP_ID / VOLC_RTC_APP_KEY
+//   - 需要前端引入 @volcengine/rtc SDK（~200KB）
+//
+// 详见 docs/voice-agent.md §6 实时对话模式
+routes['/api/rtc/token'] = async () => {
+  const appId = process.env.VOLC_RTC_APP_ID;
+  const appKey = process.env.VOLC_RTC_APP_KEY;
+
+  if (!appId || !appKey) {
+    return jsonError(503, 'RTC_NOT_CONFIGURED', '未配置 VOLC_RTC_APP_ID / VOLC_RTC_APP_KEY。当前使用方案 B（WebSocket 流式 ASR + VAD）');
+  }
+
+  // TODO: 未来升级时实现
+  // 1. 生成 RTC RoomID + UserID + Token
+  // 2. 调用 StartVoiceChat API 启动智能体
+  // 3. 返回 Token + RoomID 给前端
+  return jsonError(501, 'NOT_IMPLEMENTED', 'RTC 方案 A 尚未实现，当前使用方案 B');
 };
 
 // ============ HTTP Server ============

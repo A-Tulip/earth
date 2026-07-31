@@ -182,3 +182,19 @@ export function Camera({ className }: IconProps) {
     </svg>
   );
 }
+
+/** 实时对话模式图标（RadioTower 风格，表示持续监听） */
+export function RadioTower({ className }: IconProps) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth={2} strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4.9 16.1C3.7 14.8 3 13 3 11s.7-3.8 1.9-5.1" />
+      <path d="M19.1 5.9C20.3 7.2 21 9 21 11s-.7 3.8-1.9 5.1" />
+      <path d="M7.8 13.3C7.3 12.7 7 11.9 7 11s.3-1.7.8-2.3" />
+      <path d="M16.2 8.7c.5.6.8 1.4.8 2.3s-.3 1.7-.8 2.3" />
+      <line x1="12" y1="2" x2="12" y2="6" />
+      <line x1="12" y1="20" x2="12" y2="22" />
+      <path d="M9 22h6" />
+      <path d="m8 22 4-10 4 10" />
+    </svg>
+  );
+}
