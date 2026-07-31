@@ -1,70 +1,120 @@
-# Earth Explorer - 3D地理教学互动平台
+# 地球探索者 · AI 地理画布
 
-一个基于 Web 的 3D 地理教学互动平台，无需安装，打开浏览器即可使用。
+> 打开即用、无需登录、AI 语音驱动的初高中地理互动教学平台。
 
-## ✨ 功能特性
+打开网站直接看到完整地球，按住空格说出你想观察的地点或知识点，AI 理解语音指令并改变画面、解释知识、播放教学过程、发起问题。地球和地貌是整个页面的核心画布，工具按需收起，界面不堆叠。
 
-- 🌍 **3D地球可视化** - 使用 Three.js 实现的交互式3D地球
-- 🎤 **语音控制** - 支持语音指令操作地球仪
-- 📱 **响应式设计** - 支持 PC、平板、手机等多种设备
-- 🗺️ **地理知识** - 包含七大洲、城市定位、气候带等信息
-- 🎓 **学习助手** - AI 地理学习助手，支持问答和知识查询
+## 快速开始
 
-## 🚀 快速开始
-
-### 本地运行
-
-1. 克隆仓库：
 ```bash
-git clone https://github.com/A-Tulip/earth.git
+cd app
+npm install
+npm run dev
+# 打开 http://localhost:5173/
 ```
 
-2. 进入项目目录：
+**零配置即可启动**：不需要任何环境变量。无 ion token 时使用 OSM 免 token 底图 + 椭球地形；无云端 ASR/TTS/LLM 时使用浏览器 Web Speech API + 本地关键词意图解析回退。
+
+## 使用
+
+### 语音（桌面端）
+- **按住空格** 开始录音，**松开空格** 提交
+- 说"打开等高线"、"飞到北京"、"切换到二维"、"地形夸张 3 倍"、"开始等高线课程"等
+- 识别结果和执行状态短暂显示后自动淡出
+
+### 语音（平板/手机）
+- 右下角麦克风按钮
+
+### 手动工具坞（左下角）
+可折叠，5 个紧凑入口：视图 / 标注 / 天文 / 数据 / 测量。点击地图空白处或按 Esc 收起。
+
+### 课程（右上角）
+点击"课程"打开可搜索层级菜单，按初中/高中 + 自然/人文/区域/地球地图分类。选中后地球进入对应场景。
+
+## 配置（可选）
+
 ```bash
-cd earth
+cd app
+cp .env.example .env.local
 ```
 
-3. 使用任意静态服务器运行：
+| 变量 | 作用 | 不填的回退 |
+|---|---|---|
+| `VITE_CESIUM_ION_TOKEN` | Cesium World Terrain + 高清影像 | OSM 底图 + 椭球地形 |
+| `VITE_ASR_PROVIDER` | 语音识别供应商 | 浏览器 Web Speech API |
+| `VITE_TTS_PROVIDER` | 语音合成供应商 | 浏览器 speechSynthesis |
+| `VITE_LLM_PROVIDER` | 意图理解供应商 | 本地关键词解析 |
+
+申请 Cesium ion token：https://ion.cesium.com/tokens
+
+## 构建与测试
+
 ```bash
-# 使用 Python
-python -m http.server 8000
-
-# 使用 Node.js
-npx serve
-
-# 或者直接用浏览器打开 src/earth.html
+cd app
+npm run build          # 类型检查 + 生产构建 → dist/
+npm run preview        # 预览生产构建
+npm test               # 单元 + 集成测试（Vitest）
+npm run typecheck      # 类型检查
+npm run lint           # ESLint
+npm run validate:content  # 课程内容校验
 ```
 
-4. 在浏览器中访问：`http://localhost:8000/src/earth.html`
+## 架构
 
-### 访问在线版本
+```
+app/
+├── src/
+│   ├── cesium/         # Cesium 运行时（controller 抽象层 + canvas 组件）
+│   ├── commands/       # Command Bus + 工具协议 Schema（按钮与 AI 共用）
+│   ├── state/          # GeographySceneState（Zustand 集中式状态）
+│   ├── voice/          # ASR/TTS/LLM 适配层 + Push-to-Talk
+│   ├── lessons/        # 课程运行时 + Schema + 目录
+│   ├── data/           # 数据源 Provider（带回退）
+│   └── ui/             # React 组件（TopBar/ToolDock/CommandMenu/SubtitleLayer...）
+├── content/            # 课程内容包（独立于代码）
+│   └── contour-lines/  # 等高线样板课程
+├── tests/              # 单元 + 集成测试
+└── docs/               # 内部开发文档
+```
 
-[https://a-tulip.github.io/earth/src/earth.html](https://a-tulip.github.io/earth/src/earth.html)
+**核心原则：**
+- 手动按钮与 AI 语音指令共用同一个 `Geography Command Bus`
+- 所有状态集中在 `GeographySceneState`，React 组件只读状态
+- Cesium API 通过 `CesiumController` 抽象层隔离
+- AI 不能直接执行 Cesium 代码，通过白名单工具协议调用
+- 所有外部服务失败都有回退，课堂不中断
 
-## 🎯 使用说明
+详见 [app/docs/architecture.md](app/docs/architecture.md)。
 
-### 语音指令
+## 演示课程
 
-点击麦克风按钮，说出以下指令：
-- **定位导航**："定位到北京"、"去东京"、"飞往纽约"
-- **图层控制**："显示气候带"、"打开天气"、"隐藏城市"
-- **视图控制**："放大"、"缩小"、"重置视图"
-- **功能模块**："打开知识库"、"开始答题"、"打开学习助手"
-- **动画控制**："开始自转"、"停止公转"、"全部停止"
+- **等高线与地形判读**（初中八年级）：二维等高线、地形判断、三维抬升、高程分层、二维三维切换、互动题、AI 解释
+- 中国地势三级阶梯、地球自转与昼夜、板块运动与地震带、地球公转与四季、冷锋与暖锋、季风与气候、洋流与气候（已在目录注册，内容待补全）
 
-### 鼠标操作
+## 文档
 
-- **左键拖动**：旋转地球
-- **滚轮**：缩放地球
-- **右键拖动**：平移视角
+- [AGENTS.md](AGENTS.md) — AI 开发规范与项目目标
+- [app/docs/architecture.md](app/docs/architecture.md) — 架构
+- [app/docs/ui-system.md](app/docs/ui-system.md) — UI 系统
+- [app/docs/voice-agent.md](app/docs/voice-agent.md) — 语音 Agent
+- [app/docs/lesson-authoring.md](app/docs/lesson-authoring.md) — 课程编写
+- [app/docs/data-sources.md](app/docs/data-sources.md) — 数据源
+- [app/docs/migration.md](app/docs/migration.md) — 旧版迁移对照
+- [app/docs/deployment.md](app/docs/deployment.md) — 部署
 
-## 🛠️ 技术栈
+## 技术栈
 
-- Three.js - 3D渲染
-- HTML5/CSS3 - 页面结构和样式
-- JavaScript - 交互逻辑
-- Web Speech API - 语音识别
+- TypeScript + React 18
+- CesiumJS 1.143（真实地球、地形、影像、GeoJSON、CZML）
+- Zustand（状态管理）
+- Vite 5（构建）
+- Tailwind CSS 3（样式）
+- Vitest + Playwright（测试）
 
-## 📄 许可证
+## 旧版
+
+`src/earth.html` 是旧版 Three.js 地球演示，保留为算法参考，不再扩展。新主线在 `app/`。迁移对照见 [app/docs/migration.md](app/docs/migration.md)。
+
+## 许可证
 
 MIT License

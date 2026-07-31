@@ -3229,11 +3229,150 @@
          font-size: 12px !important;
        }
      }
+
+    /* ============ 左侧面板 Accordion 折叠样式 ============ */
+    #left-panel .section {
+      border-radius: 12px;
+      transition: background 0.25s ease;
+    }
+    #left-panel .section .section-title {
+      position: relative;
+      padding-right: 24px;
+      transition: color 0.2s ease;
+    }
+    #left-panel .section .section-title::after {
+      content: '';
+      position: absolute;
+      right: 6px;
+      top: 50%;
+      width: 8px;
+      height: 8px;
+      border-right: 2px solid var(--theme-text-muted);
+      border-bottom: 2px solid var(--theme-text-muted);
+      transform: translateY(-50%) rotate(45deg);
+      transition: transform 0.3s ease, border-color 0.2s ease;
+    }
+    #left-panel .section.collapsed .section-title::after {
+      transform: translateY(-50%) rotate(-45deg);
+      border-color: var(--theme-accent);
+    }
+    #left-panel .section.collapsed .section-title {
+      color: var(--theme-accent);
+      opacity: 0.7;
+    }
+    /* 折叠时隐藏 section-title 之后的所有兄弟元素 */
+    #left-panel .section.collapsed > *:not(.section-title) {
+      display: none !important;
+    }
+    #left-panel .section .section-title:hover {
+      color: var(--theme-accent);
+    }
+
+    /* ============ SVG 图标通用样式 ============ */
+    .icon-svg {
+      display: inline-block;
+      vertical-align: middle;
+      flex-shrink: 0;
+    }
+    .knowledge-svg-icon {
+      color: var(--theme-accent, #00f5ff);
+    }
+    .knowledge-sub-icon:has(.icon-svg) {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    /* 知识库详情新增样式 */
+    .detail-grade {
+      display: inline-block;
+      padding: 2px 8px;
+      margin-right: 6px;
+      font-size: 11px;
+      color: #f1f5f9;
+      background: linear-gradient(135deg, rgba(0,245,255,0.2), rgba(124,58,237,0.2));
+      border: 1px solid rgba(0,245,255,0.3);
+      border-radius: 10px;
+    }
+    .detail-summary {
+      font-size: 13px;
+      color: var(--theme-text-muted, #94a3b8);
+      margin-bottom: 10px;
+      padding-left: 10px;
+      border-left: 2px solid var(--theme-accent, #00f5ff);
+      font-style: italic;
+    }
+
+    /* ============ 太阳系 / BGM 按钮特殊样式 ============ */
+    .resource-btn.solar-btn {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.12), rgba(244, 114, 182, 0.1));
+      border-color: rgba(251, 191, 36, 0.35);
+      color: #fbbf24;
+    }
+    .resource-btn.solar-btn:hover {
+      background: linear-gradient(135deg, rgba(251, 191, 36, 0.2), rgba(244, 114, 182, 0.18));
+      border-color: rgba(251, 191, 36, 0.6);
+      box-shadow: 0 8px 25px rgba(251, 191, 36, 0.2);
+    }
+    .resource-btn.bgm-btn {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.1), rgba(59, 130, 246, 0.08));
+      border-color: rgba(16, 185, 129, 0.3);
+      color: #10b981;
+    }
+    .resource-btn.bgm-btn:hover {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.18), rgba(59, 130, 246, 0.14));
+      border-color: rgba(16, 185, 129, 0.55);
+      box-shadow: 0 8px 25px rgba(16, 185, 129, 0.18);
+    }
+    .resource-btn.bgm-btn.active {
+      background: linear-gradient(135deg, rgba(16, 185, 129, 0.25), rgba(59, 130, 246, 0.2));
+      border-color: rgba(16, 185, 129, 0.7);
+      animation: bgmPulse 2s ease-in-out infinite;
+    }
+    @keyframes bgmPulse {
+      0%, 100% { box-shadow: 0 0 0 0 rgba(16, 185, 129, 0.4); }
+      50% { box-shadow: 0 0 0 8px rgba(16, 185, 129, 0); }
+    }
+
+    /* ============ 太阳系视图提示横幅 ============ */
+    #solar-view-banner {
+      position: fixed;
+      top: 20px;
+      left: 50%;
+      transform: translateX(-50%);
+      z-index: 200;
+      padding: 10px 20px;
+      background: linear-gradient(135deg, rgba(15,23,42,0.95), rgba(10,10,30,0.95));
+      border: 1px solid rgba(251, 191, 36, 0.5);
+      border-radius: 30px;
+      color: #fbbf24;
+      font-size: 13px;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 8px 30px rgba(0,0,0,0.4), 0 0 20px rgba(251,191,36,0.2);
+      display: none;
+      align-items: center;
+      gap: 10px;
+    }
+    #solar-view-banner.show { display: flex; }
+    #solar-view-banner .banner-close {
+      cursor: pointer;
+      padding: 2px 8px;
+      border-radius: 12px;
+      background: rgba(251,191,36,0.2);
+      color: #fbbf24;
+      font-size: 12px;
+    }
+    #solar-view-banner .banner-close:hover { background: rgba(251,191,36,0.4); }
    </style>
 </head>
 <body>
   <!-- 动态星空背景 -->
   <div id="starfield"></div>
+  <!-- 太阳系视图提示横幅 -->
+  <div id="solar-view-banner">
+    <span>🌌 太阳系仿真视图</span>
+    <span style="color:#94a3b8;font-size:12px;">| 拖动旋转 · 滚轮缩放 · 点击行星查看详情</span>
+    <span class="banner-close" id="solar-banner-close">返回地球</span>
+  </div>
   <!-- 移动端菜单按钮 -->
   <button class="mobile-menu-btn" id="mobile-menu-btn" title="菜单">☰</button>
   <!-- 移动端竖屏旋转提示 -->
@@ -3549,6 +3688,8 @@
         <button class="resource-btn" id="knowledge-btn">📚 地理知识库</button>
         <button class="resource-btn" id="quiz-btn">🧠 互动问答</button>
         <button class="resource-btn" id="study-assistant-btn">🧠 AI学习助手</button>
+        <button class="resource-btn solar-btn" id="solar-view-btn">🌌 太阳系仿真</button>
+        <button class="resource-btn bgm-btn" id="bgm-toggle-btn" title="开启背景音乐">🔊 背景音乐</button>
       </div>
 
       <div class="section">
@@ -4157,6 +4298,9 @@
     import * as THREE from 'three';
     import { TrackballControls } from 'three/addons/controls/TrackballControls.js';
     import { EarthOptimizer, KeyboardShortcuts, ResponsiveManager, ThemeManager } from './earth-optimization.js';
+    import { SolarSystem, PLANET_DATA } from './solar-system.js';
+    import { createIcon, getIconPath } from './icons.js';
+    import audioManager from './audio.js';
 
     // 场景设置
     const scene = new THREE.Scene();
@@ -8096,29 +8240,45 @@
       ]
     };
 
+    // 渲染知识库列表：优先使用外部 knowledge.json，回退到内置数据
     function renderKnowledgeList(category) {
       const list = document.getElementById('knowledge-sub-list');
-      const items = knowledgeData[category] || knowledgeData['earth-motion'];
-      list.innerHTML = items.map(item => `
+      // 优先使用外部加载的数据
+      const dataSource = externalKnowledgeData || knowledgeData;
+      const items = dataSource[category] || dataSource['earth-motion'] || [];
+      list.innerHTML = items.map(item => {
+        // 优先用 SVG 图标，回退到原始 emoji
+        const iconHtml = externalKnowledgeData
+          ? (createIcon(item.icon, 20, 'knowledge-svg-icon') || item.icon)
+          : item.icon;
+        return `
         <div class="knowledge-sub-item" data-topic="${item.id}">
-          <div class="knowledge-sub-icon">${item.icon}</div>
+          <div class="knowledge-sub-icon">${iconHtml}</div>
           <span class="knowledge-sub-title">${item.title}</span>
-        </div>
-      `).join('');
-      
+        </div>`;
+      }).join('');
+
       list.querySelectorAll('.knowledge-sub-item').forEach(item => {
         item.addEventListener('click', () => {
           const topicId = item.dataset.topic;
           const data = items.find(i => i.id === topicId);
           if (data) {
-            document.getElementById('detail-title').textContent = data.icon + ' ' + data.title;
-            document.getElementById('detail-content').textContent = data.content;
+            // 标题：SVG 图标 + 名称
+            const titleIcon = externalKnowledgeData
+              ? (createIcon(data.icon, 18, 'knowledge-svg-icon') || data.icon)
+              : data.icon;
+            document.getElementById('detail-title').innerHTML = titleIcon + ' ' + data.title;
+            // 内容：补充 grade / summary 信息（若来自外部库）
+            const gradeHtml = data.grade ? `<span class="detail-grade">${data.grade}</span> ` : '';
+            const summaryHtml = data.summary ? `<div class="detail-summary">${data.summary}</div>` : '';
+            document.getElementById('detail-content').innerHTML = summaryHtml + gradeHtml + data.content;
             list.querySelectorAll('.knowledge-sub-item').forEach(i => i.classList.remove('active'));
             item.classList.add('active');
+            audioManager.playClick();
           }
         });
       });
-      
+
       list.querySelector('.knowledge-sub-item')?.click();
     }
 
@@ -8605,6 +8765,17 @@
     function animate() {
       requestAnimationFrame(animate);
 
+      // 计算帧间隔（秒）
+      const delta = 1 / 60;
+
+      // 太阳系视图激活时，使用 composer 渲染
+      if (solarSystemActive && solarSystem) {
+        solarSystem.update(delta);
+        controls.update();
+        solarSystem.render();
+        return;
+      }
+
       if (options.rotation && !isFlying) {
         earthGroup.rotation.y += 0.002 * rotationSpeed;
       }
@@ -8637,6 +8808,8 @@
       camera.aspect = window.innerWidth / window.innerHeight;
       camera.updateProjectionMatrix();
       renderer.setSize(window.innerWidth, window.innerHeight);
+      // 同步太阳系 composer 尺寸
+      if (solarSystem) solarSystem.onResize(window.innerWidth, window.innerHeight);
     });
 
     // ============ 鼠标事件监听 ============
@@ -10333,6 +10506,112 @@
       setInterval(updateStatsDisplay, 2000);
     }
 
+    // ============ 太阳系视图模块 ============
+    let solarSystem = null;
+    let solarSystemActive = false;        // 是否激活太阳系视图
+    let earthViewActive = true;           // 是否激活地球视图
+    const savedCameraPos = new THREE.Vector3();
+    const savedControlsTarget = new THREE.Vector3();
+
+    // 切换：地球视图 <-> 太阳系视图
+    function toggleSolarSystemView() {
+      if (!solarSystem) {
+        solarSystem = new SolarSystem(scene, camera, renderer);
+        solarSystem.init();
+        solarSystem.setVisible(false);
+      }
+
+      const banner = document.getElementById('solar-view-banner');
+
+      if (!solarSystemActive) {
+        // 进入太阳系视图：隐藏地球，显示太阳系
+        savedCameraPos.copy(camera.position);
+        savedControlsTarget.copy(controls.target);
+        earthGroup.visible = false;
+        // 隐藏其他装饰
+        scene.children.forEach(c => {
+          if (c.userData && (c.userData.isStars || c.userData.isBackgroundPlanet)) c.visible = false;
+        });
+        solarSystem.setVisible(true);
+        solarSystem.enabled = true;
+
+        // 相机移动到合适位置
+        camera.position.set(0, 25, 45);
+        controls.target.set(0, 0, 0);
+        controls.update();
+
+        solarSystemActive = true;
+        earthViewActive = false;
+        if (banner) banner.classList.add('show');
+        audioManager.playModalOpen();
+        if (audioManager.enabled && !audioManager.isBGmPlaying()) audioManager.startBGM();
+      } else {
+        // 返回地球视图
+        solarSystem.setVisible(false);
+        solarSystem.enabled = false;
+        earthGroup.visible = true;
+        scene.children.forEach(c => {
+          if (c.userData && (c.userData.isStars || c.userData.isBackgroundPlanet)) c.visible = true;
+        });
+        camera.position.copy(savedCameraPos);
+        controls.target.copy(savedControlsTarget);
+        controls.update();
+
+        solarSystemActive = false;
+        earthViewActive = true;
+        if (banner) banner.classList.remove('show');
+        audioManager.playModalClose();
+      }
+    }
+
+    // ============ 音频控制 ============
+    function setupAudioControl() {
+      // 在用户首次交互后初始化音频上下文
+      const initOnce = () => {
+        if (!audioManager.context) {
+          audioManager.init();
+          audioManager.setVolume(0.3);
+        } else {
+          audioManager.resume();
+        }
+      };
+      ['click', 'keydown'].forEach(ev => document.addEventListener(ev, initOnce, { once: true }));
+
+      // 为常见按钮绑定点击音效
+      document.addEventListener('click', (e) => {
+        const btn = e.target.closest('button, .toggle-item, .layer-tab, .category-btn, .resource-btn, .measurement-btn, .ai-quick-btn');
+        if (btn) audioManager.playClick();
+      });
+    }
+
+    // ============ 知识库外部加载 ============
+    let externalKnowledgeData = null;
+    async function loadKnowledgeBase() {
+      try {
+        const resp = await fetch('../data/knowledge.json');
+        if (!resp.ok) throw new Error('knowledge.json 加载失败: ' + resp.status);
+        const json = await resp.json();
+        // 转换为现有渲染函数期望的格式 { categoryId: [{id, icon, title, content}] }
+        const result = {};
+        Object.entries(json.categories).forEach(([key, cat]) => {
+          result[key] = (cat.items || []).map(item => ({
+            id: item.id,
+            icon: item.icon,        // 图标名称（用 SVG 渲染）
+            title: item.title,
+            content: item.content,
+            summary: item.summary,
+            keywords: item.keywords || [],
+            grade: item.grade || ''
+          }));
+        });
+        externalKnowledgeData = result;
+        console.log('[知识库] 加载成功，共', Object.keys(result).length, '个分类');
+      } catch (err) {
+        console.warn('[知识库] 外部加载失败，将回退到内置数据:', err);
+        externalKnowledgeData = null;
+      }
+    }
+
     // ============ 初始化 ============
     function init() {
       try {
@@ -10341,6 +10620,9 @@
         window.keyboardShortcuts = new KeyboardShortcuts();
         window.responsiveManager = new ResponsiveManager();
         window.themeManager = new ThemeManager();
+
+        // 初始化音频控制
+        setupAudioControl();
         
         // 保存全局引用供响应式管理器使用
         window.earthScene = scene;
@@ -11079,28 +11361,221 @@
         
         // 页面加载时尝试加载分享场景
         loadSharedScene();
+
+        // 加载外部知识库
+        loadKnowledgeBase();
+
+        // 绑定太阳系视图切换按钮
+        const solarBtn = document.getElementById('solar-view-btn');
+        if (solarBtn) solarBtn.addEventListener('click', toggleSolarSystemView);
+        // 横幅关闭按钮 = 返回地球视图
+        const bannerClose = document.getElementById('solar-banner-close');
+        if (bannerClose) bannerClose.addEventListener('click', toggleSolarSystemView);
+
+        // 绑定 BGM 切换按钮
+        const bgmBtn = document.getElementById('bgm-toggle-btn');
+        if (bgmBtn) bgmBtn.addEventListener('click', () => {
+          if (!audioManager.context) audioManager.init();
+          const playing = audioManager.toggleBGM();
+          bgmBtn.classList.toggle('active', playing);
+          bgmBtn.title = playing ? '关闭背景音乐' : '开启背景音乐';
+        });
+
+        // 启用面板折叠（accordion）
+        enableAccordion();
+        // 替换 emoji 为 SVG 图标
+        try {
+          replaceToggleIconEmojis();
+          replaceEmojisWithIcons(document.getElementById('left-panel'));
+          replaceEmojisWithIcons(document.getElementById('solar-view-banner'));
+        } catch (e) { console.warn('图标替换失败:', e); }
       } catch (error) {
         console.error('初始化出错:', error);
       }
-      
+
       // 确保加载动画最终会被隐藏
       const hideLoading = () => {
         const loading = document.getElementById('loading');
         if (loading) loading.style.display = 'none';
       };
-      
+
       // 初始化完成后立即隐藏，或最多等待3秒
       setTimeout(hideLoading, 3000);
-      
+
       // 监听渲染完成事件
       renderer.domElement.addEventListener('render', hideLoading, { once: true });
-      
+
       // 开始动画循环
       animate();
-      
+
       // 第一次渲染后隐藏加载
       requestAnimationFrame(() => {
         requestAnimationFrame(hideLoading);
+      });
+    }
+
+    // ============ 左侧面板折叠（Accordion） ============
+    function enableAccordion() {
+      document.querySelectorAll('#left-panel .section').forEach(section => {
+        const title = section.querySelector('.section-title');
+        if (!title || section.dataset.accordion === 'done') return;
+        section.dataset.accordion = 'done';
+        // 默认前 3 个展开，其余折叠
+        const idx = Array.from(section.parentNode.querySelectorAll('.section')).indexOf(section);
+        if (idx > 2) section.classList.add('collapsed');
+
+        title.style.cursor = 'pointer';
+        title.style.userSelect = 'none';
+        title.addEventListener('click', (e) => {
+          // 不拦截表单控件交互
+          if (e.target.closest('input, select, button')) return;
+          section.classList.toggle('collapsed');
+          audioManager.playToggle(!section.classList.contains('collapsed'));
+        });
+      });
+    }
+
+    // ============ Emoji → SVG 图标批量替换 ============
+    // 映射：emoji → icons.js 中的图标名称
+    const EMOJI_TO_ICON = {
+      '🌍': 'globe', '🌎': 'globe', '🌏': 'globe',
+      '☀️': 'sun', '🌞': 'sun',
+      '🌙': 'moon', '🌓': 'moon',
+      '🔄': 'rotate', '🪐': 'orbit', '🛰️': 'satellite',
+      '📐': 'ruler', '📏': 'ruler2',
+      '🔴': 'circle-dot',
+      '🌡️': 'thermometer',
+      '🏙️': 'building', '🗺️': 'map',
+      '🌤️': 'cloud-sun', '☁️': 'cloud',
+      '💰': 'dollar',
+      '📷': 'camera', '🖼️': 'image',
+      '📍': 'map-pin', '🎯': 'target',
+      '❌': 'x', '✕': 'x',
+      '🔍': 'search', '🔭': 'search',
+      '🏠': 'home', '🖥️': 'monitor',
+      '⏰': 'clock', '🕐': 'clock',
+      '⚖️': 'layers',
+      '📊': 'layers',
+      '📚': 'book', '📖': 'book',
+      '🧠': 'brain',
+      '🔊': 'speaker', '🔇': 'speaker-off',
+      '⚙️': 'settings',
+      '🌌': 'star',
+      '🍂': 'leaf', '🌿': 'leaf',
+      '➤': 'arrow-right',
+      '🎤': 'speaker',
+      '➕': 'x',
+      '👁️': 'search',
+      '🔌': 'x',
+      '🐉': 'star',
+      '☁️': 'cloud',
+      '🌸': 'leaf',
+      '🌅': 'sunrise',
+      '🗼': 'building',
+      '🗽': 'building',
+      '🌊': 'waves',
+      '💨': 'wind',
+      '💧': 'waves',
+      '❄️': 'circle',
+      '🌫️': 'cloud',
+      '🌧️': 'cloud',
+      '🌨️': 'cloud',
+      '⛅': 'cloud-sun',
+      '⛰️': 'mountain',
+      '🏔️': 'mountain',
+      '🧩': 'grid',
+      '⬆️': 'arrow-up',
+      '➡️': 'arrow-right',
+      '0️⃣': 'circle-dot',
+      '❓': 'circle',
+      '🤖': 'brain',
+      '🖱️': 'settings',
+      '🎨': 'palette',
+      '💾': 'database',
+      '📤': 'share',
+      '✅': 'circle-dot',
+      '👋': 'hand'
+    };
+
+    function replaceEmojisWithIcons(root = document) {
+      const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode: (node) => {
+          if (!node.nodeValue || node.nodeValue.trim() === '') return NodeFilter.FILTER_REJECT;
+          // 跳过 script/style/textarea
+          const tag = node.parentNode.tagName;
+          if (['SCRIPT', 'STYLE', 'TEXTAREA', 'INPUT'].includes(tag)) return NodeFilter.FILTER_REJECT;
+          // 检查是否含 emoji
+          const emojiRegex = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2300}-\u{23FF}]/u;
+          return emojiRegex.test(node.nodeValue) ? NodeFilter.FILTER_ACCEPT : NodeFilter.FILTER_REJECT;
+        }
+      });
+
+      const targets = [];
+      while (walker.nextNode()) targets.push(walker.currentNode);
+
+      const emojiRegex = /[\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\u{2300}-\u{23FF}]/gu;
+
+      targets.forEach(node => {
+        const text = node.nodeValue;
+        const fragments = text.split(emojiRegex);
+        const emojis = text.match(emojiRegex) || [];
+        if (emojis.length === 0) return;
+
+        // 构建替换后的节点
+        const newNodes = [];
+        fragments.forEach((frag, i) => {
+          if (frag) newNodes.push(document.createTextNode(frag));
+          if (i < emojis.length) {
+            const emoji = emojis[i];
+            const iconName = EMOJI_TO_ICON[emoji];
+            if (iconName) {
+              const span = document.createElement('span');
+              span.innerHTML = createIcon(iconName, 16, 'emoji-replaced-icon');
+              span.style.display = 'inline-flex';
+              span.style.verticalAlign = 'middle';
+              span.style.margin = '0 2px';
+              newNodes.push(span);
+            } else {
+              newNodes.push(document.createTextNode(emoji));
+            }
+          }
+        });
+
+        // 替换原节点
+        const parent = node.parentNode;
+        newNodes.forEach(n => parent.insertBefore(n, node));
+        parent.removeChild(node);
+      });
+    }
+
+    // 替换 toggle-icon 中的 emoji（div 内容为单个 emoji）
+    function replaceToggleIconEmojis() {
+      // 归一化：去除变体选择符 U+FE0F，用于匹配
+      const normalize = (s) => s.replace(/\uFE0F/g, '').trim();
+      // 构建归一化后的查找表
+      const normalizedMap = {};
+      Object.entries(EMOJI_TO_ICON).forEach(([k, v]) => { normalizedMap[normalize(k)] = v; });
+
+      document.querySelectorAll('.toggle-icon').forEach(el => {
+        const text = normalize(el.textContent);
+        if (text && normalizedMap[text]) {
+          el.innerHTML = createIcon(normalizedMap[text], 16, 'toggle-svg-icon');
+          el.style.display = 'flex';
+          el.style.alignItems = 'center';
+          el.style.justifyContent = 'center';
+        }
+      });
+      // 处理 section-title 前缀 emoji
+      document.querySelectorAll('#left-panel .section-title').forEach(el => {
+        const html = el.innerHTML;
+        const emojiMatch = html.match(/^([\u{1F300}-\u{1FAFF}\u{2600}-\u{27BF}\u{2B00}-\u{2BFF}\uFE0F]+)/u);
+        if (emojiMatch) {
+          const emoji = normalize(emojiMatch[1]);
+          const iconName = normalizedMap[emoji];
+          if (iconName) {
+            el.innerHTML = createIcon(iconName, 14, 'section-title-icon') + html.substring(emojiMatch[1].length);
+          }
+        }
       });
     }
 
