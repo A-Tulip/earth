@@ -2,6 +2,17 @@
 @tailwind components;
 @tailwind utilities;
 
+:root {
+  /* §2.9 深空背景：径向冷蓝 + 银河带 + 地表辉光，替代纯 #0a0f1a 方块色 */
+  --bg-space-0: #05070d;
+  --bg-space-1: #0a1020;
+  --bg-space-2: #111a33;
+  --bg-space-3: #152246;
+  --bg-glow-geo: #2962ff;
+  --bg-glow-dim: rgba(41, 98, 255, 0.08);
+  --bg-star-twinkle: 0.35;
+}
+
 html,
 body,
 #root {
@@ -12,10 +23,30 @@ body,
 
 body {
   font-family: 'Noto Sans SC', system-ui, sans-serif;
-  background: #0a0f1a;
+  color: #e5e7eb;
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -10%, rgba(80, 120, 255, 0.18), transparent 60%),
+    radial-gradient(ellipse 70% 60% at 50% 120%, rgba(20, 40, 90, 0.55), transparent 65%),
+    radial-gradient(ellipse 140% 90% at 50% 50%, var(--bg-space-2), var(--bg-space-0) 70%),
+    linear-gradient(180deg, var(--bg-space-1) 0%, var(--bg-space-0) 100%);
   overflow: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+/* 背景层 —— 银河带状噪点 + 星点（由 App.tsx 的 <Starfield /> 层接管 canvas 星点，这里只负责底色层的细腻辉光） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    radial-gradient(circle at 18% 32%, rgba(120, 160, 255, 0.06) 0%, transparent 45%),
+    radial-gradient(circle at 82% 68%, rgba(70, 130, 200, 0.05) 0%, transparent 45%),
+    radial-gradient(circle at 50% 50%, var(--bg-glow-dim) 0%, transparent 75%);
+  mix-blend-mode: screen;
+  z-index: 0;
 }
 
 /* Cesium 容器 */

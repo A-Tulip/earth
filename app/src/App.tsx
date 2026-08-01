@@ -15,6 +15,7 @@ import { TopBar } from './ui/TopBar';
 import { ToolDock } from './ui/ToolDock';
 import { CommandMenu } from './ui/CommandMenu';
 import { SubtitleLayer } from './ui/SubtitleLayer';
+import { Starfield } from './ui/Starfield';
 import { Guidance } from './ui/Guidance';
 import { FpsDisplay } from './ui/FpsDisplay';
 import { HelpPanel } from './ui/HelpPanel';
@@ -127,7 +128,10 @@ export default function App() {
   }, []);
 
   return (
-    <div className="relative h-screen w-screen overflow-hidden bg-ink-900 font-sans">
+    <div className="relative h-screen w-screen overflow-hidden bg-transparent font-sans">
+      {/* 深空星空背景层（pointer-events-none，z-0） */}
+      <Starfield />
+
       {/* 画布层：按需切换 Cesium 地球 / Three.js 太阳系 */}
       {solarSystemActive ? (
         <Suspense
