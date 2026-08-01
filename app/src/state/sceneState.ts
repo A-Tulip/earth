@@ -6,7 +6,13 @@
  */
 
 export type ViewMode = '3d' | '2d' | 'columbus';
-export type BasemapType = 'satellite' | 'terrain' | 'political' | 'osm';
+/**
+ * §1.2 扩展为 6 种语义；terrain.contour 分析开关仍独立（不冲突）
+ * - political/relief/landform/satellite 默认叠加天地图中文注记
+ * - contour：政区底图 + 叠加等高线材质（globe.material=ElevationContour）
+ * - osm：开放街道图（不叠中文注记，纯英文）
+ */
+export type BasemapType = 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm';
 
 /** 标注图层开关集合 */
 export interface AnnotationLayers {
@@ -138,6 +144,10 @@ export interface TransientUIState {
   showSubtitle: boolean;
   /** API 限流提示（issue #18） */
   rateLimit: ApiRateLimitStatus;
+  /** §0.2 Manager 最近一次图层切换错误，用于 Toast 显示，null/undefined 表示无错 */
+  lastLayerError?: string | null;
+  /** §0.2 lastLayerError 写入时间（ISO8601），UI 侧按此字段变化触发 Toast */
+  lastLayerErrorAt?: string | null;
 }
 
 export interface ContextAction {

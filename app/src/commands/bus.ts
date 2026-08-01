@@ -156,7 +156,7 @@ export function registerCommandHandlers() {
   });
 
   commandBus.register('view.setBasemap', async (call) => {
-    const { basemap } = call.args as { basemap: 'satellite' | 'terrain' | 'political' | 'osm' };
+    const { basemap } = call.args as { basemap: 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm' };
     const ctrl = commandBus.getContext().cesium;
     if (ctrl) await ctrl.setBasemap(basemap);
     store.getState().setBasemap(basemap);

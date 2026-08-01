@@ -11,7 +11,7 @@ import { createTickThrottle } from '../state/PerformanceMonitor';
 
 export type MeasurementMode = 'distance' | 'area' | 'angle' | 'height' | 'profile';
 export type SceneModeStr = '2d' | '3d' | 'columbus';
-export type BasemapStr = 'satellite' | 'terrain' | 'political' | 'osm';
+export type BasemapStr = 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm';
 
 export class CesiumController {
   constructor(private viewer: Cesium.Viewer) {}

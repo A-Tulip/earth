@@ -113,4 +113,33 @@ describe('状态更新', () => {
     expect(useGeographyStore.getState().time.active).toBe(true);
     expect(useGeographyStore.getState().time.isPlaying).toBe(true);
   });
+
+  it('§1.2 BasemapType 6 种：satellite/political/relief/landform/contour/osm 均接受', () => {
+    const store = useGeographyStore.getState();
+    const kinds: ('satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm')[] = [
+      'satellite',
+      'political',
+      'relief',
+      'landform',
+      'contour',
+      'osm',
+    ];
+    for (const k of kinds) {
+      store.setBasemap(k);
+      expect(useGeographyStore.getState().basemap).toBe(k);
+    }
+  });
+
+  it('§0.2 setUI 可写入 lastLayerError + lastLayerErrorAt，reset 清空', () => {
+    const store = useGeographyStore.getState();
+    const iso = '2025-01-01T00:00:00.000Z';
+    store.setUI({ lastLayerError: 'basemap: tile 404', lastLayerErrorAt: iso });
+    const s = useGeographyStore.getState();
+    expect(s.ui.lastLayerError).toBe('basemap: tile 404');
+    expect(s.ui.lastLayerErrorAt).toBe(iso);
+    store.reset();
+    const r = useGeographyStore.getState();
+    expect(r.ui.lastLayerError).toBeFalsy();
+    expect(r.ui.lastLayerErrorAt).toBeFalsy();
+  });
 });
