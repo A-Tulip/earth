@@ -53,3 +53,48 @@ export function sanitizeHtml(html: string): string {
   if (!html) return '';
   return DOMPurify.sanitize(html, PURIFY_CONFIG);
 }
+
+/**
+ * §2.4 三级容错 JSON 解析：
+ *   1) 直接 JSON.parse
+ *   2) 抽取 { ... } 或 [ ... ] 片段后 parse
+ *   3) 正则抽取 "reply" 字段，组装成 { reply, commands: [] } 返回
+ * 失败返回 null（永不抛错）。
+ */
+export function safeJSONParse<T = unknown>(text: string | null | undefined): T | null {
+  if (!text) return null;
+  const raw = text.trim();
+  if (!raw) return null;
+
+  // Level 1: 直接 parse
+  try { return JSON.parse(raw) as T; } catch { /* fallthrough */ }
+
+  // Level 2: 抽取对象或数组片段
+  const objStart = raw.indexOf('{');
+  const arrStart = raw.indexOf('[');
+  const isObj = objStart >= 0 && (arrStart < 0 || objStart < arrStart);
+  if (isObj) {
+    const end = raw.lastIndexOf('}');
+    if (end > objStart) {
+      try { return JSON.parse(raw.slice(objStart, end + 1)) as T; } catch { /* fallthrough */ }
+    }
+  } else if (arrStart >= 0) {
+    const end = raw.lastIndexOf(']');
+    if (end > arrStart) {
+      try { return JSON.parse(raw.slice(arrStart, end + 1)) as T; } catch { /* fallthrough */ }
+    }
+  }
+
+  // Level 3: 正则抽 "reply" / "回复"
+  const replyMatch =
+    raw.match(/"reply"\s*:\s*"((?:\\.|[^"\\])*)"/) ||
+    raw.match(/"回复"\s*:\s*"((?:\\.|[^"\\])*)"/);
+  if (replyMatch) {
+    try {
+      const reply = JSON.parse(`"${replyMatch[1]}"`) as string;
+      return { reply, commands: [] } as unknown as T;
+    } catch { /* fallthrough */ }
+    return { reply: replyMatch[1], commands: [] } as unknown as T;
+  }
+  return null;
+}

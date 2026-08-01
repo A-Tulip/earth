@@ -11,6 +11,8 @@
  * 开发环境可用浏览器 Web Speech API 作为回退。
  */
 
+import { safeJSONParse } from '../ui/sanitize';
+
 // ============ ASR ============
 
 export interface ASRResult {
@@ -369,27 +371,47 @@ export class VolcengineArkLLM implements LLMAdapter {
       throw new Error(`火山 LLM 调用失败: ${(err as { error?: string }).error ?? res.status}`);
     }
 
-    const data = await res.json() as {
+    const rawText = await res.text();
+    const data = safeJSONParse<{
       choices?: Array<{
         message?: {
           content?: string;
           tool_calls?: Array<{
             function?: { name: string; arguments: string };
           }>;
+          reply?: string;
+          commands?: Array<{ name: string; args: Record<string, unknown> }>;
         };
       }>;
-    };
+      reply?: string;
+      commands?: Array<{ name: string; args: Record<string, unknown> }>;
+    }>(rawText) ?? {};
 
     const choice = data.choices?.[0];
     const message = choice?.message;
-    const toolCalls = (message?.tool_calls ?? []).map((tc) => {
-      let args: Record<string, unknown> = {};
-      try { args = JSON.parse(tc.function?.arguments ?? '{}'); } catch { /* 空参数 */ }
-      return { name: tc.function?.name ?? '', args };
+    const toolCalls: Array<{ name: string; args: Record<string, unknown> }> = [];
+
+    // 槽位 1：OpenAI-style tool_calls (function.arguments)
+    (message?.tool_calls ?? []).forEach((tc) => {
+      try {
+        const args = (safeJSONParse<Record<string, unknown>>(tc.function?.arguments ?? '{}') ?? {}) as Record<string, unknown>;
+        const name = tc.function?.name ?? '';
+        if (name) toolCalls.push({ name, args });
+      } catch { /* noop */ }
     });
 
+    // 槽位 2：服务端自定义 {reply, commands}（非流式 JSON）
+    const commands = (message?.commands ?? data.commands ?? []) as Array<{ name: string; args: Record<string, unknown> }>;
+    if (commands.length > 0) {
+      for (const c of commands) if (c?.name) toolCalls.push(c);
+    }
+
+    // 回复文本：choices[0].message.content 优先，其次 .reply / data.reply
+    const naturalText =
+      message?.content?.trim() || message?.reply?.trim() || data.reply?.trim() || '';
+
     return {
-      text: message?.content ?? '',
+      text: naturalText,
       toolCalls: toolCalls.length > 0 ? toolCalls : undefined,
     };
   }

@@ -178,3 +178,30 @@ describe('validateToolCall 参数校验', () => {
     expect(TOOL_NAMES).toContain('camera.screenshot');
   });
 });
+
+describe('safeJSONParse 三级容错（sanitize.ts)', () => {
+  it('L1 标准 JSON 直接解析', async () => {
+    const { safeJSONParse } = await import('../src/ui/sanitize');
+    expect(safeJSONParse<{ reply: string }>('{"reply":"你好"}')?.reply).toBe('你好');
+  });
+  it('L2 被多余 prose 包裹的片段抽取', async () => {
+    const { safeJSONParse } = await import('../src/ui/sanitize');
+    const txt = '好的，回复你  { "reply": "收到" , "commands": [{"name":"camera.flyTo"}]  } 完毕';
+    const r = safeJSONParse<{ reply?: string; commands?: unknown[] }>(txt);
+    expect(r?.reply).toBe('收到');
+    expect(r?.commands ?? []).toHaveLength(1);
+  });
+  it('L3 仅 reply 字段抽取兜底', async () => {
+    const { safeJSONParse } = await import('../src/ui/sanitize');
+    const txt = '这不是json 但是有"reply":"只看见这个就行"xxx';
+    const r = safeJSONParse<{ reply?: string; commands?: unknown[] }>(txt);
+    expect(r?.reply).toBe('只看见这个就行');
+    expect(r?.commands ?? []).toHaveLength(0);
+  });
+  it('完全无 JSON 无 reply 返回 null', async () => {
+    const { safeJSONParse } = await import('../src/ui/sanitize');
+    expect(safeJSONParse('hello world')).toBeNull();
+    expect(safeJSONParse('')).toBeNull();
+    expect(safeJSONParse(null)).toBeNull();
+  });
+});
