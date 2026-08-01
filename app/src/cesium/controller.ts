@@ -14,8 +14,96 @@ export type MeasurementMode = 'distance' | 'area' | 'angle' | 'height' | 'profil
 export type SceneModeStr = '2d' | '3d' | 'columbus';
 export type BasemapStr = 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm';
 
+export const RESET_CAMERA = { lon: 116.4, lat: 35.0, height: 15_000_000, headingDeg: 0, pitchDeg: -90, rollDeg: 0 };
+
 export class CesiumController {
-  constructor(private viewer: Cesium.Viewer) {}
+  constructor(private viewer: Cesium.Viewer) {
+    this.bindIdleReset();
+  }
+
+  // ================ 指针空闲 300s → 自动重置到中国 ================
+  private idleResetMs = 5 * 60 * 1000; // 5 分钟（300s）默认
+  private lastUserInputAt = Date.now();
+  private idleTimerId: number | null = null;
+  private idleBound = false;
+  /** 提供给外部：设置空闲阈值（0 关闭自动重置）；同时重置"最后交互时间"为现在 */
+  setIdleReset(ms: number): void {
+    this.idleResetMs = Math.max(0, ms);
+    this.lastUserInputAt = Date.now();
+    this.ensureIdleTimer();
+  }
+
+  private bindIdleReset(): void {
+    if (this.idleBound) return;
+    this.idleBound = true;
+    const ping = () => { this.lastUserInputAt = Date.now(); };
+    // Scene/ScreenSpaceCameraController 触发：用户拖动、缩放、倾斜都算交互
+    try {
+      const ssc = this.viewer.scene.screenSpaceCameraController;
+      // 老版本：updateEvent / inputChanged；都挂一遍兜底
+      const sscAny = ssc as unknown as {
+        inputChanged?: Cesium.Event<any>;
+        updateEvent?: Cesium.Event<any>;
+      };
+      if (sscAny.inputChanged && typeof sscAny.inputChanged.addEventListener === 'function') {
+        sscAny.inputChanged.addEventListener(ping);
+      }
+      if (sscAny.updateEvent && typeof sscAny.updateEvent.addEventListener === 'function') {
+        sscAny.updateEvent.addEventListener(ping);
+      }
+    } catch { /* noop */ }
+    // 键盘（键盘 W/A/S/D 键位操控也算）
+    window.addEventListener('keydown', ping, { passive: true });
+    // 指针事件：拖拽、滚动、wheel、点击 canvas
+    const canvas = this.viewer.scene.canvas as HTMLElement;
+    canvas.addEventListener('pointerdown', ping, { passive: true });
+    canvas.addEventListener('pointermove', ping, { passive: true });
+    canvas.addEventListener('wheel', ping, { passive: true });
+    this.ensureIdleTimer();
+  }
+
+  private ensureIdleTimer(): void {
+    if (this.idleTimerId != null) { window.clearInterval(this.idleTimerId); this.idleTimerId = null; }
+    if (this.idleResetMs <= 0) return;
+    this.idleTimerId = window.setInterval(() => {
+      const now = Date.now();
+      if (now - this.lastUserInputAt < this.idleResetMs) return;
+      // 条件门：避免课堂讲解 / 自转中 / 正在飞行时打断用户
+      try {
+        const st = useGeographyStore.getState();
+        if (this.rotationActive) return;
+        // lesson.activeLessonId != null 表示正在听课中；isPaused=false 才在推进
+        if (st.lesson?.activeLessonId && !st.lesson.isPaused) return;
+        // measurement.mode !== 'none' 表示用户正在画量尺/面积
+        if (st.measurement && st.measurement.mode !== 'none') return;
+        // 距离初始视角已经很近则跳过（避免重复触发 flyTo 抖动）
+        if (this.isNearResetView(1.0)) return;
+      } catch { /* ignore */ }
+      void this.resetToChina({ durationSec: 3.2, force: false });
+      this.lastUserInputAt = Date.now();
+    }, 10_000);
+  }
+
+  /** 若当前镜头位置/朝向与 RESET_CAMERA 接近（高度偏差小于 ratio），判定为已经在首页视角 */
+  private isNearResetView(ratio = 1.0): boolean {
+    try {
+      const cam = this.viewer.camera;
+      const carto = Cesium.Cartographic.fromCartesian(cam.positionWC);
+      const dh = Math.abs(Cesium.Math.toDegrees(carto.longitude) - RESET_CAMERA.lon);
+      const dv = Math.abs(Cesium.Math.toDegrees(carto.latitude) - RESET_CAMERA.lat);
+      const dH = Math.abs(carto.height - RESET_CAMERA.height) / RESET_CAMERA.height;
+      return dh < 5 * ratio && dv < 5 * ratio && dH < 0.25 * ratio;
+    } catch { return false; }
+  }
+
+  /** SSOT 中国首页视角：代码内所有"回到首页"统一走这里，避免 4 处硬编码出现偏差 */
+  async resetToChina(opts?: { durationSec?: number; force?: boolean }): Promise<void> {
+    const durationSec = opts?.durationSec ?? 2.5;
+    const force = opts?.force ?? false;
+    // 自转中：先停
+    if (force && this.rotationActive) this.setRotation(false, this.rotationSpeed);
+    return this.flyTo(RESET_CAMERA.lon, RESET_CAMERA.lat, RESET_CAMERA.height, durationSec);
+  }
 
   // ============ 镜头 ============
 
@@ -35,7 +123,7 @@ export class CesiumController {
   }
 
   async resetView(): Promise<void> {
-    await this.flyTo(116.4, 35.0, 15_000_000, 2.5);
+    return this.resetToChina({ durationSec: 2.5, force: true });
   }
 
   /** 截取当前画面为 PNG DataURL（强制渲染一帧以确保最新画面） */
