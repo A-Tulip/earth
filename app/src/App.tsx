@@ -42,6 +42,45 @@ export default function App() {
   const store = useGeographyStore;
   const solarSystemActive = useGeographyStore((s) => s.solarSystemActive);
 
+  // 暴露 store setState 到 window（仅开发调试 + E2E 测试使用，不依赖此做功能使用）
+  useEffect(() => {
+    const w = window as unknown as { _geographyStoreDebug?: { setState: (p: any) => void } };
+    w._geographyStoreDebug = { setState: (p) => useGeographyStore.setState(p) };
+  }, []);
+
+  // ======== LayerLifeCycleManager 错误 Toast（lastLayerError 变更显示 6s 红色提示）
+  const [layerError, setLayerError] = useState<{ msg: string; at: string } | null>(null);
+  const layerErrorClearTimer = useRef<number | null>(null);
+  const lastErrorAtRef = useRef<string | null>(null);
+  const layerErrorMsg = useGeographyStore((s) => s.ui.lastLayerError);
+  const layerErrorAt = useGeographyStore((s) => s.ui.lastLayerErrorAt);
+  useEffect(() => {
+    if (!layerErrorMsg || !layerErrorAt) {
+      // 被显式清空 → UI 同步清空
+      if (layerErrorClearTimer.current) window.clearTimeout(layerErrorClearTimer.current);
+      layerErrorClearTimer.current = null;
+      setLayerError(null);
+      lastErrorAtRef.current = null;
+      return;
+    }
+    // 与上次一样 → 重复信号，不重触发
+    if (layerErrorAt === lastErrorAtRef.current) return;
+    lastErrorAtRef.current = layerErrorAt;
+    setLayerError({ msg: layerErrorMsg, at: layerErrorAt });
+    if (layerErrorClearTimer.current) window.clearTimeout(layerErrorClearTimer.current);
+    // 6 秒自动隐藏，并清除 store 错误以便下一条错误能再次触发
+    layerErrorClearTimer.current = window.setTimeout(() => {
+      setLayerError(null);
+      useGeographyStore.setState({
+        ui: {
+          ...useGeographyStore.getState().ui,
+          lastLayerError: null,
+          lastLayerErrorAt: null,
+        },
+      });
+    }, 6000);
+  }, [layerErrorMsg, layerErrorAt]);
+
   // ? 键唤起帮助面板（Shift+/，避免在输入框中触发）
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -200,6 +239,26 @@ export default function App() {
               </div>
               <div className="mt-1 text-xs text-amber-50/70 truncate">
                 {rateLimitToast.reason} · {new URL(rateLimitToast.url).host}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* LayerLifeCycleManager 错误 Toast：红色底，6s，底部左下角，避免和 rateLimit 冲突 */}
+      {layerError && (
+        <div
+          role="alert"
+          data-testid="layer-error-toast"
+          className="pointer-events-none fixed bottom-6 left-6 z-40 w-[min(90vw,380px)] rounded-lg bg-rose-700/95 px-4 py-3 text-sm font-medium text-rose-50 ring-1 ring-rose-300/40 shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 pt-0.5">⛔</div>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">图层切换失败</div>
+              <div className="mt-0.5 break-words text-rose-50/95">{layerError.msg}</div>
+              <div className="mt-1 text-[11px] text-rose-50/60 tabular-nums">
+                {new Date(layerError.at).toLocaleTimeString()} · 已自动回退到上一层
               </div>
             </div>
           </div>
