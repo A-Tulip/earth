@@ -9,11 +9,14 @@ import { LessonPackage, LessonStep } from './schema';
 import { commandBus } from '../commands/bus';
 import { useGeographyStore } from '../state/store';
 import { tts as ttsAdapter } from './singletons';
+import { findFirstMention } from './geoReferencer';
 
 export class LessonRuntime {
   private currentLesson: LessonPackage | null = null;
   private currentStepIndex = 0;
   private isPaused = false;
+  /** 旁白过程中：命中地理名词后，安排一个"多少秒后飞行"的取消令牌 */
+  private narrationTimers: number[] = [];
 
   /** 加载课程 */
   async load(lessonId: string): Promise<void> {
@@ -65,11 +68,38 @@ export class LessonRuntime {
       store.setUI({ showLecturePanel: true, lectureContent: step.lecture });
     }
 
-    // 3. TTS 朗读旁白
-    if (step.narration && !store.voice.muted) {
-      store.setVoice({ speaking: true, response: step.narration });
-      await ttsAdapter.speak(step.narration);
-      store.setVoice({ speaking: false });
+    // 3. TTS 朗读旁白（命中地理名词后，延时飞行，避免一开口就跳镜头）
+    this.clearNarrationTimers();
+    if (step.narration) {
+      const mention = findFirstMention(step.narration);
+      if (mention && !step.scene?.camera) {
+        // 粗估：220 字/分钟 ≈ 3.6 字/秒，命中位置在全文的比例 × 预估秒数
+        const charsPerSecond = 3.6;
+        const totalSec = Math.max(2, step.narration.length / charsPerSecond);
+        const hitIndex = step.narration.indexOf(mention.name);
+        const mentionSec =
+          hitIndex >= 0 ? (hitIndex + mention.name.length / 2) / charsPerSecond : Math.min(2.5, totalSec * 0.4);
+        const delayMs = Math.max(500, Math.min(mentionSec * 1000, 15_000));
+        const durationSec = Math.max(1.2, Math.min(3.2, delayMs / 1000));
+        const id = window.setTimeout(() => {
+          void commandBus.execute({
+            name: 'camera.flyTo',
+            args: {
+              longitude: mention.longitude,
+              latitude: mention.latitude,
+              height: mention.height,
+              duration: durationSec,
+            },
+          });
+        }, delayMs);
+        this.narrationTimers.push(id);
+      }
+
+      if (!store.voice.muted) {
+        store.setVoice({ speaking: true, response: step.narration });
+        await ttsAdapter.speak(step.narration);
+        store.setVoice({ speaking: false });
+      }
     }
 
     // 4. 显示问题（如果有）
@@ -124,7 +154,13 @@ export class LessonRuntime {
   /** 打断当前旁白（用户开始说话时调用） */
   interrupt(): void {
     ttsAdapter.stop();
+    this.clearNarrationTimers();
     this.pause();
+  }
+
+  private clearNarrationTimers(): void {
+    for (const id of this.narrationTimers) window.clearTimeout(id);
+    this.narrationTimers.length = 0;
   }
 
   /** 应用场景配置 */
