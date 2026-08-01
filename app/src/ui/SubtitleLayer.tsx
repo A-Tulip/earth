@@ -69,7 +69,7 @@ export function SubtitleLayer() {
 
   return (
     <div className="fixed bottom-20 left-1/2 z-20 -translate-x-1/2 px-4">
-      <div className="max-w-2xl text-center">
+      <div className="max-w-2xl text-center space-y-1.5">
         {/* 正在聆听 + 实时 partial 文本 */}
         {voice.listening && (
           <>
@@ -89,7 +89,14 @@ export function SubtitleLayer() {
           </>
         )}
 
-        {/* 识别最终文本 */}
+        {/* ASR 正在出字：partial 是"正在识别"的灰色上一行，final transcript 是白色当前行 */}
+        {voice.asrStreaming && voice.partialText && voice.transcript && (
+          <div className="text-xs leading-relaxed text-dim-500/70 line-clamp-2 break-words font-mono">
+            {voice.partialText}
+          </div>
+        )}
+
+        {/* 识别最终文本（同时有 partial 时，它在上面那行作为前导句） */}
         {!voice.listening && voice.transcript && !voice.processing && (
           <div className="rounded-lg bg-ink-800/80 px-4 py-2 text-sm text-white backdrop-blur-sm ring-1 ring-geo-500/20">
             {voice.transcript}
