@@ -8,6 +8,7 @@
 import * as Cesium from 'cesium';
 import { useGeographyStore } from '../state/store';
 import { createTickThrottle } from '../state/PerformanceMonitor';
+import { getLayerManager, type OpKind } from './LayerLifeCycleManager';
 
 export type MeasurementMode = 'distance' | 'area' | 'angle' | 'height' | 'profile';
 export type SceneModeStr = '2d' | '3d' | 'columbus';
@@ -49,18 +50,75 @@ export class CesiumController {
   // ============ 视图模式 ============
 
   async setSceneMode(mode: SceneModeStr): Promise<void> {
+    const mgr = getLayerManager();
+    const wrapped = async (): Promise<void> => {
+      mgr?.notifyMorphStart();
+      try {
+        const viewer = this.viewer;
+        // morph
+        if (mode === '2d') viewer.scene.morphTo2D(1.5);
+        else if (mode === '3d') viewer.scene.morphTo3D(1.5);
+        else viewer.scene.morphToColumbusView(1.5);
+        await new Promise<void>((resolve) => {
+          const off = viewer.scene.morphComplete.addEventListener(() => {
+            off();
+            viewer.scene.requestRender();
+            resolve();
+          });
+        });
+        // §1.1 2D 模式修复：停自转、修正镜头朝向、关掉 lighting（避免 2D 灰面）
+        if (mode === '2d') {
+          if (this.rotationActive) this.setRotation(false, this.rotationSpeed);
+          const st = useGeographyStore.getState();
+          if (st.astronomy.rotation) useGeographyStore.setState({ astronomy: { ...st.astronomy, rotation: false } });
+          // 2D 设为正俯视（pitch=-90）并重置 frustum
+          try {
+            const c = viewer.camera;
+            c.setView({
+              orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+            });
+          } catch (_e) { /* ignore */ }
+          (viewer.scene as unknown as { globe?: { enableLighting?: boolean } }).globe &&
+            ((viewer.scene.globe as Cesium.Globe).enableLighting = false);
+        } else if (mode === '3d') {
+          (viewer.scene as unknown as { globe?: { enableLighting?: boolean } }).globe &&
+            ((viewer.scene.globe as Cesium.Globe).enableLighting = true);
+        }
+        viewer.scene.requestRender();
+      } finally {
+        mgr?.notifyMorphComplete();
+      }
+    };
+    if (mgr) await mgr.schedule('sceneMode' as OpKind, wrapped);
+    else await wrapped();
+  }
+
+  /**
+   * 模式感知的镜头飞行：
+   * - 2D：直跳 setView（无 pitch/heading 动效，避免 2D 视图抖动）
+   * - 3D/CV：flyTo 原行为
+   */
+  async flyToLngLat(
+    lon: number, lat: number, height: number,
+    opts?: { durationSec?: number; mode?: SceneModeStr },
+  ): Promise<void> {
+    const mode = opts?.mode ?? useGeographyStore.getState().viewMode;
+    const duration = opts?.durationSec ?? 2.2;
+    const viewer = this.viewer;
     if (mode === '2d') {
-      this.viewer.scene.morphTo2D(1.5);
-    } else if (mode === '3d') {
-      this.viewer.scene.morphTo3D(1.5);
-    } else {
-      this.viewer.scene.morphToColumbusView(1.5);
+      viewer.camera.setView({
+        destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+      });
+      viewer.scene.requestRender();
+      return;
     }
-    // 关键修复：切换完成后触发重渲染，解决 requestRenderMode 下 2D 瓦片不加载
-    const removeListener = this.viewer.scene.morphComplete.addEventListener(() => {
-      this.viewer.scene.requestRender();
-      removeListener();
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
+      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+      duration,
     });
+    return new Promise((resolve) => setTimeout(resolve, duration * 1000 + 120));
   }
 
   // ============ 底图 ============
