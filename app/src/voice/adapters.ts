@@ -163,9 +163,12 @@ export interface LLMResponse {
 }
 
 export interface LLMAdapter {
-  /** 流式或非流式对话 */
-  chat(messages: LLMMessage[], options?: { signal?: AbortSignal }): Promise<LLMResponse>;
+  /** 流式或非流式对话。model：'main'=主模型、'fast'=快速模型、或直接传自定义模型 ID/endpoint_id */
+  chat(messages: LLMMessage[], options?: { signal?: AbortSignal; model?: 'main' | 'fast' | string }): Promise<LLMResponse>;
 }
+
+/** 在前端（adapters 层）判断一条话术属于「快速工具指令」还是「需要深度讲解/计算」，用于双模型路由 */
+const FAST_INTENT_REGEX = /(?:定位|飞到|跳转|切到|切换到|打开|关闭|开启|关掉|显示|隐藏|启动|停止|开始|暂停|重置|清除|测量|测距|画|标出|设为|改成|设置|镜头.*(?:缩小|放大|拉远|拉近|旋转|俯视|平视))|(?:2D|3D|二维|三维|地图模式|地球模式|地形模式|卫星图|政区图|影像图)|(?:等高线|等高距|坡度|坡向|高程分层|夸张|图层|图层组)/i;
 
 /**
  * 意图理解适配器 —— 将自然语言转为工具调用
@@ -331,7 +334,7 @@ export class KeywordIntentLLM implements LLMAdapter {
 
 /** 火山方舟 LLM 适配器（OpenAI 兼容，支持 tools function calling） */
 export class VolcengineArkLLM implements LLMAdapter {
-  async chat(messages: LLMMessage[], options?: { signal?: AbortSignal }): Promise<LLMResponse> {
+  async chat(messages: LLMMessage[], options?: { signal?: AbortSignal; model?: 'main' | 'fast' | string }): Promise<LLMResponse> {
     // 将内部 LLMMessage 转为方舟格式
     const arkMessages = messages.map((m) => ({
       role: m.role,
@@ -341,9 +344,16 @@ export class VolcengineArkLLM implements LLMAdapter {
     // 注入工具定义（与 TOOL_NAMES/SCHEMAS 对齐，由服务端代理透传）
     const tools = GEOGRAPHY_TOOLS;
 
+    // 双模型路由：显式指定优先，否则按最后一条用户话术的关键词判断
+    const lastUserText = messages.findLast((m) => m.role === 'user')?.content ?? '';
+    const isFastIntent = !options?.model && FAST_INTENT_REGEX.test(lastUserText);
+    const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+    if (options?.model) headers['X-Model'] = options.model;
+    else if (isFastIntent) headers['X-Intent-Hint'] = 'fast';
+
     const res = await fetch('/api/llm/chat', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers,
       body: JSON.stringify({
         messages: arkMessages,
         tools,
@@ -473,6 +483,13 @@ export class StreamingASR implements ASRAdapter {
   private onReady: ((asrAvailable: boolean) => void) | null = null;
   private aborted = false;
   private useStreamingWs = true;  // true=实时流式(WebSocket), false=浏览器回退(MediaRecorder)
+  /** §2.1 握手重试：3 次指数退避（400ms / 800ms / 1600ms） */
+  private readonly handshakeAttempts = 3;
+  /** §2.3 partial 文本节流（50ms），避免 UI 过度重绘 */
+  private partialLastAt = 0;
+  private partialThrottleMs = 50;
+  /** partial 文本在写入 final 之前暂存，避免与 transcript 状态混淆 */
+  private partialBuf = '';
 
   setOnPartial(cb: (text: string) => void) { this.onPartial = cb; }
   setOnReady(cb: (asrAvailable: boolean) => void) { this.onReady = cb; }
@@ -480,65 +497,93 @@ export class StreamingASR implements ASRAdapter {
   async start(): Promise<void> {
     this.aborted = false;
     this.finalText = '';
+    this.partialBuf = '';
+    this.partialLastAt = 0;
     this.useStreamingWs = true;
 
-    // 连接 WebSocket
-    const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-    const wsUrl = `${proto}//${window.location.host}/ws/asr`;
-    this.ws = new WebSocket(wsUrl);
-    this.ws.binaryType = 'arraybuffer';
-
-    await new Promise<void>((resolve, reject) => {
-      const timeout = setTimeout(() => {
-        reject(new Error('WebSocket 连接超时'));
-      }, 3000);
-
-      this.ws!.addEventListener('open', () => {
-        clearTimeout(timeout);
-        // 发送 start 信号
-        this.ws!.send(JSON.stringify({ type: 'start' }));
-      });
-
-      this.ws!.addEventListener('message', (event) => {
-        try {
-          const msg = JSON.parse(event.data) as { type: string; text?: string; asr?: boolean; code?: string; message?: string };
-          if (msg.type === 'ready') {
-            if (msg.asr) {
-              // 火山引擎就绪，开始麦克风采集
-              void this.startMicrophone();
-            } else {
-              // 服务端 ASR 未配置，降级浏览器
-              this.useStreamingWs = false;
-              void this.startBrowserFallback();
-            }
-            resolve();
-          } else if (msg.type === 'partial') {
-            this.onPartial?.(msg.text ?? '');
-          } else if (msg.type === 'final') {
-            this.finalText = msg.text ?? '';
-            this.onPartial?.(this.finalText);
-          } else if (msg.type === 'error') {
-            reject(new Error(msg.message ?? msg.code ?? 'ASR 错误'));
-          }
-        } catch {
-          // 忽略非 JSON 消息
+    let lastErr: Error | null = null;
+    for (let attempt = 1; attempt <= this.handshakeAttempts; attempt++) {
+      try {
+        await this.connectHandshake();
+        lastErr = null;
+        break;
+      } catch (e) {
+        lastErr = e instanceof Error ? e : new Error(String(e));
+        console.warn('[StreamingASR] 握手失败', attempt, lastErr.message);
+        if (attempt < this.handshakeAttempts) {
+          // 指数退避
+          const waitMs = 400 * Math.pow(2, attempt - 1);
+          await new Promise<void>((r) => setTimeout(r, waitMs));
         }
-      });
-
-      this.ws!.addEventListener('error', () => {
-        clearTimeout(timeout);
-        reject(new Error('WebSocket 连接失败'));
-      });
-
-      this.ws!.addEventListener('close', () => {
-        if (!this.aborted) {
-          this.listening = false;
-        }
-      });
-    });
+      }
+    }
+    if (lastErr) {
+      // 握手全失败 → 降级浏览器
+      console.warn('[StreamingASR] 降级浏览器回退:', lastErr.message);
+      this.useStreamingWs = false;
+      await this.startBrowserFallback();
+    }
 
     this.listening = true;
   }
+
+  /** 单次 WebSocket 握手尝试（打开→ready/fail） */
+  private connectHandshake(): Promise<void> {
+    return new Promise<void>((resolve, reject) => {
+      const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+      const wsUrl = `${proto}//${window.location.host}/ws/asr`;
+      const ws = new WebSocket(wsUrl);
+      ws.binaryType = 'arraybuffer';
+      this.ws = ws;
+
+      const timeout = setTimeout(() => reject(new Error('WebSocket 连接超时')), 3000);
+      const cleanupAndResolve = () => { clearTimeout(timeout); resolve(); };
+      const cleanupAndReject = (e: Error) => {
+        clearTimeout(timeout);
+        try { ws.close(); } catch (_e) { /* noop */ }
+        reject(e);
+      };
+
+      ws.addEventListener('open', () => {
+        try { ws.send(JSON.stringify({ type: 'start' })); } catch (_e) { /* noop */ }
+      });
+
+      ws.addEventListener('message', (event) => {
+        try {
+          const msg = JSON.parse(event.data) as { type: string; text?: string; asr?: boolean; code?: string; message?: string };
+          if (msg.type === 'ready') {
+            if (msg.asr) void this.startMicrophone();
+            else { this.useStreamingWs = false; void this.startBrowserFallback(); }
+            cleanupAndResolve();
+          } else if (msg.type === 'partial') {
+            this.pushPartial(msg.text ?? '');
+          } else if (msg.type === 'final') {
+            this.finalText = msg.text ?? '';
+            this.pushPartial(this.finalText, true);
+          } else if (msg.type === 'error') {
+            cleanupAndReject(new Error(msg.message ?? msg.code ?? 'ASR 错误'));
+          }
+        } catch {
+          // 非 JSON 消息忽略
+        }
+      });
+
+      ws.addEventListener('error', () => cleanupAndReject(new Error('WebSocket 连接失败')));
+      ws.addEventListener('close', () => {
+        if (!this.aborted) this.listening = false;
+      });
+    });
+  }
+
+  /** §2.3 partial 节流：间隔 <partialThrottleMs 则写入 buffer，稍后合并 */
+  private pushPartial(text: string, force = false): void {
+    this.partialBuf = text;
+    const now = Date.now();
+    if (!force && now - this.partialLastAt < this.partialThrottleMs) return;
+    this.partialLastAt = now;
+    this.onPartial?.(this.partialBuf);
+  }
+
 
   /** 启动麦克风采集并转为 PCM16 */
   private async startMicrophone(): Promise<void> {
