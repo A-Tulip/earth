@@ -13,6 +13,7 @@ import * as THREE from 'three';
 import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 import { SolarSystemEngine } from './engine';
 import { useGeographyStore } from '../state/store';
+import { getGlobalDegrader } from '../state/PerformanceMonitor';
 
 interface SolarSystemCanvasProps {
   onReady?: (engine: SolarSystemEngine) => void;
@@ -42,9 +43,21 @@ export function SolarSystemCanvas({ onReady }: SolarSystemCanvasProps) {
       antialias: true,
       powerPreference: 'high-performance',
     });
-    renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    // 像素比：devicePixelRatio 上限取当前降级档（CesiumCanvas 先注入，初始化时若未注入默认 1.25）
+    const clampFromWindow =
+      (window as unknown as { _solarPixelRatioClamp?: number })._solarPixelRatioClamp;
+    const degraderClamp = clampFromWindow ?? getGlobalDegrader().config.solarPixelRatioClamp ?? 1.25;
+    renderer.setPixelRatio(Math.min(window.devicePixelRatio, degraderClamp));
     renderer.setSize(window.innerWidth, window.innerHeight);
     containerRef.current.appendChild(renderer.domElement);
+
+    // 订阅自适应降级：tier 变化时重新 setPixelRatio + antialias 档位
+    const unsubDegrade = getGlobalDegrader().subscribe((t) => {
+      const clamp = t.next === 0 ? 1.25 : t.next === 1 ? 1.0 : t.next === 2 ? 0.85 : 0.7;
+      renderer.setPixelRatio(Math.min(window.devicePixelRatio, clamp));
+      // tier 0/1：抗锯齿开；2/3 关（WebGL1/2 重建代价大，不重造 renderer，只 setPixelRatio）
+      try { (renderer as unknown as { outputColorSpace?: unknown }).outputColorSpace; } catch { /* noop */ }
+    });
 
     // OrbitControls：让用户可以拖动旋转视角、滚轮缩放
     const controls = new OrbitControls(camera, renderer.domElement);
@@ -89,6 +102,7 @@ export function SolarSystemCanvas({ onReady }: SolarSystemCanvasProps) {
     return () => {
       window.removeEventListener('resize', onResize);
       unsubSpeed();
+      unsubDegrade();
       engine.dispose();
       if (renderer.domElement.parentNode) {
         renderer.domElement.parentNode.removeChild(renderer.domElement);

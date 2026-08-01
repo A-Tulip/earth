@@ -11,7 +11,7 @@ import { CesiumController } from './controller';
 import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
 import { createBasemapProvider, createTerrariumTerrainProvider } from './terrainProviders';
-import { createTickThrottle, FpsCounter } from '../state/PerformanceMonitor';
+import { createTickThrottle, FpsCounter, getGlobalDegrader, type DegradeConfig, DEGRADE_TIERS } from '../state/PerformanceMonitor';
 import { setLayerManagerSingleton } from './LayerLifeCycleManager';
 
 interface CesiumCanvasProps {
@@ -188,21 +188,95 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     const renderThrottle = createTickThrottle(16);
     // 2. 直射点更新节流：每 2s 一次，直射点经度变化极慢（15°/小时），无需每帧
     const directPointThrottle = createTickThrottle(2000);
-    // 3. FPS 计数器：开发模式用于性能监控
+    // 3. FPS 计数器：始终运行（降级系统需要 FPS 采样，不只是 DEV 显示）
     const fpsCounter = new FpsCounter();
+    const degrader = getGlobalDegrader();
     const devMode = import.meta.env.DEV ?? false;
 
-    // FPS 订阅：更新到 window._geographyFps 供 FpsDisplay 组件读取
-    const unsubFps = fpsCounter.subscribe((fps, ms) => {
-      const w = window as unknown as { _geographyFps?: { fps: number; ms: number } };
-      w._geographyFps = { fps, ms };
+    // ============ Degrade 策略应用：把 config 映射到 Cesium 真实 API ============
+    const applyDegrade = (cfg: DegradeConfig): void => {
+      try {
+        // (A) resolutionScale：Cesium 全局像素比（影响 framebuffer → canvas 分辨率）
+        (viewer as unknown as { resolutionScale?: number }).resolutionScale = cfg.cesiumPixelRatio;
+        // (B) Globe tileCacheSize（若暴露了 setTileCacheSize / _tileCacheSize）
+        const globe = viewer.scene.globe as unknown as {
+          tileCacheSize?: number; _tileCacheSize?: number;
+          tileCacheBytes?: number; _tileCacheBytes?: number;
+          maximumScreenSpaceError?: number;
+        };
+        if (typeof globe.maximumScreenSpaceError === 'number') {
+          // SSE 越大 = 细节越低，渲染越便宜
+          globe.maximumScreenSpaceError = 2 + cfg.tier * 2; // tier0: 2, 1:4, 2:6, 3:8
+        }
+        try {
+          if (typeof globe.tileCacheSize === 'number') globe.tileCacheSize = cfg.globeTileCacheSize;
+          else if (typeof globe._tileCacheSize === 'number') globe._tileCacheSize = cfg.globeTileCacheSize;
+        } catch { /* 部分版本 setter 不存在 */ }
+        // (C) Fog density：越高雾越近，远处瓦片请求越少
+        if (viewer.scene.fog) {
+          viewer.scene.fog.enabled = true;
+          viewer.scene.fog.density = cfg.fogDensity;
+        }
+        // (D) 地形夸张倍数：越低 → 顶点变形越小
+        try {
+          const terrainExag = useGeographyStore.getState().terrain?.exaggeration;
+          if (terrainExag != null) {
+            useGeographyStore.setState({
+              terrain: { ...useGeographyStore.getState().terrain, exaggeration: cfg.terrainExaggeration },
+            });
+          }
+          (viewer.scene.globe as unknown as { _terrainExaggeration?: number })._terrainExaggeration = cfg.terrainExaggeration;
+        } catch { /* ignore */ }
+        // (E) MSAA：Cesium 没有运行时改 MSAA 的官方 API，但我们已经把 viewer 初始化时的 msaaSamples 根据 tier0 设为 4；
+        // 降级时把后处理辉光关掉（若启用了 FXAA/Bloom）
+        try {
+          const p = (viewer.scene.postProcessStages as unknown as {
+            fxaa?: Cesium.PostProcessStage | undefined;
+            bloom?: Cesium.PostProcessStageComposite | undefined;
+          });
+          if (p.fxaa) (p.fxaa as unknown as { enabled?: boolean }).enabled = cfg.tier <= 1;
+          if (p.bloom) (p.bloom as unknown as { enabled?: boolean }).enabled = cfg.tier <= 0;
+        } catch { /* ignore */ }
+        // (F) 大气层：低档关掉，省全屏后处理 pass
+        try { viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = cfg.tier <= 1); } catch { /* ignore */ }
+        try { viewer.scene.globe.showGroundAtmosphere = cfg.tier <= 1; } catch { /* ignore */ }
+        // (G) 太阳/月亮辉光：低档只留 sun（光照需要），月亮隐藏
+        try { viewer.scene.sun && (viewer.scene.sun.show = cfg.tier <= 2); } catch { /* ignore */ }
+        try { viewer.scene.moon && (viewer.scene.moon.show = cfg.tier <= 1); } catch { /* ignore */ }
+        // (H) 把 solar 像素比上限挂到 window 全局（SolarEngine 懒加载时读取）
+        (window as unknown as { _solarPixelRatioClamp?: number })._solarPixelRatioClamp = cfg.solarPixelRatioClamp;
+        // (I) 把 labelLODFactor 暴露给 CesiumLayerSync applyLabelLOD()
+        (window as unknown as { _labelLODFactor?: number })._labelLODFactor = cfg.labelLODFactor;
+        // (J) Starfield.tsx 读取 _starfieldAnimated 决定是否画 twinkle + meteors
+        (window as unknown as { _starfieldAnimated?: boolean })._starfieldAnimated = cfg.starfieldAnimated;
+
+        viewer.scene.requestRender();
+      } catch { /* noop：任何失败不影响渲染主线 */ }
+    };
+
+    // 先应用一次初始档（tier0）
+    applyDegrade(degrader.config);
+    // 订阅后续 tier 变化
+    const unsubDegrade = degrader.subscribe((t) => {
+      applyDegrade(DEGRADE_TIERS[t.next]);
+      if (devMode) {
+        // eslint-disable-next-line no-console
+        console.info(`[perf] degrade ${t.prev} → ${t.next}  avg=${t.avgFps.toFixed(1)} min=${t.minFps.toFixed(1)}`);
+      }
+    });
+
+    // 把 FPS 样本喂给 Degrader：subscribe 的 fps 已经是 500ms 一次
+    const unsubDegradeFeed = fpsCounter.subscribe((fps, ms) => {
+      // 也刷新 window._geographyFps 给 FpsDisplay 组件
+      const w = window as unknown as { _geographyFps?: { fps: number; ms: number; tier?: number } };
+      w._geographyFps = { fps, ms, tier: degrader.tier };
+      // 喂给 degrader 做自适应评估
+      degrader.feed(fps, ms);
     });
 
     // 时钟推进时请求重渲染，并动态更新太阳直射点位置（跟随 UTC 时间）
     viewer.clock.onTick.addEventListener(() => {
-      if (devMode) {
-        fpsCounter.tick();
-      }
+      fpsCounter.tick();
       // 16ms 节流：requestRender 在连续场景下会被内部合并，仍可避免多余调用
       if (renderThrottle()) {
         viewer.scene.requestRender();
@@ -258,10 +332,19 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       unsubscribeRotation();
       unsubscribeAxis();
       unsubscribeTilt();
-      unsubFps();
-      // 清理全局 FPS 数据
-      const w = window as unknown as { _geographyFps?: unknown };
+      unsubDegrade();
+      unsubDegradeFeed();
+      // 清理全局 FPS/degrade 数据
+      const w = window as unknown as {
+        _geographyFps?: unknown;
+        _solarPixelRatioClamp?: unknown;
+        _labelLODFactor?: unknown;
+        _starfieldAnimated?: unknown;
+      };
       delete w._geographyFps;
+      delete w._solarPixelRatioClamp;
+      delete w._labelLODFactor;
+      delete w._starfieldAnimated;
       commandBus.setContext({ cesium: null });
       controller.destroy();
       controllerRef.current = null;

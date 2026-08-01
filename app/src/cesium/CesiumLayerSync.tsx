@@ -1099,7 +1099,12 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
   const cam = viewer.camera;
   const carto = Cesium.Cartographic.fromCartesian(cam.positionWC);
   const h = Math.max(0, carto.height);
-  const scale = tierScaleForCameraHeight(h);
+  let scale = tierScaleForCameraHeight(h);
+  // 乘以 AdaptiveDegrader 全局系数（tier2/3 进一步压缩预算）
+  try {
+    const f = (window as unknown as { _labelLODFactor?: number })._labelLODFactor;
+    if (typeof f === 'number' && f > 0) scale *= f;
+  } catch { /* ignore */ }
 
   // 收集图层内有标签的实体（按 layerKind bucket）
   const buckets = new Map<LabelMeta['layerKind'], Array<{ e: Cesium.Entity; meta: LabelMeta }>>();

@@ -32,6 +32,10 @@ export function Starfield() {
     if (!ctx) return;
 
     const prefersReduced = window.matchMedia?.('(prefers-reduced-motion: reduce)').matches;
+    // 读取 AdaptiveDegrader 的 starfieldAnimated：tier2+ 会关闭 twinkle 和 meteor 动画
+    const animatedFromWindow = () =>
+      (window as unknown as { _starfieldAnimated?: unknown })._starfieldAnimated !== false;
+    let anim = prefersReduced ? false : animatedFromWindow();
 
     let raf = 0;
     let lastPaint = 0;
@@ -88,17 +92,17 @@ export function Starfield() {
       // 星点
       for (let i = 0; i < stars.length; i++) {
         const st = stars[i];
-        const alpha = prefersReduced
-          ? st.a
-          : Math.max(0.08, Math.min(1, st.a + Math.sin((tAccum + i) * st.s) * 0.35));
+        const alpha = anim
+          ? Math.max(0.08, Math.min(1, st.a + Math.sin((tAccum + i) * st.s) * 0.35))
+          : st.a;
         ctx.beginPath();
         ctx.fillStyle = `hsla(${st.hue}, 70%, ${88 + (st.r > 0.9 ? 6 : 0)}%, ${alpha})`;
         ctx.arc(st.x, st.y, st.r, 0, Math.PI * 2);
         ctx.fill();
       }
 
-      // 流星
-      if (!prefersReduced) {
+      // 流星（仅动画开启时）
+      if (anim) {
         for (let i = meteors.length - 1; i >= 0; i--) {
           const m = meteors[i];
           m.x += m.vx;
@@ -128,7 +132,9 @@ export function Starfield() {
       const delta = now - lastPaint;
       if (delta < MAX_FPS_MS) return;
       lastPaint = now;
-      if (!prefersReduced) {
+      // 定期重新读 animated（降级变化）；prefersReduced 是一次性的
+      anim = prefersReduced ? false : animatedFromWindow();
+      if (anim) {
         tAccum += delta / 1000;
         meteorTimer += delta;
         if (meteorTimer > 6500 + rand() * 4500) {
