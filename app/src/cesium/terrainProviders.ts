@@ -23,27 +23,37 @@ const ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
 
 // ============ 底图 Provider 工厂 ============
 
-export type BasemapType = 'satellite' | 'terrain' | 'political' | 'osm';
+export type BasemapType = 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm';
 
 /**
- * 创建底图 ImageryProvider。
- * - 有天地图 token：使用天地图 WMTS（中文标注 + 中国访问稳定）
- * - 无 token：回退到 Esri / OSM / 内置纹理
+ * 返回一个 [基底, 标注] ImageryProvider 对：
+ * - 非 osm/political/relief/landform/satellite 优先加中文注记层（天地图 cva_w）
+ * - osm 纯英文，不加中文注记层
+ * - contour：基底=政区底图，由 controller 再叠加 globe.material=ElevationContour
  */
-export function createBasemapProvider(type: BasemapType): Cesium.ImageryProvider {
-  // 天地图主用（有 token 时）
-  if (TIANDITU_TOKEN) {
-    return createTiandituProvider(type, TIANDITU_TOKEN);
-  }
-  // 无天地图 token：回退到国际服务
-  return createFallbackBasemapProvider(type);
+export function createBasemapProvider(
+  type: BasemapType,
+): [base: Cesium.ImageryProvider, label: Cesium.ImageryProvider | null] {
+  const baseKind: 'satellite' | 'political' | 'relief' | 'landform' | 'osm' =
+    type === 'contour' ? 'political' : type;
+
+  const base = TIANDITU_TOKEN
+    ? createTiandituProvider(baseKind, TIANDITU_TOKEN)
+    : createFallbackBasemapProvider(baseKind);
+
+  const addChineseLabel = type !== 'osm';
+  const label = addChineseLabel ? createLabelOverlayProvider() : null;
+  return [base, label];
 }
 
 /**
  * 天地图 WMTS Provider
  * vec_w / img_w / ter_w + cva_w（中文标注叠加）
  */
-function createTiandituProvider(type: BasemapType, token: string): Cesium.ImageryProvider {
+function createTiandituProvider(
+  type: 'satellite' | 'political' | 'relief' | 'landform' | 'osm',
+  token: string,
+): Cesium.ImageryProvider {
   let layer: string;
   let maxLevel: number;
 
@@ -52,7 +62,13 @@ function createTiandituProvider(type: BasemapType, token: string): Cesium.Imager
       layer = 'img_w';
       maxLevel = 18;
       break;
-    case 'terrain':
+    case 'relief':
+      // 天地图 terrain=地形晕渲（地势图）
+      layer = 'ter_w';
+      maxLevel = 14;
+      break;
+    case 'landform':
+      // 地貌：天地图地形晕渲 + 后续 globe.material 分层设色；此处先给 ter_w
       layer = 'ter_w';
       maxLevel = 14;
       break;
@@ -84,7 +100,9 @@ function createTiandituProvider(type: BasemapType, token: string): Cesium.Imager
 /**
  * 国际服务回退（无天地图 token 时）
  */
-function createFallbackBasemapProvider(type: BasemapType): Cesium.ImageryProvider {
+function createFallbackBasemapProvider(
+  type: 'satellite' | 'political' | 'relief' | 'landform' | 'osm',
+): Cesium.ImageryProvider {
   switch (type) {
     case 'satellite':
       return new Cesium.UrlTemplateImageryProvider({
@@ -93,12 +111,20 @@ function createFallbackBasemapProvider(type: BasemapType): Cesium.ImageryProvide
         credit: 'Esri, Maxar, Earthstar Geographics',
       });
 
-    case 'terrain':
-      // Esri World Topo Map（地形+政区混合）
+    case 'relief':
+      // Esri World Topo Map（地形晕渲+注记，地势图）
       return new Cesium.UrlTemplateImageryProvider({
         url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
         maximumLevel: 19,
         credit: 'Esri',
+      });
+
+    case 'landform':
+      // 地貌：USGS World Shaded Relief（分层设色质感）
+      return new Cesium.UrlTemplateImageryProvider({
+        url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}',
+        maximumLevel: 16,
+        credit: 'USGS',
       });
 
     case 'political':

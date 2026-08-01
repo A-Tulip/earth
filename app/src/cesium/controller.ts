@@ -124,19 +124,48 @@ export class CesiumController {
   // ============ 底图 ============
 
   async setBasemap(basemap: BasemapStr): Promise<void> {
-    const layers = this.viewer.imageryLayers;
-    layers.removeAll();
+    const mgr = getLayerManager();
+    const run = async (): Promise<void> => {
+      const viewer = this.viewer;
+      const layers = viewer.imageryLayers;
+      layers.removeAll();
 
-    // 使用统一工厂：天地图主用，Esri 回退
-    const { createBasemapProvider, createLabelOverlayProvider } = await import('./terrainProviders');
-    const provider = createBasemapProvider(basemap as 'satellite' | 'terrain' | 'political' | 'osm');
-    layers.addImageryProvider(provider);
+      const { createBasemapProvider } = await import('./terrainProviders');
+      const [base, label] = createBasemapProvider(basemap);
+      layers.addImageryProvider(base);
+      if (label) layers.addImageryProvider(label);
 
-    // 天地图模式：叠加中文标注层
-    const labelProvider = createLabelOverlayProvider();
-    if (labelProvider) {
-      layers.addImageryProvider(labelProvider);
-    }
+      // §1.2 contour BasemapType：政区底图 + globe.material=ElevationContour
+      // 其它种类先清空等高线材质（若有）
+      if (basemap === 'contour') {
+        const spacing = useGeographyStore.getState().terrain.contourSpacing || 100;
+        await this.applyGlobeMaterial('contour' as OpKind, () => {
+          viewer.scene.globe.material = Cesium.Material.fromType('ElevationContour', {
+            color: Cesium.Color.fromBytes(255, 100, 0, 255),
+            spacing,
+            width: 1.5,
+          });
+        });
+      } else {
+        await this.applyGlobeMaterial('globeMaterial', () => {
+          viewer.scene.globe.material = undefined;
+        });
+      }
+      viewer.scene.requestRender();
+    };
+    if (mgr) await mgr.schedule('basemap' as OpKind, run);
+    else await run();
+  }
+
+  /** globe.material 变更统一走 globeMaterial kind，显式 destroy 纹理（§0.2 Rule 3） */
+  private async applyGlobeMaterial(_kind: OpKind, apply: () => void): Promise<void> {
+    const mgr = getLayerManager();
+    const run = async (): Promise<void> => {
+      // cleanupBeforeRun 由 Manager 在进入 run 前触发，这里直接 apply
+      apply();
+    };
+    if (mgr) await mgr.schedule('globeMaterial', run);
+    else await run();
   }
 
   // ============ 地形 ============
@@ -153,63 +182,68 @@ export class CesiumController {
   }
 
   async showContour(spacing: number): Promise<void> {
-    const globe = this.viewer.scene.globe;
-    globe.material = Cesium.Material.fromType('ElevationContour', {
-      color: Cesium.Color.fromBytes(255, 100, 0, 255),
-      spacing,
-      width: 1.5,
+    await this.applyGlobeMaterial('globeMaterial', () => {
+      this.viewer.scene.globe.material = Cesium.Material.fromType('ElevationContour', {
+        color: Cesium.Color.fromBytes(255, 100, 0, 255),
+        spacing,
+        width: 1.5,
+      });
     });
   }
 
   async showElevationRamp(): Promise<void> {
-    // 高程分层材质
-    const globe = this.viewer.scene.globe;
-    globe.material = Cesium.Material.fromType('ElevationRamp', {
-      image: this.createElevationRampImage(),
-      minimumHeight: -10000,
-      maximumHeight: 9000,
+    await this.applyGlobeMaterial('globeMaterial', () => {
+      const globe = this.viewer.scene.globe;
+      globe.material = Cesium.Material.fromType('ElevationRamp', {
+        image: this.createElevationRampImage(),
+        minimumHeight: -10000,
+        maximumHeight: 9000,
+      });
     });
   }
 
   async showSlope(): Promise<void> {
-    const globe = this.viewer.scene.globe;
-    globe.material = Cesium.Material.fromType('SlopeRamp', {
-      image: this.createSlopeRampImage(),
+    await this.applyGlobeMaterial('globeMaterial', () => {
+      const globe = this.viewer.scene.globe;
+      globe.material = Cesium.Material.fromType('SlopeRamp', {
+        image: this.createSlopeRampImage(),
+      });
     });
   }
 
   async showAspect(): Promise<void> {
     // Cesium 无内置 AspectRamp 材质，使用自定义 Fabric GLSL shader
     // 通过地形法线计算坡向（方位角），映射到 8 方向色环
-    const globe = this.viewer.scene.globe;
-    globe.material = new Cesium.Material({
-      fabric: {
-        type: 'AspectRamp',
-        uniforms: {
-          u_ramp: this.createAspectRampImage(),
+    await this.applyGlobeMaterial('globeMaterial', () => {
+      const globe = this.viewer.scene.globe;
+      globe.material = new Cesium.Material({
+        fabric: {
+          type: 'AspectRamp',
+          uniforms: {
+            u_ramp: this.createAspectRampImage(),
+          },
+          source: `
+            czm_material czm_getMaterial(czm_materialInput materialInput) {
+              czm_material material = czm_getDefaultMaterial(materialInput);
+              vec3 normal = normalize(materialInput.normalEC);
+              float aspect = atan(normal.y, normal.x);
+              float t = (aspect + 3.14159265359) / (2.0 * 3.14159265359);
+              material.diffuse = texture2D(u_ramp, vec2(t, 0.5)).rgb;
+              material.alpha = 1.0;
+              return material;
+            }
+          `,
         },
-        source: `
-          czm_material czm_getMaterial(czm_materialInput materialInput) {
-            czm_material material = czm_getDefaultMaterial(materialInput);
-            // 地形法线（视图空间），归一化
-            vec3 normal = normalize(materialInput.normalEC);
-            // 计算方位角：atan(y, x) 返回 [-PI, PI]
-            // normal.x 东西分量，normal.y 南北分量
-            float aspect = atan(normal.y, normal.x);
-            // 映射到 [0, 1] 采样 ramp
-            float t = (aspect + 3.14159265359) / (2.0 * 3.14159265359);
-            material.diffuse = texture2D(u_ramp, vec2(t, 0.5)).rgb;
-            material.alpha = 1.0;
-            return material;
-          }
-        `,
-      },
+      });
     });
   }
 
-  /** 清除地形材质 */
+  /** 清除地形材质（globeMaterial kind，显式 destroy 纹理） */
   clearTerrainMaterial(): void {
-    this.viewer.scene.globe.material = undefined;
+    // Fire-and-forget; tsc will complain without await; wrap:
+    void this.applyGlobeMaterial('globeMaterial', () => {
+      this.viewer.scene.globe.material = undefined;
+    });
   }
 
   // ============ 天文可视化 ============

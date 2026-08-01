@@ -48,7 +48,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       navigationInstructionsInitiallyVisible: false,
 
       // 底图：天地图 WMTS 主用（若有 token），否则 Esri World Imagery
-      baseLayer: new Cesium.ImageryLayer(createBasemapProvider('satellite')),
+      baseLayer: new Cesium.ImageryLayer(createBasemapProvider('satellite')[0]),
 
       // 地形：若有 ion token 用世界地形，否则用 AWS Terrarium 免费地形
       terrain: ionToken
