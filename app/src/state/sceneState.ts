@@ -115,6 +115,18 @@ export interface LessonRuntimeState {
   isPaused: boolean;
 }
 
+/** API 限流提示状态 */
+export interface ApiRateLimitStatus {
+  /** 是否处于限流状态（429/错误静默期） */
+  active: boolean;
+  /** 受限的数据源 ID（weather / earthquake / natural-events / temperature / precipitation） */
+  provider?: string;
+  /** 原因说明 */
+  reason?: string;
+  /** 剩余秒数 */
+  remainingSeconds?: number;
+}
+
 /** 临时控件状态 */
 export interface TransientUIState {
   showGuidance: boolean;    // 首次引导文字
@@ -124,6 +136,8 @@ export interface TransientUIState {
   showContextMenu: boolean; // 上下文操作菜单
   contextMenuActions: ContextAction[];
   showSubtitle: boolean;
+  /** API 限流提示（issue #18） */
+  rateLimit: ApiRateLimitStatus;
 }
 
 export interface ContextAction {
@@ -270,6 +284,7 @@ export const initialSceneState: GeographySceneState = {
     showContextMenu: false,
     contextMenuActions: [],
     showSubtitle: false,
+    rateLimit: { active: false },
   },
 
   rotationSpeed: 1.0,

@@ -7,7 +7,7 @@
  * - 按住空格语音、工具坞手动操作
  */
 
-import { useState, useEffect, useRef, useCallback, lazy, Suspense } from 'react';
+import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';
 import { CesiumCanvas } from './cesium/CesiumCanvas';
 import { CesiumLayerSync } from './cesium/CesiumLayerSync';
 import { CesiumController } from './cesium/controller';
@@ -16,6 +16,7 @@ import { ToolDock } from './ui/ToolDock';
 import { CommandMenu } from './ui/CommandMenu';
 import { SubtitleLayer } from './ui/SubtitleLayer';
 import { Guidance } from './ui/Guidance';
+import { FpsDisplay } from './ui/FpsDisplay';
 import { HelpPanel } from './ui/HelpPanel';
 import { isEditable } from './voice/PushToTalk';
 import { Mic } from './ui/icons';
@@ -25,6 +26,7 @@ import { createASRAdapter, createTTSAdapter, createLLMAdapter } from './voice/ad
 import { LessonRuntime } from './lessons/runtime';
 import { commandBus } from './commands/bus';
 import { useGeographyStore } from './state/store';
+import { onRateLimit, type RateLimitEvent } from './state/CachedFetcher';
 
 // Three.js 太阳系视图懒加载：地球视图首屏不负担 ~600KB 的 Three.js chunk
 const SolarSystemCanvas = lazy(() =>
@@ -110,6 +112,20 @@ export default function App() {
     return unsubscribe;
   }, [store]);
 
+  // ======== API 限流提示（issue #18）========
+  // 监听 CachedFetcher 的限流事件，显示 Toast 用户提示，几秒后自动消失
+  const [rateLimitToast, setRateLimitToast] = useState<RateLimitEvent | null>(null);
+  const rateLimitClearTimer = useRef<number | null>(null);
+  useEffect(() => {
+    return onRateLimit((ev) => {
+      setRateLimitToast(ev);
+      if (rateLimitClearTimer.current) window.clearTimeout(rateLimitClearTimer.current);
+      rateLimitClearTimer.current = window.setTimeout(() => {
+        setRateLimitToast(null);
+      }, 12000);
+    });
+  }, []);
+
   return (
     <div className="relative h-screen w-screen overflow-hidden bg-ink-900 font-sans">
       {/* 画布层：按需切换 Cesium 地球 / Three.js 太阳系 */}
@@ -147,6 +163,9 @@ export default function App() {
       {/* 字幕层 + 讲义层 */}
       <SubtitleLayer />
 
+      {/* FPS 性能监控（开发模式显示，生产模式按 Alt 显示） */}
+      <FpsDisplay />
+
       {/* 课程命令菜单 */}
       <CommandMenu open={commandMenuOpen} onClose={() => setCommandMenuOpen(false)} />
 
@@ -161,6 +180,27 @@ export default function App() {
       >
         <Mic className="h-5 w-5" />
       </button>
+
+      {/* API 限流 / 错误静默期提示（issue #18 Toast） */}
+      {rateLimitToast && (
+        <div
+          role="status"
+          className="pointer-events-none fixed bottom-6 left-1/2 z-40 w-[min(92vw,420px)] -translate-x-1/2 rounded-lg bg-amber-500/95 px-4 py-3 text-sm font-medium text-amber-50 ring-1 ring-amber-200/40 shadow-xl backdrop-blur-sm animate-in fade-in slide-in-from-bottom-4"
+        >
+          <div className="flex items-start gap-3">
+            <div className="shrink-0 pt-0.5">⚠️</div>
+            <div className="min-w-0 flex-1">
+              <div className="font-semibold">数据服务暂时限流</div>
+              <div className="mt-0.5 text-amber-50/90">
+                网络请求过于频繁，当前使用本地缓存或默认教学数据。请稍后再试（{rateLimitToast.remainSeconds}s）。
+              </div>
+              <div className="mt-1 text-xs text-amber-50/70 truncate">
+                {rateLimitToast.reason} · {new URL(rateLimitToast.url).host}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
