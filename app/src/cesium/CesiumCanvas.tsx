@@ -12,6 +12,7 @@ import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
 import { createBasemapProvider, createTerrariumTerrainProvider } from './terrainProviders';
 import { createTickThrottle, FpsCounter } from '../state/PerformanceMonitor';
+import { setLayerManagerSingleton } from './LayerLifeCycleManager';
 
 interface CesiumCanvasProps {
   onReady?: (controller: CesiumController) => void;
@@ -67,6 +68,28 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       sceneMode: Cesium.SceneMode.SCENE3D,
       msaaSamples: 4,
     });
+
+    // ============== 地球模型"空洞"（黑色补丁）修复 ==============
+    // 1. 关闭 against-terrain 深度测试，避免地形深度与球壳/大气层产生 z-fighting
+    viewer.scene.globe.depthTestAgainstTerrain = false;
+    // 2. 收紧近裁剪面：默认 1m 太近会把球壳内部的透明面推进 frustum，产生"挖洞"感
+    try {
+      const camera = viewer.camera;
+      const fr = (camera.frustum as unknown as { near?: number; far?: number; _near?: number });
+      if (typeof fr.near === 'number' && fr.near < 10) {
+        fr.near = 10;
+      }
+      if (typeof fr._near === 'number' && fr._near < 10) {
+        fr._near = 10;
+      }
+    } catch { /* noop: 部分 frustum 类型字段不同，不强制 */ }
+
+    // ============== LayerLifeCycleManager 单例注入 ==============
+    // 必须在任何图层调度 / SceneMode morph 之前注入，保证调度互斥生效
+    import('./LayerLifeCycleManager').then(({ LayerLifeCycleManager }) => {
+      if (cancelled) return;
+      setLayerManagerSingleton(new LayerLifeCycleManager(viewer));
+    }).catch(() => { /* ignore */ });
 
     // 隐藏 Cesium logo（合法：Apache 2.0 不强制，但保留 credit 容器用于数据源署名）
     const creditContainer = viewer.creditDisplay.container;

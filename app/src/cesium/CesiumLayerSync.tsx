@@ -181,10 +181,10 @@ export function CesiumLayerSync() {
         if (visible) {
           if (entities['graticule'] && entities['graticule'].length > 0) return;
           const lines: Cesium.Entity[] = [];
-          // 经线：每 30 度
+          // 经线：每 30 度，范围 ±89.5°（避免 ±90° 极点处的几何退化导致的渲染空洞/抖动）
           for (let lon = -180; lon <= 180; lon += 30) {
             const positions: number[] = [];
-            for (let lat = -80; lat <= 80; lat += 5) {
+            for (let lat = -89.5; lat <= 89.5; lat += 3) {
               positions.push(lon, lat);
             }
             lines.push(
@@ -199,7 +199,7 @@ export function CesiumLayerSync() {
               }),
             );
           }
-          // 纬线：每 30 度
+          // 纬线：每 30 度，范围 ±60°（±85°以上接近极点，贴地退化；只画教学常用带 ±70°/60°/...）
           for (let lat = -60; lat <= 60; lat += 30) {
             const positions: number[] = [];
             // 用 < 180 避免首尾重合（-180° 与 180° 是同一条经线，重合会触发 EllipsoidGeodesic 错误）
@@ -213,6 +213,22 @@ export function CesiumLayerSync() {
                   positions: Cesium.Cartesian3.fromDegreesArray(positions),
                   width: 1,
                   material: Cesium.Color.fromBytes(125, 211, 252, 50),
+                  clampToGround: true,
+                },
+              }),
+            );
+          }
+          // 额外 ±60/±80°高纬度圈（教学常用），±85°+ 省略避免极点贴地退化
+          for (const highLat of [-80, 80]) {
+            const positions: number[] = [];
+            for (let lon = -180; lon < 180; lon += 5) positions.push(lon, highLat);
+            lines.push(
+              viewer.entities.add({
+                id: `grat-lat-${highLat}`,
+                polyline: {
+                  positions: Cesium.Cartesian3.fromDegreesArray(positions),
+                  width: 1,
+                  material: Cesium.Color.fromBytes(125, 211, 252, 38),
                   clampToGround: true,
                 },
               }),
