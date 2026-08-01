@@ -1,0 +1,118 @@
+/**
+ * Lesson Catalog —— 课程目录索引
+ *
+ * 可搜索的层级菜单数据源。
+ * 新增课程时在此注册。
+ */
+
+import { LessonMeta } from './schema';
+
+export const LESSON_CATALOG: LessonMeta[] = [
+  // ============ 初中地理 ============
+  {
+    id: 'contour-lines',
+    level: 'junior',
+    category: 'earth-map',
+    title: '等高线与地形判读',
+    description: '通过二维等高线与三维地貌对应，学习地形图判读',
+    tags: ['等高线', '地形图', '剖面', '海拔', '等高距'],
+    grade: '八年级',
+    objectives: ['理解等高线原理', '掌握地形判读方法', '能绘制地形剖面图'],
+    duration: 15,
+    references: ['义务教育地理课程标准（2022年版）', '人教版八年级上册'],
+    curriculumStandard: '义务教育地理课程标准 2022年版 - 地图部分',
+  },
+  {
+    id: 'china-terrain',
+    level: 'junior',
+    category: 'regional',
+    title: '中国地势三级阶梯',
+    description: '认识中国西高东低、呈阶梯状分布的地势特征',
+    tags: ['中国', '地势', '阶梯', '地形'],
+    grade: '八年级',
+    objectives: ['了解中国地势特征', '认识三级阶梯分界线'],
+    duration: 10,
+    references: ['义务教育地理课程标准（2022年版）'],
+    curriculumStandard: '义务教育地理课程标准 2022年版 - 中国地理',
+  },
+  {
+    id: 'earth-rotation',
+    level: 'junior',
+    category: 'natural',
+    title: '地球自转与昼夜',
+    description: '观察地球自转产生的昼夜交替现象',
+    tags: ['自转', '昼夜', '晨昏线'],
+    grade: '七年级',
+    objectives: ['理解自转方向和周期', '认识昼夜交替'],
+    duration: 10,
+    references: ['义务教育地理课程标准（2022年版）'],
+    curriculumStandard: '义务教育地理课程标准 2022年版 - 地球与地图',
+  },
+  {
+    id: 'plate-tectonics',
+    level: 'junior',
+    category: 'natural',
+    title: '板块运动与地震带',
+    description: '观察全球板块分布与地震带的关系',
+    tags: ['板块', '地震', '构造'],
+    grade: '七年级',
+    objectives: ['了解板块构造学说', '认识世界主要地震带'],
+    duration: 12,
+    references: ['义务教育地理课程标准（2022年版）'],
+    curriculumStandard: '义务教育地理课程标准 2022年版 - 世界地理',
+  },
+
+  // ============ 高中地理 ============
+  {
+    id: 'earth-revolution',
+    level: 'senior',
+    category: 'natural',
+    title: '地球公转与四季',
+    description: '观察地球公转产生的四季变化和太阳直射点移动',
+    tags: ['公转', '四季', '黄赤交角', '太阳直射点'],
+    grade: '高一',
+    objectives: ['理解黄赤交角', '分析直射点移动规律'],
+    duration: 15,
+    references: ['普通高中地理课程标准（2017年版2020年修订）'],
+    curriculumStandard: '普通高中地理课程标准 2017版 - 必修1',
+  },
+  {
+    id: 'cold-front',
+    level: 'senior',
+    category: 'natural',
+    title: '冷锋与暖锋',
+    description: '观察冷锋暖锋的形成过程与天气特征',
+    tags: ['锋面', '冷锋', '暖锋', '天气'],
+    grade: '高一',
+    objectives: ['理解锋面系统', '分析锋面天气特征'],
+    duration: 12,
+    references: ['普通高中地理课程标准（2017年版2020年修订）'],
+    curriculumStandard: '普通高中地理课程标准 2017版 - 必修1',
+  },
+  {
+    id: 'monsoon',
+    level: 'senior',
+    category: 'natural',
+    title: '季风与气候',
+    description: '观察东亚南亚季风的形成与影响',
+    tags: ['季风', '气候', '海陆热力差异'],
+    grade: '高一',
+    objectives: ['理解季风成因', '分析季风对气候的影响'],
+    duration: 12,
+    references: ['普通高中地理课程标准（2017年版2020年修订）'],
+    curriculumStandard: '普通高中地理课程标准 2017版 - 必修1',
+  },
+  {
+    id: 'ocean-currents',
+    level: 'senior',
+    category: 'natural',
+    title: '洋流与气候',
+    description: '观察全球主要洋流分布及其对气候的影响',
+    tags: ['洋流', '气候', '海洋'],
+    grade: '高一',
+    objectives: ['了解世界主要洋流', '分析洋流对气候的影响'],
+    duration: 12,
+    references: ['普通高中地理课程标准（2017年版2020年修订）'],
+    curriculumStandard: '普通高中地理课程标准 2017版 - 选择性必修1',
+  },
+];
