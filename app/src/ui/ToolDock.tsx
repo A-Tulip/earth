@@ -9,14 +9,23 @@ import { useState, useEffect } from 'react';
 import { useGeographyStore } from '../state/store';
 import { commandBus } from '../commands/bus';
 import { Tool, Eye, MapPin, Sun, Database, Ruler, ChevronLeft } from './icons';
+import { useLayerBusy } from './useLayerBusy';
 
 type DockPanel = 'view' | 'annotation' | 'astronomy' | 'data' | 'measure' | null;
+
+/** 工具坞通用按钮样式：busy 时降低透明度 + 禁用指针事件，避免连点触发 Manager 队列堆积 */
+function dockDisabledClass(busy: boolean): string {
+  return busy ? 'opacity-50 pointer-events-none cursor-not-allowed' : '';
+}
 
 export function ToolDock() {
   const [collapsed, setCollapsed] = useState(false);
   const [activePanel, setActivePanel] = useState<DockPanel>(null);
   const store = useGeographyStore();
   const state = store;
+  const { busy: anyBusy } = useLayerBusy('all');
+  const { busy: sceneBusy } = useLayerBusy('sceneMode');
+  const { busy: basemapBusy } = useLayerBusy('basemap', 'globeMaterial');
 
   // Esc 收起
   useEffect(() => {
@@ -67,11 +76,11 @@ export function ToolDock() {
   ];
 
   return (
-    <div data-tool-dock className="fixed bottom-6 left-6 z-30 flex flex-col gap-2">
+    <div data-tool-dock className={`fixed bottom-6 left-6 z-30 flex flex-col gap-2 ${dockDisabledClass(anyBusy)}`}>
       {/* 展开的面板 */}
       {activePanel && (
         <div className="mb-2 max-h-[60vh] w-64 overflow-y-auto rounded-xl bg-ink-800/90 p-3 text-sm text-white backdrop-blur-md ring-1 ring-geo-500/20 animate-slide-up">
-          {activePanel === 'view' && <ViewPanel state={state} />}
+          {activePanel === 'view' && <ViewPanel state={state} sceneBusy={sceneBusy} basemapBusy={basemapBusy} />}
           {activePanel === 'annotation' && <AnnotationPanel state={state} />}
           {activePanel === 'astronomy' && <AstronomyPanel state={state} />}
           {activePanel === 'data' && <DataPanel state={state} />}
@@ -136,67 +145,81 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: () => void 
   );
 }
 
-function ViewPanel({ state }: { state: ReturnType<typeof useGeographyStore.getState> }) {
+function ViewPanel({
+  state,
+  sceneBusy,
+  basemapBusy,
+}: {
+  state: ReturnType<typeof useGeographyStore.getState>;
+  sceneBusy: boolean;
+  basemapBusy: boolean;
+}) {
   return (
     <div className="space-y-1">
       <div className="mb-2 text-xs font-medium text-geo-300">视图模式</div>
-      <PanelRow label="三维">
-        <Toggle checked={state.viewMode === '3d'} onChange={() => commandBus.execute({ name: 'view.setMode', args: { mode: '3d' } })} />
-      </PanelRow>
-      <PanelRow label="二维">
-        <Toggle checked={state.viewMode === '2d'} onChange={() => commandBus.execute({ name: 'view.setMode', args: { mode: '2d' } })} />
-      </PanelRow>
+      <div className={sceneBusy ? dockDisabledClass(true) : ''}>
+        <PanelRow label="三维">
+          <Toggle checked={state.viewMode === '3d'} onChange={() => commandBus.execute({ name: 'view.setMode', args: { mode: '3d' } })} />
+        </PanelRow>
+        <PanelRow label="二维">
+          <Toggle checked={state.viewMode === '2d'} onChange={() => commandBus.execute({ name: 'view.setMode', args: { mode: '2d' } })} />
+        </PanelRow>
+      </div>
 
       <div className="my-2 h-px bg-white/10" />
       <div className="mb-2 text-xs font-medium text-geo-300">底图</div>
-      {(['satellite', 'terrain', 'political', 'osm'] as const).map((bm) => (
-        <PanelRow key={bm} label={basemapLabel(bm)}>
-          <Toggle checked={state.basemap === bm} onChange={() => commandBus.execute({ name: 'view.setBasemap', args: { basemap: bm } })} />
-        </PanelRow>
-      ))}
+      <div className={basemapBusy ? dockDisabledClass(true) : ''}>
+        {(['satellite', 'political', 'relief', 'landform', 'contour', 'osm'] as const).map((bm) => (
+          <PanelRow key={bm} label={basemapLabel(bm)}>
+            <Toggle checked={state.basemap === bm} onChange={() => commandBus.execute({ name: 'view.setBasemap', args: { basemap: bm } })} />
+          </PanelRow>
+        ))}
+      </div>
 
       <div className="my-2 h-px bg-white/10" />
       <div className="mb-2 text-xs font-medium text-geo-300">地形分析</div>
-      <PanelRow label="等高线">
-        <Toggle
-          checked={state.terrain.contour}
-          onChange={() =>
-            state.terrain.contour
-              ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
-              : commandBus.execute({ name: 'layer.showContour', args: { spacing: state.terrain.contourSpacing } })
-          }
-        />
-      </PanelRow>
-      <PanelRow label="高程分层">
-        <Toggle
-          checked={state.terrain.elevationRamp}
-          onChange={() =>
-            state.terrain.elevationRamp
-              ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
-              : commandBus.execute({ name: 'layer.showElevationRamp', args: {} })
-          }
-        />
-      </PanelRow>
-      <PanelRow label="坡度">
-        <Toggle
-          checked={state.terrain.slope}
-          onChange={() =>
-            state.terrain.slope
-              ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
-              : commandBus.execute({ name: 'layer.showSlope', args: {} })
-          }
-        />
-      </PanelRow>
-      <PanelRow label="坡向">
-        <Toggle
-          checked={state.terrain.aspect}
-          onChange={() =>
-            state.terrain.aspect
-              ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
-              : commandBus.execute({ name: 'layer.showAspect', args: {} })
-          }
-        />
-      </PanelRow>
+      <div className={basemapBusy ? dockDisabledClass(true) : ''}>
+        <PanelRow label="等高线">
+          <Toggle
+            checked={state.terrain.contour}
+            onChange={() =>
+              state.terrain.contour
+                ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
+                : commandBus.execute({ name: 'layer.showContour', args: { spacing: state.terrain.contourSpacing } })
+            }
+          />
+        </PanelRow>
+        <PanelRow label="高程分层">
+          <Toggle
+            checked={state.terrain.elevationRamp}
+            onChange={() =>
+              state.terrain.elevationRamp
+                ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
+                : commandBus.execute({ name: 'layer.showElevationRamp', args: {} })
+            }
+          />
+        </PanelRow>
+        <PanelRow label="坡度">
+          <Toggle
+            checked={state.terrain.slope}
+            onChange={() =>
+              state.terrain.slope
+                ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
+                : commandBus.execute({ name: 'layer.showSlope', args: {} })
+            }
+          />
+        </PanelRow>
+        <PanelRow label="坡向">
+          <Toggle
+            checked={state.terrain.aspect}
+            onChange={() =>
+              state.terrain.aspect
+                ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
+                : commandBus.execute({ name: 'layer.showAspect', args: {} })
+            }
+          />
+        </PanelRow>
+      </div>
       <div className="py-1.5">
         <span className="text-white/80">地形夸张</span>
         <input
@@ -361,8 +384,10 @@ function MeasurePanel({ state }: { state: ReturnType<typeof useGeographyStore.ge
 function basemapLabel(bm: string): string {
   const map: Record<string, string> = {
     satellite: '卫星影像',
-    terrain: '地形模式',
     political: '政区底图',
+    relief: '地势图',
+    landform: '地貌图',
+    contour: '等高线图',
     osm: 'OSM 地图',
   };
   return map[bm] ?? bm;
