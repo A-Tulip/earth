@@ -1,5 +1,5 @@
 /* 地球探索者 Service Worker - 离线缓存 */
-const CACHE_NAME = 'earth-explorer-v1';
+const CACHE_NAME = 'earth-explorer-v4';
 
 /* 需要预缓存的核心资源（相对 sw.js 所在目录，即项目根目录） */
 const CORE_ASSETS = [

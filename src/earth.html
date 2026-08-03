@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -1202,6 +1202,21 @@
     }
 
     #center-panel { flex: 1; position: relative; }
+
+    /* ============ 2D/3D 丝滑切换动画 ============ */
+    #map-2d-container {
+      transition: opacity 0.45s ease, transform 0.45s ease;
+      transform-origin: center center;
+    }
+    #map-2d-toolbar, #back-to-3d-btn {
+      transition: opacity 0.4s ease, transform 0.4s ease;
+    }
+    /* 进入前的初始状态 / 退出时的结束状态 */
+    .map2d-pre, .map2d-exit { opacity: 0 !important; }
+    #map-2d-container.map2d-pre { transform: scale(1.06); }
+    #map-2d-container.map2d-exit { transform: scale(0.97); }
+    #map-2d-toolbar.map2d-pre, #map-2d-toolbar.map2d-exit,
+    #back-to-3d-btn.map2d-pre, #back-to-3d-btn.map2d-exit { transform: translateY(-12px); }
 
     #status-bar {
       position: absolute; 
@@ -2859,6 +2874,7 @@
 
       <div class="section">
         <div class="section-title">🖥️ 视图</div>
+        <button class="resource-btn" id="view-2d-btn">🗺️ 二维地图</button>
         <button class="resource-btn" id="fullscreen-btn">🔍 全屏模式</button>
         <button class="resource-btn" id="screenshot-btn">📷 截图导出</button>
         <button class="resource-btn" id="share-btn">🔗 分享场景</button>
@@ -3135,6 +3151,7 @@
       
       <div class="city-info-footer">
         <button onclick="askAIAboutCity()">🤖 问AI关于这座城市</button>
+        <button onclick="enter2dFromPanel()" style="margin-top: 8px; background: linear-gradient(135deg, #00f5ff, #7c3aed);">🗺️ 进入二维世界</button>
       </div>
     </div>
 
@@ -3334,12 +3351,15 @@
         <div class="ai-config-section">
           <div class="ai-config-label">模型选择</div>
           <select id="ai-model-select" class="ai-config-select">
-            <option value="gpt-4o">GPT-4o (推荐)</option>
-            <option value="gpt-4">GPT-4</option>
-            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
             <option value="qwen-2-7b">Qwen2-7B (阿里云百炼)</option>
             <option value="qwen-2-14b">Qwen2-14B (阿里云百炼)</option>
             <option value="qwen-2-72b">Qwen2-72B (阿里云百炼)</option>
+            <option value="doubao-lite">豆包-Lite (最快)</option>
+            <option value="doubao-pro">豆包-Pro (专业)</option>
+            <option value="doubao-seed-1.6">豆包-Seed-1.6</option>
+            <option value="gpt-4o">GPT-4o</option>
+            <option value="gpt-4">GPT-4</option>
+            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
           </select>
         </div>
 
@@ -3524,6 +3544,26 @@
     </div>
 
     <div id="center-panel">
+      <!-- 二维地图容器（默认隐藏） -->
+      <div id="map-2d-container" style="display: none; position: absolute; top: 0; left: 0; width: 100%; height: 100%; z-index: 100;"></div>
+      
+      <!-- 二维地图返回按钮 -->
+      <button id="back-to-3d-btn" style="display: none; position: absolute; top: 20px; right: 20px; z-index: 101; padding: 10px 20px; background: linear-gradient(135deg, #00f5ff, #7c3aed); color: white; border: none; border-radius: 8px; cursor: pointer; font-size: 14px; font-weight: bold;">🌍 返回3D</button>
+      
+      <!-- 二维地图工具条（搜索 + 测距） -->
+      <div id="map-2d-toolbar" style="display: none; position: absolute; top: 20px; left: 20px; z-index: 101; background: rgba(15,23,42,0.92); border: 1px solid rgba(0,245,255,0.3); border-radius: 10px; padding: 10px; backdrop-filter: blur(8px);">
+        <div style="position: relative;">
+          <input type="text" id="map2d-search" placeholder="🔍 搜索任意地点（如：东方明珠）" style="width: 230px; padding: 8px 12px; background: rgba(30,41,59,0.9); border: 1px solid rgba(0,245,255,0.4); border-radius: 6px; color: #fff; font-size: 13px; outline: none;">
+          <div id="map2d-search-results" style="display: none; position: absolute; top: 38px; left: 0; width: 250px; max-height: 220px; overflow-y: auto; background: rgba(15,23,42,0.97); border: 1px solid rgba(0,245,255,0.3); border-radius: 6px; z-index: 102;"></div>
+        </div>
+        <button id="map2d-ruler-btn" style="margin-top: 8px; width: 100%; padding: 7px 12px; background: rgba(30,41,59,0.9); border: 1px solid rgba(0,245,255,0.4); border-radius: 6px; color: #00f5ff; font-size: 13px; cursor: pointer;">📏 测距工具</button>
+        <div style="display: flex; gap: 6px; margin-top: 8px;">
+          <button id="map2d-layer-btn" style="flex: 1; padding: 7px 6px; background: rgba(30,41,59,0.9); border: 1px solid rgba(0,245,255,0.4); border-radius: 6px; color: #00f5ff; font-size: 12px; cursor: pointer;">🛰️ 卫星实景</button>
+          <button id="map2d-home-btn" style="flex: 1; padding: 7px 6px; background: rgba(30,41,59,0.9); border: 1px solid rgba(0,245,255,0.4); border-radius: 6px; color: #00f5ff; font-size: 12px; cursor: pointer;">🏠 全国视图</button>
+        </div>
+        <div style="margin-top: 6px; color: #64748b; font-size: 11px; text-align: center;">测距：单击加点，双击结束</div>
+      </div>
+      
       <div class="climate-zones" id="climate-legend">
         <div class="climate-title">气候带分布</div>
         <div class="climate-item"><div class="climate-color" style="background:#ff6b6b;"></div>热带</div>
@@ -3572,6 +3612,14 @@
       }
     }
   </script>
+
+  <!-- 高德地图 JS API -->
+  <script type="text/javascript">
+    window._AMapSecurityConfig = {
+      securityJsCode: 'cac23a9f62c7872d561709215d1b1f70',
+    };
+  </script>
+  <script type="text/javascript" src="https://webapi.amap.com/maps?v=2.0&key=096ae9f70c8785a5e62f27c510b39903&plugin=AMap.Marker,AMap.InfoWindow,AMap.ToolBar,AMap.PlaceSearch,AMap.AutoComplete,AMap.MouseTool,AMap.Weather,AMap.Scale"></script>
 
   <script>
     // 注册 Service Worker 实现离线缓存（仅 http/https 环境生效）
@@ -6613,9 +6661,68 @@
     // 飞行动画
     let isFlying = false;
 
+    // 定位标记（飞行到城市时显示）
+    let flyToMarker = null;
+    let flyToMarkerCity = null;
+
+    function createFlyToMarker(city) {
+      // 清除旧标记（flyToMarker是Group，需遍历子对象释放资源）
+      if (flyToMarker) {
+        earthGroup.remove(flyToMarker);
+        flyToMarker.traverse(obj => {
+          if (obj.geometry) obj.geometry.dispose();
+          if (obj.material) obj.material.dispose();
+        });
+        flyToMarker = null;
+      }
+      
+      const pos = lonLatToVector3(city.lon, city.lat, earthRadius + 0.008);
+      
+      // 创建发光标记（外圈）
+      const outerGeo = new THREE.SphereGeometry(0.02, 16, 16);
+      const outerMat = new THREE.MeshBasicMaterial({ 
+        color: 0x00ff88, 
+        transparent: true, 
+        opacity: 0.6 
+      });
+      const outer = new THREE.Mesh(outerGeo, outerMat);
+      
+      // 创建内圈（实心）
+      const innerGeo = new THREE.SphereGeometry(0.012, 16, 16);
+      const innerMat = new THREE.MeshBasicMaterial({ color: 0x00ff88 });
+      const inner = new THREE.Mesh(innerGeo, innerMat);
+      
+      // 创建脉冲动画
+      const pulseGeo = new THREE.SphereGeometry(0.025, 16, 16);
+      const pulseMat = new THREE.MeshBasicMaterial({ 
+        color: 0x00ff88, 
+        transparent: true, 
+        opacity: 0.3,
+        side: THREE.BackSide
+      });
+      const pulse = new THREE.Mesh(pulseGeo, pulseMat);
+      
+      // 组合标记
+      const marker = new THREE.Group();
+      marker.add(outer);
+      marker.add(inner);
+      marker.add(pulse);
+      marker.position.copy(pos);
+      marker.userData = { city: city, pulse: pulse, inner: inner };
+      
+      earthGroup.add(marker);
+      flyToMarker = marker;
+      flyToMarkerCity = city;
+      
+      return marker;
+    }
+
     function flyToCity(cityKey) {
       const city = cities[cityKey];
       if (!city) return;
+      
+      // 创建定位标记
+      createFlyToMarker(city);
       
       const localTarget = lonLatToVector3(city.lon, city.lat, earthRadius + 0.01);
       const target = earthGroup.localToWorld(localTarget.clone());
@@ -8139,8 +8246,13 @@
     });
 
     // ============ 动画循环 ============
+    let is2dMode = false; // 2D地图模式标志（init内switchTo2d/3d维护，animate据此跳过3D渲染）
+
     function animate() {
       requestAnimationFrame(animate);
+
+      // 2D模式下跳过所有3D更新与渲染，避免GPU空转浪费性能
+      if (is2dMode) return;
 
       if (options.rotation && !isFlying) {
         earthGroup.rotation.y += 0.002 * rotationSpeed;
@@ -8165,6 +8277,15 @@
 
       updateClimateZones();
       updateLocalTime();
+      
+      // 更新定位标记脉冲动画
+      if (flyToMarker && flyToMarker.userData.pulse) {
+        const pulse = flyToMarker.userData.pulse;
+        const scale = 1 + Math.sin(Date.now() * 0.005) * 0.3;
+        pulse.scale.set(scale, scale, scale);
+        pulse.material.opacity = 0.3 + Math.sin(Date.now() * 0.005) * 0.1;
+      }
+      
       controls.update();
       renderer.render(scene, camera);
     }
@@ -8869,9 +8990,9 @@
 
     // ============ 云端AI服务集成 ============
     let aiConfig = {
-      mode: 'local',
+      mode: 'alibaba',
       apiKey: '',
-      model: 'gpt-4o',
+      model: 'qwen-2-7b',
       endpointId: '',
       fallback: true
     };
@@ -8924,10 +9045,11 @@
         case 'alibaba':
           return await callAlibabaAPI(prompt, systemPrompt);
         case 'volcano':
+          return await callVolcanoEngineAPI(prompt, systemPrompt, apiKey, endpointId);
         case 'openai':
         case 'azure':
         default:
-          // 火山引擎、OpenAI、Azure 都走火山引擎代理（需配置对应的endpointId）
+          // OpenAI、Azure 也走火山引擎代理（需配置对应的endpointId）
           return await callVolcanoEngineAPI(prompt, systemPrompt, apiKey, endpointId);
       }
     }
@@ -8935,8 +9057,23 @@
     async function callVolcanoEngineAPI(prompt, systemPrompt, apiKey, endpointId) {
       const proxyUrl = 'http://localhost:3001/api/doubao/v1/chat/completions';
       
+      // 模型映射：用户选择的模型 -> 豆包模型ID
+      const modelMapping = {
+        'doubao-lite': 'doubao-lite',
+        'doubao-pro': 'doubao-pro',
+        'doubao-seed-1.6': 'doubao-seed-1.6',
+        'gpt-4o': 'doubao-pro',
+        'gpt-4': 'doubao-pro',
+        'gpt-3.5-turbo': 'doubao-lite',
+        'qwen-2-7b': 'doubao-lite',
+        'qwen-2-14b': 'doubao-pro',
+        'qwen-2-72b': 'doubao-pro'
+      };
+      
+      const model = endpointId || modelMapping[aiConfig.model] || 'doubao-lite';
+      
       const body = {
-        model: endpointId || 'doubao-seed-2-1-pro',
+        model: model,
         messages: [
           { role: 'system', content: systemPrompt },
           { role: 'user', content: prompt }
@@ -9194,9 +9331,9 @@
 
     document.getElementById('ai-reset-btn').addEventListener('click', () => {
       aiConfig = {
-        mode: 'local',
+        mode: 'alibaba',
         apiKey: '',
-        model: 'gpt-4o',
+        model: 'qwen-2-7b',
         endpointId: '',
         fallback: true
       };
@@ -10336,8 +10473,421 @@
       // 监听渲染完成事件
       renderer.domElement.addEventListener('render', hideLoading, { once: true });
       
-      // 开始动画循环
-      animate();
+      // ============ 二维/三维切换功能 ============
+        let map2d = null;
+        // is2dMode 已提升到外层作用域（8249行），供animate()跳过3D渲染
+        let placeSearch2d = null;       // POI地点搜索服务
+        let autoComplete2d = null;      // 搜索输入提示服务
+        let mouseTool2d = null;         // 测距工具
+        let weather2d = null;           // 实时天气服务
+        let isRulerActive = false;      // 测距是否激活
+        let poiMarker2d = null;         // POI搜索结果标记
+        let current2dInfoWindow = null; // 当前打开的信息窗
+        let satelliteLayer2d = null;    // 卫星实景图层（高德免费图层）
+        let roadNetLayer2d = null;      // 卫星模式下的路网叠加层
+        let isSatellite2d = false;      // 卫星实景是否开启
+        
+        function init2dMap() {
+          if (typeof AMap === 'undefined') {
+            console.warn('高德地图API未加载，请检查网络或API Key');
+            return false;
+          }
+          
+          try {
+            map2d = new AMap.Map('map-2d-container', {
+              zoom: 4,
+              center: [116.4, 39.9], // 默认北京
+              viewMode: '2D',
+              mapStyle: 'amap://styles/darkblue' // 深色主题
+            });
+            
+            // 添加工具条
+            map2d.addControl(new AMap.ToolBar({
+              position: 'RB'
+            }));
+            
+            // 添加比例尺控件（左下角）
+            map2d.addControl(new AMap.Scale());
+            
+            // 预创建卫星实景图层（默认不加载，点击"卫星实景"按钮时叠加）
+            satelliteLayer2d = new AMap.TileLayer.Satellite();
+            roadNetLayer2d = new AMap.TileLayer.RoadNet();
+            
+            // 初始化搜索/测距/天气插件
+            placeSearch2d = new AMap.PlaceSearch({ pageSize: 6 });
+            autoComplete2d = new AMap.AutoComplete({ city: '全国' });
+            weather2d = new AMap.Weather();
+            mouseTool2d = new AMap.MouseTool(map2d);
+            // 测距绘制完成（双击结束）后复位按钮状态
+            mouseTool2d.on('draw', () => {
+              isRulerActive = false;
+              const btn = document.getElementById('map2d-ruler-btn');
+              if (btn) {
+                btn.textContent = '📏 测距工具';
+                btn.style.background = 'rgba(30,41,59,0.9)';
+              }
+            });
+            
+            // 添加城市标记
+            add2dCityMarkers();
+            
+            console.log('二维地图初始化成功');
+            return true;
+          } catch (e) {
+            console.error('二维地图初始化失败:', e);
+            return false;
+          }
+        }
+        
+        // 在2D地图上打开信息窗（含实时天气查询）
+        function show2dInfoWindow(title, subtitle, position, cityForWeather, extraHtml = '') {
+          if (current2dInfoWindow) current2dInfoWindow.close();
+          
+          const content = `
+            <div style="padding: 10px; color: #333; min-width: 200px;">
+              <h3 style="margin: 0 0 8px 0; color: #1a73e8;">${title}</h3>
+              ${subtitle ? `<p style="margin: 4px 0; font-size: 12px; line-height: 1.6;">${subtitle}</p>` : ''}
+              <div class="live-weather" style="margin: 6px 0; font-size: 12px; color: #64748b; line-height: 1.6;">🌤️ 天气查询中...</div>
+              ${extraHtml}
+            </div>
+          `;
+          
+          current2dInfoWindow = new AMap.InfoWindow({
+            content: content,
+            offset: new AMap.Pixel(0, -30)
+          });
+          current2dInfoWindow.open(map2d, position);
+          
+          // 调用高德天气服务查询实时天气（免费接口）
+          if (weather2d && cityForWeather) {
+            weather2d.getLive(cityForWeather, (err, data) => {
+              const el = document.querySelector('.amap-info .live-weather');
+              if (!el) return;
+              if (err || !data || !data.weather) {
+                el.textContent = '暂无实时天气数据';
+                return;
+              }
+              el.innerHTML = `🌤️ <b>${data.city}</b> ${data.weather} ${data.temperature}°C<br>💨 ${data.windDirection}风 ${data.windPower}级 ｜ 💧 湿度 ${data.humidity}%`;
+            });
+            // 超时兜底：4秒后无响应则提示
+            setTimeout(() => {
+              const el = document.querySelector('.amap-info .live-weather');
+              if (el && el.textContent.includes('查询中')) {
+                el.textContent = '暂无实时天气数据';
+              }
+            }, 4000);
+          } else {
+            const el = document.querySelector('.amap-info .live-weather');
+            if (el) el.remove();
+          }
+        }
+        
+        function add2dCityMarkers() {
+          if (!map2d) return;
+          
+          // 遍历城市数据，添加标记
+          Object.keys(cities).forEach(key => {
+            const city = cities[key];
+            const marker = new AMap.Marker({
+              position: [city.lon, city.lat],
+              title: city.name,
+              label: {
+                content: city.name,
+                direction: 'top'
+              }
+            });
+            
+            // 点击标记显示信息（含实时天气 + 3D跳转按钮）
+            marker.on('click', () => {
+              show2dInfoWindow(
+                city.name,
+                `<strong>国家：</strong>${city.country}<br><strong>经度：</strong>${city.lon.toFixed(2)}°E<br><strong>纬度：</strong>${city.lat.toFixed(2)}°N`,
+                marker.getPosition(),
+                city.name,
+                `<button onclick="window.switchTo3dAndFly('${key}')" style="margin-top: 8px; padding: 5px 15px; background: #1a73e8; color: white; border: none; border-radius: 4px; cursor: pointer;">🌍 3D视图</button>`
+              );
+            });
+            
+            marker.setMap(map2d);
+          });
+        }
+        
+        // ============ 2D地点搜索功能 ============
+        function bind2dSearch() {
+          const searchInput = document.getElementById('map2d-search');
+          const resultsBox = document.getElementById('map2d-search-results');
+          if (!searchInput || !resultsBox) return;
+          
+          let debounceTimer = null;
+          
+          searchInput.addEventListener('input', () => {
+            clearTimeout(debounceTimer);
+            const kw = searchInput.value.trim();
+            if (!kw) {
+              resultsBox.style.display = 'none';
+              return;
+            }
+            if (!autoComplete2d) return;
+            
+            // 300ms防抖，避免频繁请求API
+            debounceTimer = setTimeout(() => {
+              autoComplete2d.search(kw, (status, result) => {
+                if (status !== 'complete' || !result.tips || result.tips.length === 0) {
+                  resultsBox.innerHTML = '<div style="padding: 8px 10px; color: #94a3b8; font-size: 12px;">未找到相关地点</div>';
+                  resultsBox.style.display = 'block';
+                  return;
+                }
+                
+                resultsBox.innerHTML = '';
+                result.tips.slice(0, 6).forEach(tip => {
+                  if (!tip.location) return; // 跳过无坐标的提示词
+                  
+                  const item = document.createElement('div');
+                  item.style.cssText = 'padding: 8px 10px; cursor: pointer; border-bottom: 1px solid rgba(148,163,184,0.15); font-size: 12px;';
+                  item.innerHTML = `<div style="color: #e2e8f0; font-weight: bold;">${tip.name}</div>
+                                    <div style="color: #94a3b8; font-size: 11px;">${tip.district || ''}${tip.address || ''}</div>`;
+                  item.onmouseenter = () => item.style.background = 'rgba(0,245,255,0.12)';
+                  item.onmouseleave = () => item.style.background = 'transparent';
+                  item.onclick = () => select2dPoi(tip);
+                  resultsBox.appendChild(item);
+                });
+                
+                resultsBox.style.display = resultsBox.children.length > 0 ? 'block' : 'none';
+              });
+            }, 300);
+          });
+          
+          // 点击地图空白处收起搜索结果
+          map2d.on('click', () => { resultsBox.style.display = 'none'; });
+        }
+        
+        // 选中POI：定位、标记、弹出信息窗（含天气）
+        function select2dPoi(tip) {
+          const lnglat = [tip.location.lng, tip.location.lat];
+          const searchInput = document.getElementById('map2d-search');
+          const resultsBox = document.getElementById('map2d-search-results');
+          
+          if (searchInput) searchInput.value = tip.name;
+          if (resultsBox) resultsBox.style.display = 'none';
+          
+          map2d.setZoomAndCenter(14, lnglat);
+          
+          // 清除上一个POI标记
+          if (poiMarker2d) {
+            poiMarker2d.setMap(null);
+            poiMarker2d = null;
+          }
+          
+          poiMarker2d = new AMap.Marker({
+            position: lnglat,
+            title: tip.name,
+            label: { content: '📍 ' + tip.name, direction: 'top' }
+          });
+          poiMarker2d.setMap(map2d);
+          
+          // 弹出信息窗，提取所在市级名称查询天气（区县名查不到天气）
+          const cityMatch = (tip.district || '').match(/[^省自治区]*?市/);
+          show2dInfoWindow(
+            tip.name,
+            `<strong>地址：</strong>${tip.district || ''}${tip.address || ''}`,
+            lnglat,
+            cityMatch ? cityMatch[0] : tip.name
+          );
+        }
+        
+        // ============ 2D测距工具 ============
+        function bind2dRuler() {
+          const rulerBtn = document.getElementById('map2d-ruler-btn');
+          if (!rulerBtn) return;
+          
+          rulerBtn.addEventListener('click', () => {
+            if (!mouseTool2d) return;
+            
+            if (isRulerActive) {
+              // 清除测距覆盖物
+              mouseTool2d.close(true);
+              rulerBtn.textContent = '📏 测距工具';
+              rulerBtn.style.background = 'rgba(30,41,59,0.9)';
+              isRulerActive = false;
+            } else {
+              // 开始测距：单击添加测点，双击结束绘制
+              mouseTool2d.rule();
+              rulerBtn.textContent = '⏹️ 清除测距';
+              rulerBtn.style.background = 'rgba(0,245,255,0.25)';
+              isRulerActive = true;
+            }
+          });
+        }
+        
+        // ============ 2D卫星实景 / 全国视图 ============
+        function bind2dLayerAndHome() {
+          const layerBtn = document.getElementById('map2d-layer-btn');
+          const homeBtn = document.getElementById('map2d-home-btn');
+          
+          // 卫星实景图层切换（高德自带免费图层，无额外费用）
+          if (layerBtn) {
+            layerBtn.addEventListener('click', () => {
+              if (!map2d || !satelliteLayer2d) return;
+              if (isSatellite2d) {
+                map2d.remove([satelliteLayer2d, roadNetLayer2d]);
+                layerBtn.textContent = '🛰️ 卫星实景';
+                layerBtn.style.background = 'rgba(30,41,59,0.9)';
+                isSatellite2d = false;
+              } else {
+                map2d.add([satelliteLayer2d, roadNetLayer2d]);
+                layerBtn.textContent = '🗺️ 标准地图';
+                layerBtn.style.background = 'rgba(0,245,255,0.25)';
+                isSatellite2d = true;
+              }
+            });
+          }
+          
+          // 全国视图复位
+          if (homeBtn) {
+            homeBtn.addEventListener('click', () => {
+              if (map2d) map2d.setZoomAndCenter(4, [104.5, 35.5], false, 600);
+            });
+          }
+        }
+        
+        // ============ 2D/3D 丝滑切换动画辅助 ============
+        // 依次显示2D元素并播放"放大淡入"动画
+        function show2dElements() {
+          const els = ['map-2d-container', 'map-2d-toolbar', 'back-to-3d-btn']
+            .map(id => document.getElementById(id));
+          els.forEach(el => { el.style.display = 'block'; el.classList.add('map2d-pre'); });
+          // 强制重排后再移除初始类，触发CSS过渡
+          void els[0].offsetWidth;
+          requestAnimationFrame(() => {
+            els.forEach(el => el.classList.remove('map2d-pre'));
+          });
+        }
+        
+        // 播放"缩小淡出"动画，结束后隐藏2D元素
+        function hide2dElements() {
+          const els = ['map-2d-container', 'map-2d-toolbar', 'back-to-3d-btn']
+            .map(id => document.getElementById(id));
+          els.forEach(el => el.classList.add('map2d-exit'));
+          setTimeout(() => {
+            els.forEach(el => { el.style.display = 'none'; el.classList.remove('map2d-exit'); });
+          }, 450);
+        }
+        
+        // ============ 2D/3D切换时需隐藏/恢复的3D专属悬浮元素 ============
+        // (左上🎨主题/⚙️设置按钮、左侧面板、星空背景、FPS计数、AI助手按钮)
+        const UI_3D_ONLY = ['left-panel', 'starfield', 'theme-switch-btn', 'settings-btn', 'fps-counter-container', 'ai-assistant-btn', 'climate-legend', 'status-bar'];
+        const ui3dSavedDisplay = {}; // 记录各元素进入2D前的display值，切回3D时原样恢复
+        
+        function hide3dUI() {
+          UI_3D_ONLY.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            ui3dSavedDisplay[id] = el.style.display || getComputedStyle(el).display;
+            el.style.display = 'none';
+          });
+          // 打开中的城市信息面板一并关闭
+          if (document.getElementById('city-info-panel').classList.contains('show')) {
+            hideCityInfoPanel();
+          }
+        }
+        
+        function show3dUI() {
+          UI_3D_ONLY.forEach(id => {
+            const el = document.getElementById(id);
+            if (!el) return;
+            el.style.display = ui3dSavedDisplay[id] && ui3dSavedDisplay[id] !== 'none'
+              ? ui3dSavedDisplay[id]
+              : (id === 'status-bar' ? 'flex' : 'block');
+          });
+        }
+        
+        function switchTo2d() {
+          if (!map2d) {
+            if (!init2dMap()) {
+              alert('二维地图加载失败，请检查网络连接和高德API Key');
+              return;
+            }
+            // 首次初始化后绑定工具条事件
+            bind2dSearch();
+            bind2dRuler();
+            bind2dLayerAndHome();
+          }
+          
+          // 显示2D元素并播放丝滑进入动画
+          show2dElements();
+          document.getElementById('view-2d-btn').textContent = '🌍 三维地球';
+          document.getElementById('view-2d-btn').onclick = switchTo3d;
+          
+          // 隐藏3D专属UI（含打开中的城市信息面板）
+          hide3dUI();
+          
+          // ============ 2D/3D视角联动 ============
+          // 若3D端当前选中或正在飞往某城市，2D地图自动定位到该城市
+          const syncCity = currentCity || flyToMarkerCity;
+          if (syncCity && typeof syncCity.lat === 'number') {
+            map2d.setZoomAndCenter(10, [syncCity.lon, syncCity.lat]);
+          }
+          
+          is2dMode = true;
+        }
+        
+        function switchTo3d() {
+          // 退出2D时停止并清除测距，避免状态残留
+          if (mouseTool2d && isRulerActive) {
+            mouseTool2d.close(true);
+            isRulerActive = false;
+            const btn = document.getElementById('map2d-ruler-btn');
+            if (btn) {
+              btn.textContent = '📏 测距工具';
+              btn.style.background = 'rgba(30,41,59,0.9)';
+            }
+          }
+          
+          // 2D界面已隐藏时直接切换状态，不重复播放动画
+          const mapEl = document.getElementById('map-2d-container');
+          const is2dVisible = mapEl && mapEl.style.display !== 'none';
+          
+          if (is2dVisible) {
+            // 播放丝滑退出动画后再隐藏
+            hide2dElements();
+          }
+          document.getElementById('view-2d-btn').textContent = '🗺️ 二维地图';
+          document.getElementById('view-2d-btn').onclick = switchTo2d;
+          
+          // 恢复3D专属UI（按进入2D前记录的状态原样恢复）
+          show3dUI();
+          
+          is2dMode = false;
+        }
+        
+        // 全局函数供2D地图调用
+        window.switchTo3dAndFly = function(cityKey) {
+          switchTo3d();
+          setTimeout(() => {
+            if (cities[cityKey]) {
+              flyToCity(cityKey);
+            }
+          }, 100);
+        };
+        
+        // 全局函数：从3D城市信息面板进入二维世界
+        window.enter2dFromPanel = function() {
+          // 先保存当前城市再关闭面板（关闭面板会清空currentCity）
+          const city = currentCity;
+          hideCityInfoPanel();
+          if (city && typeof city.lat === 'number') {
+            // 设置联动目标，switchTo2d会自动定位到该城市
+            flyToMarkerCity = city;
+          }
+          switchTo2d();
+        };
+        
+        // 绑定切换按钮事件（统一用onclick，避免与addEventListener双重触发）
+        document.getElementById('view-2d-btn').onclick = switchTo2d;
+        document.getElementById('back-to-3d-btn').onclick = switchTo3d;
+        
+        // 开始动画循环
+        animate();
       
       // 第一次渲染后隐藏加载
       requestAnimationFrame(() => {
