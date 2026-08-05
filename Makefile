@@ -14,7 +14,7 @@ API_DIR       := $(ROOT)/api
 PY_VENV       := $(API_DIR)/.venv/bin/python
 NODE          := $(if $(shell command -v pnpm 2>/dev/null),pnpm,$(if $(shell command -v npm 2>/dev/null),npm,yarn))
 
-.PHONY: help setup dev api start test lint typecheck clean
+.PHONY: help setup dev api start test lint typecheck clean docker docker-up docker-down
 
 help:  ## 显示所有命令
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -62,3 +62,13 @@ clean:  ## 清理前端 dist、后端 pyc、__pycache__
 	@rm -rf $(APP_DIR)/dist
 	@find $(API_DIR) -type d -name __pycache__ -prune -exec rm -rf {} +
 	@echo "🧹 清理完成"
+
+# ---------- Docker（后端容器化部署）----------
+docker:  ## 构建并后台启动后端容器（需系统装有 docker compose）
+	@cd $(ROOT) && docker compose up -d --build
+
+docker-up:  ## 后台启动后端容器（不重新构建）
+	@cd $(ROOT) && docker compose up -d
+
+docker-down:  ## 停止并移除后端容器
+	@cd $(ROOT) && docker compose down
