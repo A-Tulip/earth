@@ -67,6 +67,7 @@ const EXTENDED_CITIES: CityData[] = [
   { name: '西安', lon: 108.9, lat: 34.3, country: '中国', population: '1300万', timezone: 'UTC+8' },
   { name: '杭州', lon: 120.2, lat: 30.3, country: '中国', population: '1220万', timezone: 'UTC+8' },
   { name: '南京', lon: 118.8, lat: 32.1, country: '中国', population: '932万', timezone: 'UTC+8' },
+  { name: '南昌', lon: 115.9, lat: 28.7, country: '中国', population: '625万', timezone: 'UTC+8' },
   { name: '天津', lon: 117.2, lat: 39.1, country: '中国', population: '1387万', timezone: 'UTC+8' },
   { name: '哈尔滨', lon: 126.5, lat: 45.8, country: '中国', population: '1009万', timezone: 'UTC+8' },
   { name: '昆明', lon: 102.7, lat: 25.0, country: '中国', population: '846万', timezone: 'UTC+8' },
@@ -88,7 +89,6 @@ const EXTENDED_CITIES: CityData[] = [
   { name: '柏林', lon: 13.4, lat: 52.5, country: '德国', population: '364万', timezone: 'UTC+1' },
   { name: '罗马', lon: 12.5, lat: 41.9, country: '意大利', population: '287万', timezone: 'UTC+1' },
   { name: '马德里', lon: -3.7, lat: 40.4, country: '西班牙', population: '330万', timezone: 'UTC+1' },
-  { name: '莫斯科', lon: 37.6, lat: 55.8, country: '俄罗斯', population: '1264万', timezone: 'UTC+3' },
   { name: '伊斯坦布尔', lon: 29.0, lat: 41.0, country: '土耳其', population: '1546万', timezone: 'UTC+3' },
 ];
 
