@@ -10,13 +10,14 @@
  */
 import { test, expect } from '@playwright/test';
 
-const BASEMAP_LABELS: Array<{ label: string; title: string }> = [
-  { label: '卫星', title: '卫星影像 (Esri)' },
-  { label: '政区', title: '政区图 (天地图中文注记)' },
-  { label: '地势', title: '地势分层设色' },
-  { label: '地貌', title: '地貌晕渲 (Esri)' },
-  { label: '等高线', title: '等高线 (USGS TOPO)' },
-  { label: 'OSM', title: 'OpenStreetMap 标准图' },
+// 与 ViewPanel 中 basemapLabel() 的展示文案保持一致（Q3 底图分组重构后的标签）
+const BASEMAP_LABELS: Array<{ label: string }> = [
+  { label: '卫星影像（通用）' },
+  { label: '政区底图（通用）' },
+  { label: '地势图（通用）' },
+  { label: '地貌图' },
+  { label: '等高线图' },
+  { label: 'OSM 地图' },
 ];
 
 const ANNOTATION_LABELS = ['城市', '地名', '气候带', '板块', '河流'] as const;
@@ -24,6 +25,8 @@ const ANNOTATION_LABELS = ['城市', '地名', '气候带', '板块', '河流'] 
 test.use({ actionTimeout: 30_000 });
 
 test('六类底图快速循环切换 3 轮不崩溃', async ({ page }) => {
+  // 18 次真实底图切换（含 provider 加载 + crossfade + globe material），全程可能超过默认 60s
+  test.setTimeout(180_000);
   // 收集未捕获异常：任何 uncaught → fail
   const errors: string[] = [];
   page.on('pageerror', (e) => errors.push(String(e?.message ?? e)));
@@ -36,15 +39,15 @@ test('六类底图快速循环切换 3 轮不崩溃', async ({ page }) => {
   const dock = page.locator('[data-tool-dock]');
   await dock.waitFor({ state: 'visible', timeout: 15_000 });
   await dock.locator('button[title="视图"]').click();
-  await expect(dock.getByText('底图')).toBeVisible();
+  await expect(dock.getByText('底图 · 卫星影像')).toBeVisible();
 
   for (let round = 0; round < 3; round++) {
     for (const bm of BASEMAP_LABELS) {
-      // 找到带有这个 label 的 radio/toggle 节点并点击（exact match，避免 "等高线" 匹配 "等高线图"）
-      const toggle = dock.getByText(bm.label, { exact: true }).first();
+      // 找到 PanelRow 里的 Toggle 按钮（label 的父节点下的 button），真正触发底图切换
+      const toggle = dock.getByText(bm.label, { exact: true }).locator('..').locator('button').first();
       await toggle.click();
-      // 给 Cesium Layer 调度 400ms（manager 互斥内串行执行）
-      await page.waitForTimeout(420);
+      // 等待 manager 完成切换（busy 状态清除、dock 重新可交互），避免 pointer-events-none 拦截点击
+      await expect(dock).not.toHaveClass(/pointer-events-none/, { timeout: 12_000 });
     }
   }
 
@@ -66,21 +69,25 @@ test('2D↔3D 循环切换 4 次不崩溃、自转在 2D 自动停止', async ({
 
   // 先打开自转按钮（天文面板）
   await dock.locator('button[title="天文"]').click();
-  await expect(dock.getByText('自转')).toBeVisible();
+  await expect(dock.getByText('自转', { exact: true })).toBeVisible();
   const rotationToggle = dock.getByText('自转', { exact: true }).locator('..').locator('button').first();
   try { await rotationToggle.click(); } catch { /* 若已经开启则无按钮需要点击 */ }
   await page.waitForTimeout(300);
 
+  // 切回视图面板（二维/三维 按钮在视图面板里）
+  await dock.locator('button[title="视图"]').click();
+  await expect(dock.getByText('二维', { exact: true })).toBeVisible();
+
   // 2D/3D 来回 4 轮
   for (let i = 0; i < 4; i++) {
     await dock.getByText('二维', { exact: true }).click();
-    await page.waitForTimeout(900); // morph 1.5s + manager sync
+    await expect(dock).not.toHaveClass(/pointer-events-none/, { timeout: 20_000 });
     await dock.getByText('三维', { exact: true }).click();
-    await page.waitForTimeout(900);
+    await expect(dock).not.toHaveClass(/pointer-events-none/, { timeout: 20_000 });
   }
   // 最后再回到 2D，验证自转状态自动停止
   await dock.getByText('二维', { exact: true }).click();
-  await page.waitForTimeout(900);
+  await expect(dock).not.toHaveClass(/pointer-events-none/, { timeout: 20_000 });
 
   expect(errors.filter((e) => e.includes('null') || e.includes('undefined'))).toEqual([]);
   // 页面未崩溃
@@ -117,7 +124,7 @@ test('5 类标注图层同时开启（城市+地名+气候带+板块+河流）�
   await expect(page.locator('h1')).toContainText('地球探索者');
 });
 
-test('lastLayerError 字段变更时屏幕左下角显示错误 Toast', async ({ page }) => {
+test('lastLayerError 字段变更时显示错误提示（LayerErrorModal）', async ({ page }) => {
   await page.goto('/');
   await expect(page.locator('h1')).toContainText('地球探索者', { timeout: 20_000 });
   await page.locator('[data-tool-dock]').waitFor({ state: 'visible', timeout: 15_000 });
@@ -126,7 +133,10 @@ test('lastLayerError 字段变更时屏幕左下角显示错误 Toast', async ({
   await page.evaluate(() => {
     const store = (window as unknown as { _geographyStoreDebug?: { setState?: (p: unknown) => void } })._geographyStoreDebug;
     if (store && typeof store.setState === 'function') {
-      store.setState({ lastLayerError: '图层加载失败：模拟错误 (Basemap political)', lastLayerErrorAt: new Date().toISOString() });
+      // lastLayerError is stored under the 'ui' key in state
+      store.setState((s: { ui: Record<string, unknown> }) => ({
+        ui: { ...s.ui, lastLayerError: '图层加载失败：模拟错误 (Basemap political)', lastLayerErrorAt: new Date().toISOString() },
+      }));
     } else {
       // 找不到 store 就直接向 body 丢一个 toast 节点保证断言通过
       const div = document.createElement('div');
@@ -137,7 +147,7 @@ test('lastLayerError 字段变更时屏幕左下角显示错误 Toast', async ({
     }
   });
   await page.waitForTimeout(600);
-  // 找到含 "图层加载失败" 的节点
+  // 找到含 "图层加载失败" 的节点 — 不管在模态弹窗还是左下角 toast，只要可见就行
   const toast = page.getByText(/图层加载失败/i).first();
   await expect(toast).toBeVisible({ timeout: 6_000 });
 });

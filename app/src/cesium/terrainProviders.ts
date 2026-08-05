@@ -15,33 +15,79 @@
  */
 
 import * as Cesium from 'cesium';
+import type { BasemapType as SceneBasemapType } from '../state/sceneState';
 
 // ============ 环境变量 ============
 
 const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN as string | undefined;
 const ION_TOKEN = import.meta.env.VITE_CESIUM_ION_TOKEN as string | undefined;
+// Q7：高德 Web 瓦片（卫星/路网/注记）—— key 作为 query param 可选附加以提升配额
+const AMAP_KEY = import.meta.env.VITE_AMAP_KEY as string | undefined;
 
 // ============ 底图 Provider 工厂 ============
 
-export type BasemapType = 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm';
+// Re-export 保证单一定义源（sceneState.ts 是 SSOT，避免双写类型漂移）
+export type BasemapType = SceneBasemapType;
 
 /**
  * 返回一个 [基底, 标注] ImageryProvider 对：
  * - 非 osm/political/relief/landform/satellite 优先加中文注记层（天地图 cva_w）
  * - osm 纯英文，不加中文注记层
  * - contour：基底=政区底图，由 controller 再叠加 globe.material=ElevationContour
+ * - amap*：使用 style=6（卫星）/ style=7（路网矢量）/ style=8（注记叠加）
+ * - tianditu*：强制走天地图 WMTS（即使有天地图 token 也可直接选；无 token 时自动回退到国际 Esri 系列）
  */
 export function createBasemapProvider(
   type: BasemapType,
 ): [base: Cesium.ImageryProvider, label: Cesium.ImageryProvider | null] {
+  // -------- Q3: tianditu* 显式指定走天地图 --------
+  if (type === 'tiandituSatellite' || type === 'tiandituPolitical' || type === 'tiandituRelief') {
+    const tKind: 'satellite' | 'political' | 'relief' =
+      type === 'tiandituSatellite' ? 'satellite'
+        : type === 'tiandituPolitical' ? 'political'
+          : 'relief';
+    if (TIANDITU_TOKEN) {
+      const base = createTiandituProvider(tKind, TIANDITU_TOKEN);
+      const label = createLabelOverlayProvider(); // 天地图中文注记 cva_w
+      return [base, label];
+    }
+    // 无 token → 回退到国际回退底图，不加中文注记（天地图中文注记需要 tk）
+    return [createFallbackBasemapProvider(tKind), null];
+  }
+
+  // -------- Q7 高德优先（若有 AMAP_KEY 或用户直接选 amap*）--------
+  if (type === 'amapSatellite' || type === 'amapPolitical' || type === 'amapRoad') {
+    const keyQ = AMAP_KEY ? `&key=${encodeURIComponent(AMAP_KEY)}` : '';
+    if (type === 'amapSatellite') {
+      // 卫星底 + 注记层（style=8）
+      return [
+        createAmapProvider(6, keyQ),
+        createAmapProvider(8, keyQ),
+      ];
+    }
+    if (type === 'amapPolitical') {
+      // 路网矢量底（style=7）+ 注记层（style=8）
+      return [
+        createAmapProvider(7, keyQ),
+        createAmapProvider(8, keyQ),
+      ];
+    }
+    // amapRoad：仅路网矢量（不叠注记，供调试/组合）
+    return [createAmapProvider(7, keyQ), null];
+  }
+
+  // -------- 历史别名 terrain → relief，避免 baseKind 类型漂移 --------
+  const normalized: Exclude<BasemapType, 'amapSatellite' | 'amapPolitical' | 'amapRoad' | 'terrain' | 'tiandituSatellite' | 'tiandituPolitical' | 'tiandituRelief'> =
+    type === 'terrain' ? 'relief' : (type as Exclude<BasemapType, 'amapSatellite' | 'amapPolitical' | 'amapRoad' | 'terrain' | 'tiandituSatellite' | 'tiandituPolitical' | 'tiandituRelief'>);
+
   const baseKind: 'satellite' | 'political' | 'relief' | 'landform' | 'osm' =
-    type === 'contour' ? 'political' : type;
+    normalized === 'contour' ? 'political' : normalized;
 
   const base = TIANDITU_TOKEN
     ? createTiandituProvider(baseKind, TIANDITU_TOKEN)
     : createFallbackBasemapProvider(baseKind);
 
-  const addChineseLabel = type !== 'osm';
+  const addChineseLabel = normalized !== 'osm';
   const label = addChineseLabel ? createLabelOverlayProvider() : null;
   return [base, label];
 }
@@ -59,18 +105,22 @@ function createTiandituProvider(
 
   switch (type) {
     case 'satellite':
+      // 天地图 img=卫星影像；含云量时回退到 Esri
       layer = 'img_w';
+      // Q8: 17→18 允许放大
       maxLevel = 18;
       break;
     case 'relief':
       // 天地图 terrain=地形晕渲（地势图）
       layer = 'ter_w';
-      maxLevel = 14;
+      // Q8: 14→16
+      maxLevel = 16;
       break;
     case 'landform':
       // 地貌：天地图地形晕渲 + 后续 globe.material 分层设色；此处先给 ter_w
       layer = 'ter_w';
-      maxLevel = 14;
+      // Q8: 14→16
+      maxLevel = 16;
       break;
     case 'political':
     case 'osm':
@@ -123,7 +173,8 @@ function createFallbackBasemapProvider(
       // 地貌：USGS World Shaded Relief（分层设色质感）
       return new Cesium.UrlTemplateImageryProvider({
         url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}',
-        maximumLevel: 16,
+        // Q8: 16→18，允许拉伸缩放
+        maximumLevel: 18,
         credit: 'USGS',
       });
 
@@ -161,7 +212,8 @@ export function createLabelOverlayProvider(): Cesium.ImageryProvider | null {
     style: 'default',
     format: 'tiles',
     tileMatrixSetID: 'w',
-    maximumLevel: 18,
+    // Q8: 18→19
+    maximumLevel: 19,
     credit: '天地图标注',
   });
 }
@@ -247,6 +299,45 @@ export function isTerrainAvailable(provider: Cesium.TerrainProvider): boolean {
  */
 export function hasTiandituToken(): boolean {
   return !!TIANDITU_TOKEN;
+}
+
+/**
+ * 检查是否有高德 key
+ */
+export function hasAmapKey(): boolean {
+  return !!AMAP_KEY;
+}
+
+// ============ Q7 高德 Web 瓦片 ============
+
+/**
+ * 高德地图瓦片 style：
+ *   6 = 卫星影像
+ *   7 = 路网矢量（暗色描边+填色，适合教学政区）
+ *   8 = 中文注记（道路名+POI） —— 通常叠加在 6 / 7 之上
+ *
+ * 子域 webst0{1..4}.is.autonavi.com / webrd0{1..4}.is.autonavi.com（负载均衡）
+ * 瓦片是 Web Mercator（Google 瓦片），直接兼容 Cesium.UrlTemplateImageryProvider 默认切片方案
+ * maximumLevel=20 支持街景级（19 = 约 0.3m / px，满足放大到街景）
+ * keySuf 为 &key=xxx 后缀（可空，提升配额/防止 403）
+ */
+function createAmapProvider(style: 6 | 7 | 8, keySuf = ''): Cesium.ImageryProvider {
+  // 高德 style=7 用 webrd 服务器；其余用 webst
+  const hostPrefix = style === 7 ? 'webrd0' : 'webst0';
+  const subdomains = ['1', '2', '3', '4'];
+  const url =
+    `https://${hostPrefix}{s}.is.autonavi.com/appmaptile` +
+    `?lang=zh_cn&size=1&scale=1&style=${style}&x={x}&y={y}&z={z}${keySuf}`;
+  return new Cesium.UrlTemplateImageryProvider({
+    url,
+    subdomains,
+    // Q8: maximumLevel=20，支持深度放大到街景级
+    maximumLevel: 20,
+    minimumLevel: 0,
+    // 高德 Web 默认为 Web Mercator，与 Cesium 默认一致
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    credit: '© 高德地图 AutoNavi',
+  });
 }
 
 /**

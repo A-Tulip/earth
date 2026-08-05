@@ -13,6 +13,7 @@ import * as Cesium from 'cesium';
 import { commandBus } from '../commands/bus';
 import { useGeographyStore } from '../state/store';
 import type { ViewMode } from '../state/sceneState';
+import { getLayerManager } from './LayerLifeCycleManager';
 import {
   getCities,
   getRivers,
@@ -42,26 +43,165 @@ export function CesiumLayerSync() {
     const getController = () => commandBus.getContext().cesium;
     const entities = entitiesRef.current;
 
-    /** 清空某图层的所有实体 */
+    // ================ Q11 防崩溃：所有实体操作统一走 LayerLifeCycleManager.schedule ================
+    // 判断图层 key 是标注类还是数据类（dataLayer）——用前缀匹配
+    const ANNOT_PREFIXES = new Set([
+      'cities', 'placenames', 'rivers', 'climateZones', 'tectonicPlates',
+      'graticule', 'dateLine', 'mountains', 'adminBounds', 'oceanCurrents',
+      'monsoonWinds', 'jetStream', 'coldWarm', 'plates',
+    ]);
+    const DATA_PREFIXES = new Set([
+      'weather', 'earthquakes', 'naturalEvents', 'gdp', 'population',
+      'temperature', 'precipitation', 'typhoons',
+    ]);
+    const kindForKey = (k: string): 'annotations' | 'dataLayer' => {
+      if (ANNOT_PREFIXES.has(k)) return 'annotations';
+      if (DATA_PREFIXES.has(k)) return 'dataLayer';
+      return k.startsWith('weather') || k.startsWith('earthquake') || k.startsWith('gdp') || k.startsWith('pop') || k.startsWith('temp') || k.startsWith('precip') ? 'dataLayer' : 'annotations';
+    };
+    // 清理 / 添加实体：保证与 basemap/sceneMode/globeMaterial 互斥，防止场景过渡时期 Cesium 内部 null-deref
+    /** 清空某图层的所有实体（调度进 annotations/dataLayer 队列） */
     const clearLayer = (key: string) => {
-      const ctrl = getController();
-      if (!ctrl) return;
-      const list = entities[key];
-      if (list) {
-        const viewer = ctrl.getViewer();
-        list.forEach((e) => viewer.entities.remove(e));
-        entities[key] = [];
+      try {
+        const ctrl = getController();
+        if (!ctrl) return;
+        const list = entities[key];
+        if (!list || list.length === 0) return;
+        const kind = kindForKey(key);
+        const mgr = getLayerManager();
+        const run = (): void => {
+          const viewer = ctrl.getViewer();
+          if (!viewer || !viewer.scene || !viewer.entities) return;
+          // Q2：按 id 精确 remove，避免 Cesium 内部同 id 实体残留导致后续 add 时被"复位"到旧位置
+          for (const e of list) {
+            try {
+              if (e?.id != null) {
+                const existing = viewer.entities.getById(String(e.id));
+                if (existing) viewer.entities.remove(existing);
+              } else {
+                viewer.entities.remove(e);
+              }
+            } catch { /* ignore */ }
+          }
+          entities[key] = [];
+          try { viewer.scene.requestRender(); } catch { /* ignore */ }
+        };
+        if (mgr) void mgr.schedule(kind, async () => run());
+        else run();
+      } catch (e) {
+        // Q11：clearLayer 永远不向外抛错：避免 Zustand subscribe 异常冒泡到全局
+        console.warn('[CesiumLayerSync] clearLayer fail', key, e);
       }
     };
 
-    /** 添加某图层的实体 */
+    /** 添加某图层的实体（调度进 annotations/dataLayer 队列）—— 按 entity.id merge：已存在同 id 的只更新引用，不再重复 add（避免视觉"闪一下/回到原点"） */
     const ensureLayer = (key: string, build: (viewer: Cesium.Viewer) => Cesium.Entity[]) => {
-      const ctrl = getController();
-      if (!ctrl) return;
-      if (entities[key] && entities[key].length > 0) return; // 已存在不重复添加
-      const viewer = ctrl.getViewer();
-      entities[key] = build(viewer);
-      backfillLabelMeta(entities[key]);
+      try {
+        const ctrl = getController();
+        if (!ctrl) return;
+        const kind = kindForKey(key);
+        const mgr = getLayerManager();
+        const run = (): void => {
+          try {
+            const viewer = ctrl.getViewer();
+            if (!viewer || !viewer.scene || !viewer.entities) return;
+            const existing = entities[key] ?? [];
+            // Q2：按 entity.id 建索引，避免每次 subscribe 触发时"remove 全部 + add 全部"造成的视觉闪烁
+            const idx = new Map<string, Cesium.Entity>();
+            for (const e of existing) if (e?.id != null) idx.set(String(e.id), e);
+            // build 时不直接用返回数组，而是逐个检查：
+            //   - 同 id 已在 viewer.entities 且未被销毁 → 复用，不重复 add
+            //   - 同 id 已不在 viewer.entities → add
+            const builtRaw = build(viewer);
+            const merged: Cesium.Entity[] = [];
+            for (const cand of builtRaw) {
+              if (cand?.id == null) { merged.push(cand); continue; }
+              const idStr = String(cand.id);
+              const alreadyInViewer = viewer.entities.getById(idStr);
+              if (alreadyInViewer) {
+                // 真正存在的实体：
+                //  - 如果 idx 中也有（我们之前的引用）→ 直接复用（位置/状态不会被重新创建）
+                //  - idx 中没有（可能其他代码加过）→ 复用 viewer 中的，同时把 build 返回的 cand 立即移除（避免双重）
+                if (idx.has(idStr)) {
+                  merged.push(idx.get(idStr)!);
+                  // build 过程已经 add 了 cand（因为 build 内部是 viewer.entities.add），移除它避免重复
+                  try { viewer.entities.remove(cand); } catch { /* ignore */ }
+                } else {
+                  merged.push(alreadyInViewer);
+                  try { viewer.entities.remove(cand); } catch { /* ignore */ }
+                }
+              } else {
+                merged.push(cand);
+              }
+            }
+            entities[key] = merged;
+            backfillLabelMeta(merged);
+            try { applyLabelLOD(viewer, entities); } catch { /* ignore */ }
+            try { viewer.scene.requestRender(); } catch { /* ignore */ }
+          } catch (e) {
+            console.warn('[CesiumLayerSync] ensureLayer build fail', key, e);
+          }
+        };
+        if (mgr) void mgr.schedule(kind, async () => run());
+        else run();
+      } catch (e) {
+        // Q11：ensureLayer 永远不向外抛错：避免订阅者 subscribe 回调里的异常冒泡到全局
+        console.warn('[CesiumLayerSync] ensureLayer fail', key, e);
+      }
+    };
+
+    /** 异步构建图层（用于网络抓取：天气/地震/自然事件/温雨）—— 保证 build 阶段也在 schedule 内执行；Q2：按 id merge，避免重复 add 视觉闪烁 */
+    const ensureLayerAsync = async (
+      key: string,
+      buildAsync: (viewer: Cesium.Viewer) => Promise<Cesium.Entity[] | null>,
+    ): Promise<void> => {
+      try {
+        const ctrl = getController();
+        if (!ctrl) return;
+        const kind = kindForKey(key);
+        const mgr = getLayerManager();
+        const run = async (): Promise<void> => {
+          try {
+            const viewer = ctrl.getViewer();
+            if (!viewer || !viewer.scene || !viewer.entities) return;
+            const built = await buildAsync(viewer);
+            if (!built) return;
+            // 合并：如果 entities[key] 已经有实体（可能是异步期间另一次触发），按 id 合并
+            const existing = entities[key] ?? [];
+            if (existing.length === 0) {
+              entities[key] = built;
+              backfillLabelMeta(built);
+              try { applyLabelLOD(viewer, entities); } catch { /* ignore */ }
+            } else {
+              // 冲突：有旧引用了 → 按 id 建索引，只有不存在的才保留；新建的重复 id 立即 remove
+              const idx = new Map<string, Cesium.Entity>();
+              for (const e of existing) if (e?.id != null) idx.set(String(e.id), e);
+              const finalList: Cesium.Entity[] = [...existing];
+              for (const cand of built) {
+                if (cand?.id == null) { finalList.push(cand); continue; }
+                const idStr = String(cand.id);
+                if (idx.has(idStr)) {
+                  // 已存在 → cand 是 buildAsync 内部 viewer.entities.add 创建的重复，移除它
+                  try { viewer.entities.remove(cand); } catch { /* ignore */ }
+                } else {
+                  finalList.push(cand);
+                  idx.set(idStr, cand);
+                }
+              }
+              entities[key] = finalList;
+              backfillLabelMeta(finalList);
+              try { applyLabelLOD(viewer, entities); } catch { /* ignore */ }
+            }
+            try { viewer.scene.requestRender(); } catch { /* ignore */ }
+          } catch (e) {
+            console.warn('[CesiumLayerSync] async build fail', key, e);
+          }
+        };
+        if (mgr) await mgr.schedule(kind, run);
+        else await run();
+      } catch (e) {
+        console.warn('[CesiumLayerSync] ensureLayerAsync outer fail', key, e);
+      }
     };
 
     // ============ 城市图层 ============
@@ -175,67 +315,64 @@ export function CesiumLayerSync() {
     const unsubGraticule = useGeographyStore.subscribe(
       (s) => s.annotations.graticule,
       (visible) => {
-        const ctrl = getController();
-        if (!ctrl) return;
-        const viewer = ctrl.getViewer();
         if (visible) {
-          if (entities['graticule'] && entities['graticule'].length > 0) return;
-          const lines: Cesium.Entity[] = [];
-          // 经线：每 30 度，范围 ±89.5°（避免 ±90° 极点处的几何退化导致的渲染空洞/抖动）
-          for (let lon = -180; lon <= 180; lon += 30) {
-            const positions: number[] = [];
-            for (let lat = -89.5; lat <= 89.5; lat += 3) {
-              positions.push(lon, lat);
+          ensureLayer('graticule', (viewer) => {
+            const lines: Cesium.Entity[] = [];
+            // 经线：每 30 度，范围 ±89.5°（避免 ±90° 极点处的几何退化导致的渲染空洞/抖动）
+            for (let lon = -180; lon <= 180; lon += 30) {
+              const positions: number[] = [];
+              for (let lat = -89.5; lat <= 89.5; lat += 3) {
+                positions.push(lon, lat);
+              }
+              lines.push(
+                viewer.entities.add({
+                  id: `grat-lon-${lon}`,
+                  polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray(positions),
+                    width: 1,
+                    material: Cesium.Color.fromBytes(125, 211, 252, 50),
+                    clampToGround: true,
+                  },
+                }),
+              );
             }
-            lines.push(
-              viewer.entities.add({
-                id: `grat-lon-${lon}`,
-                polyline: {
-                  positions: Cesium.Cartesian3.fromDegreesArray(positions),
-                  width: 1,
-                  material: Cesium.Color.fromBytes(125, 211, 252, 50),
-                  clampToGround: true,
-                },
-              }),
-            );
-          }
-          // 纬线：每 30 度，范围 ±60°（±85°以上接近极点，贴地退化；只画教学常用带 ±70°/60°/...）
-          for (let lat = -60; lat <= 60; lat += 30) {
-            const positions: number[] = [];
-            // 用 < 180 避免首尾重合（-180° 与 180° 是同一条经线，重合会触发 EllipsoidGeodesic 错误）
-            for (let lon = -180; lon < 180; lon += 5) {
-              positions.push(lon, lat);
+            // 纬线：每 30 度，范围 ±60°（±85°以上接近极点，贴地退化；只画教学常用带 ±70°/60°/...）
+            for (let lat = -60; lat <= 60; lat += 30) {
+              const positions: number[] = [];
+              // 用 < 180 避免首尾重合（-180° 与 180° 是同一条经线，重合会触发 EllipsoidGeodesic 错误）
+              for (let lon = -180; lon < 180; lon += 5) {
+                positions.push(lon, lat);
+              }
+              lines.push(
+                viewer.entities.add({
+                  id: `grat-lat-${lat}`,
+                  polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray(positions),
+                    width: 1,
+                    material: Cesium.Color.fromBytes(125, 211, 252, 50),
+                    clampToGround: true,
+                  },
+                }),
+              );
             }
-            lines.push(
-              viewer.entities.add({
-                id: `grat-lat-${lat}`,
-                polyline: {
-                  positions: Cesium.Cartesian3.fromDegreesArray(positions),
-                  width: 1,
-                  material: Cesium.Color.fromBytes(125, 211, 252, 50),
-                  clampToGround: true,
-                },
-              }),
-            );
-          }
-          // 额外 ±60/±80°高纬度圈（教学常用），±85°+ 省略避免极点贴地退化
-          for (const highLat of [-80, 80]) {
-            const positions: number[] = [];
-            for (let lon = -180; lon < 180; lon += 5) positions.push(lon, highLat);
-            lines.push(
-              viewer.entities.add({
-                id: `grat-lat-${highLat}`,
-                polyline: {
-                  positions: Cesium.Cartesian3.fromDegreesArray(positions),
-                  width: 1,
-                  material: Cesium.Color.fromBytes(125, 211, 252, 38),
-                  clampToGround: true,
-                },
-              }),
-            );
-          }
-          entities['graticule'] = lines;
-          backfillLabelMeta(lines);
+            // 额外 ±60/±80°高纬度圈（教学常用），±85°+ 省略避免极点贴地退化
+            for (const highLat of [-80, 80]) {
+              const positions: number[] = [];
+              for (let lon = -180; lon < 180; lon += 5) positions.push(lon, highLat);
+              lines.push(
+                viewer.entities.add({
+                  id: `grat-lat-${highLat}`,
+                  polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray(positions),
+                    width: 1,
+                    material: Cesium.Color.fromBytes(125, 211, 252, 38),
+                    clampToGround: true,
+                  },
+                }),
+              );
+            }
+            return lines;
+          });
         } else {
           clearLayer('graticule');
         }
@@ -278,6 +415,49 @@ export function CesiumLayerSync() {
       { fireImmediately: true },
     );
 
+    // ============ 地名图层（labels） —— 瓦片注记层的显示/隐藏（天地图 cva_w / 高德 style=8）============
+    // 注意：labels 图层不是 Cesium entities，而是 imageryLayers 中的第 2 层（叠加注记瓦片）
+    // 每次切底图后 controller.setBasemap 内部也会再次根据 store.labels 同步一次状态
+    let labelsLastApplyTs = 0;
+    const applyLabelsVisible = (visible: boolean, urgent = false) => {
+      try {
+        const ctrl = getController();
+        if (!ctrl) return;
+        const now = Date.now();
+        // 节流：非 urgent 情况下最小间隔 250ms（避免订阅+底图切换双重触发刷屏）
+        if (!urgent && now - labelsLastApplyTs < 250) return;
+        labelsLastApplyTs = now;
+        // 通过 controller 上暴露的方法切注记瓦片可见性
+        const ctrlAny = ctrl as unknown as { setLabelImageryVisible?: (v: boolean) => void };
+        if (ctrlAny.setLabelImageryVisible) {
+          ctrlAny.setLabelImageryVisible(visible);
+        } else {
+          // 兜底：直接调 updateLayer('labels', visible)（updateLayer 内部会识别 labels 并切瓦片）
+          void ctrl.updateLayer('labels', visible);
+        }
+      } catch (e) {
+        console.warn('[CesiumLayerSync] labels visible apply fail:', e);
+      }
+    };
+    // labels 订阅：初始 labels=true → 应用一次；后续切换时同步
+    const unsubLabels = useGeographyStore.subscribe(
+      (s) => s.annotations.labels,
+      (visible) => {
+        applyLabelsVisible(visible, false);
+      },
+      { fireImmediately: true },
+    );
+    // 额外订阅 basemap 切换：每次底图切换完成后，需要把 labels 可见性再同步一次（因为 imageryLayers 被重建了）
+    const unsubBasemapForLabels = useGeographyStore.subscribe(
+      (s) => s.basemap,
+      () => {
+        // 底图切换后，注记瓦图层被重建 → 延迟 500ms（等 crossfade 完成后）再同步 labels 状态
+        const visible = useGeographyStore.getState().annotations.labels;
+        setTimeout(() => applyLabelsVisible(visible, true), 520);
+      },
+      { fireImmediately: false },
+    );
+
     // ============ 天气数据图层（异步） ============
     let weatherCancelled = false;
     const unsubWeather = useGeographyStore.subscribe(
@@ -288,36 +468,33 @@ export function CesiumLayerSync() {
           return;
         }
         if (entities['weather'] && entities['weather'].length > 0) return;
-        const ctrl = getController();
-        if (!ctrl) return;
-        const viewer = ctrl.getViewer();
-        // 并行抓取所有预置城市天气
-        const results = await Promise.all(getCities().map((c) => fetchWeather(c)));
-        if (weatherCancelled || !useGeographyStore.getState().data.weather) return;
-        entities['weather'] = results.map((w) =>
-          viewer.entities.add({
-            id: `weather-${w.city}`,
-            position: Cesium.Cartesian3.fromDegrees(w.lon, w.lat),
-            point: {
-              pixelSize: 10,
-              color: Cesium.Color.fromBytes(56, 189, 248, 200),
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1.5,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-            label: {
-              text: `${w.city} ${w.temp}℃ ${w.weather}`,
-              font: '12px Noto Sans SC',
-              fillColor: Cesium.Color.WHITE,
-              outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-              outlineWidth: 2,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              pixelOffset: new Cesium.Cartesian2(0, -16),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-          }),
-        );
-        backfillLabelMeta(entities['weather']);
+        await ensureLayerAsync('weather', async (viewer) => {
+          const results = await Promise.all(getCities().map((c) => fetchWeather(c)));
+          if (weatherCancelled || !useGeographyStore.getState().data.weather) return null;
+          return results.map((w) =>
+            viewer.entities.add({
+              id: `weather-${w.city}`,
+              position: Cesium.Cartesian3.fromDegrees(w.lon, w.lat),
+              point: {
+                pixelSize: 10,
+                color: Cesium.Color.fromBytes(56, 189, 248, 200),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1.5,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+              label: {
+                text: `${w.city} ${w.temp}℃ ${w.weather}`,
+                font: '12px Noto Sans SC',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -16),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+            }),
+          );
+        });
       },
       { fireImmediately: true },
     );
@@ -332,43 +509,41 @@ export function CesiumLayerSync() {
           return;
         }
         if (entities['earthquake'] && entities['earthquake'].length > 0) return;
-        const ctrl = getController();
-        if (!ctrl) return;
-        const viewer = ctrl.getViewer();
-        const quakes = await fetchEarthquakes(4.5);
-        if (earthquakeCancelled || !useGeographyStore.getState().data.earthquake) return;
-        entities['earthquake'] = quakes.map((q) => {
-          // 震级越大点越大：4.5→8px，9.0→22px
-          const size = Math.max(8, Math.min(22, (q.magnitude - 4.5) * 4 + 8));
-          const color =
-            q.magnitude >= 6
-              ? Cesium.Color.fromBytes(239, 68, 68, 230)
-              : q.magnitude >= 5
-                ? Cesium.Color.fromBytes(251, 146, 60, 230)
-                : Cesium.Color.fromBytes(250, 204, 21, 230);
-          return viewer.entities.add({
-            id: `quake-${q.id}`,
-            position: Cesium.Cartesian3.fromDegrees(q.lon, q.lat),
-            point: {
-              pixelSize: size,
-              color,
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-            label: {
-              text: `M${q.magnitude}`,
-              font: '11px Noto Sans SC',
-              fillColor: Cesium.Color.WHITE,
-              outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-              outlineWidth: 2,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              pixelOffset: new Cesium.Cartesian2(0, -14),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
+        await ensureLayerAsync('earthquake', async (viewer) => {
+          const quakes = await fetchEarthquakes(4.5);
+          if (earthquakeCancelled || !useGeographyStore.getState().data.earthquake) return null;
+          return quakes.map((q) => {
+            // 震级越大点越大：4.5→8px，9.0→22px
+            const size = Math.max(8, Math.min(22, (q.magnitude - 4.5) * 4 + 8));
+            const color =
+              q.magnitude >= 6
+                ? Cesium.Color.fromBytes(239, 68, 68, 230)
+                : q.magnitude >= 5
+                  ? Cesium.Color.fromBytes(251, 146, 60, 230)
+                  : Cesium.Color.fromBytes(250, 204, 21, 230);
+            return viewer.entities.add({
+              id: `quake-${q.id}`,
+              position: Cesium.Cartesian3.fromDegrees(q.lon, q.lat),
+              point: {
+                pixelSize: size,
+                color,
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+              label: {
+                text: `M${q.magnitude}`,
+                font: '11px Noto Sans SC',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -14),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+            });
           });
         });
-        backfillLabelMeta(entities['earthquake']);
       },
       { fireImmediately: true },
     );
@@ -383,35 +558,33 @@ export function CesiumLayerSync() {
           return;
         }
         if (entities['naturalEvents'] && entities['naturalEvents'].length > 0) return;
-        const ctrl = getController();
-        if (!ctrl) return;
-        const viewer = ctrl.getViewer();
-        const events = await fetchNaturalEvents();
-        if (naturalEventsCancelled || !useGeographyStore.getState().data.naturalEvents) return;
-        entities['naturalEvents'] = events.slice(0, 50).map((ev, idx) =>
-          viewer.entities.add({
-            id: `event-${ev.id}-${idx}`,
-            position: Cesium.Cartesian3.fromDegrees(ev.lon, ev.lat),
-            point: {
-              pixelSize: 9,
-              color: Cesium.Color.fromBytes(168, 85, 247, 220),
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-            label: {
-              text: ev.title.slice(0, 16),
-              font: '11px Noto Sans SC',
-              fillColor: Cesium.Color.fromBytes(216, 180, 254, 255),
-              outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-              outlineWidth: 2,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              pixelOffset: new Cesium.Cartesian2(0, -14),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-          }),
-        );
-        backfillLabelMeta(entities['naturalEvents']);
+        await ensureLayerAsync('naturalEvents', async (viewer) => {
+          const events = await fetchNaturalEvents();
+          if (naturalEventsCancelled || !useGeographyStore.getState().data.naturalEvents) return null;
+          return events.slice(0, 50).map((ev, idx) =>
+            viewer.entities.add({
+              id: `event-${ev.id}-${idx}`,
+              position: Cesium.Cartesian3.fromDegrees(ev.lon, ev.lat),
+              point: {
+                pixelSize: 9,
+                color: Cesium.Color.fromBytes(168, 85, 247, 220),
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+              label: {
+                text: ev.title.slice(0, 16),
+                font: '11px Noto Sans SC',
+                fillColor: Cesium.Color.fromBytes(216, 180, 254, 255),
+                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -14),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+            }),
+          );
+        });
       },
       { fireImmediately: true },
     );
@@ -769,41 +942,39 @@ export function CesiumLayerSync() {
           return;
         }
         if (entities['temperature'] && entities['temperature'].length > 0) return;
-        const ctrl = getController();
-        if (!ctrl) return;
-        const viewer = ctrl.getViewer();
-        const results = await Promise.all(getCities().slice(0, 10).map((c) => fetchTemperature(c)));
-        if (temperatureCancelled || !useGeographyStore.getState().data.temperature) return;
-        entities['temperature'] = results.map((t) => {
-          // 温度越高颜色越红
-          const color = t.annualAvg >= 20
-            ? Cesium.Color.fromBytes(239, 68, 68, 230)
-            : t.annualAvg >= 10
-              ? Cesium.Color.fromBytes(251, 191, 36, 230)
-              : Cesium.Color.fromBytes(56, 189, 248, 230);
-          return viewer.entities.add({
-            id: `temp-${t.city}`,
-            position: Cesium.Cartesian3.fromDegrees(t.lon, t.lat),
-            point: {
-              pixelSize: Math.max(8, Math.min(18, Math.abs(t.annualAvg) + 8)),
-              color,
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1.5,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-            label: {
-              text: `${t.city} ${t.annualAvg}℃`,
-              font: '11px Noto Sans SC',
-              fillColor: Cesium.Color.WHITE,
-              outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-              outlineWidth: 2,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              pixelOffset: new Cesium.Cartesian2(0, -16),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
+        await ensureLayerAsync('temperature', async (viewer) => {
+          const results = await Promise.all(getCities().slice(0, 10).map((c) => fetchTemperature(c)));
+          if (temperatureCancelled || !useGeographyStore.getState().data.temperature) return null;
+          return results.map((t) => {
+            // 温度越高颜色越红
+            const color = t.annualAvg >= 20
+              ? Cesium.Color.fromBytes(239, 68, 68, 230)
+              : t.annualAvg >= 10
+                ? Cesium.Color.fromBytes(251, 191, 36, 230)
+                : Cesium.Color.fromBytes(56, 189, 248, 230);
+            return viewer.entities.add({
+              id: `temp-${t.city}`,
+              position: Cesium.Cartesian3.fromDegrees(t.lon, t.lat),
+              point: {
+                pixelSize: Math.max(8, Math.min(18, Math.abs(t.annualAvg) + 8)),
+                color,
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1.5,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+              label: {
+                text: `${t.city} ${t.annualAvg}℃`,
+                font: '11px Noto Sans SC',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -16),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+            });
           });
         });
-        backfillLabelMeta(entities['temperature']);
       },
       { fireImmediately: true },
     );
@@ -818,41 +989,39 @@ export function CesiumLayerSync() {
           return;
         }
         if (entities['precipitation'] && entities['precipitation'].length > 0) return;
-        const ctrl = getController();
-        if (!ctrl) return;
-        const viewer = ctrl.getViewer();
-        const results = await Promise.all(getCities().slice(0, 10).map((c) => fetchPrecipitation(c)));
-        if (precipitationCancelled || !useGeographyStore.getState().data.precipitation) return;
-        entities['precipitation'] = results.map((p) => {
-          // 降水越多颜色越蓝
-          const color = p.annualTotal >= 1200
-            ? Cesium.Color.fromBytes(37, 99, 235, 230)
-            : p.annualTotal >= 600
-              ? Cesium.Color.fromBytes(96, 165, 250, 230)
-              : Cesium.Color.fromBytes(251, 191, 36, 230);
-          return viewer.entities.add({
-            id: `precip-${p.city}`,
-            position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
-            point: {
-              pixelSize: Math.max(8, Math.min(20, p.annualTotal / 100)),
-              color,
-              outlineColor: Cesium.Color.WHITE,
-              outlineWidth: 1.5,
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
-            label: {
-              text: `${p.city} ${p.annualTotal}mm`,
-              font: '11px Noto Sans SC',
-              fillColor: Cesium.Color.WHITE,
-              outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-              outlineWidth: 2,
-              style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-              pixelOffset: new Cesium.Cartesian2(0, -16),
-              disableDepthTestDistance: Number.POSITIVE_INFINITY,
-            },
+        await ensureLayerAsync('precipitation', async (viewer) => {
+          const results = await Promise.all(getCities().slice(0, 10).map((c) => fetchPrecipitation(c)));
+          if (precipitationCancelled || !useGeographyStore.getState().data.precipitation) return null;
+          return results.map((p) => {
+            // 降水越多颜色越蓝
+            const color = p.annualTotal >= 1200
+              ? Cesium.Color.fromBytes(37, 99, 235, 230)
+              : p.annualTotal >= 600
+                ? Cesium.Color.fromBytes(96, 165, 250, 230)
+                : Cesium.Color.fromBytes(251, 191, 36, 230);
+            return viewer.entities.add({
+              id: `precip-${p.city}`,
+              position: Cesium.Cartesian3.fromDegrees(p.lon, p.lat),
+              point: {
+                pixelSize: Math.max(8, Math.min(20, p.annualTotal / 100)),
+                color,
+                outlineColor: Cesium.Color.WHITE,
+                outlineWidth: 1.5,
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+              label: {
+                text: `${p.city} ${p.annualTotal}mm`,
+                font: '11px Noto Sans SC',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -16),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+            });
           });
         });
-        backfillLabelMeta(entities['precipitation']);
       },
       { fireImmediately: true },
     );
@@ -860,44 +1029,62 @@ export function CesiumLayerSync() {
     // ============ 标签 LOD + 2D 旋转守卫 ============
     // §2.6 8 tier LOD 预算 + 重叠贪婪避让（不做真实 bbox 近似，直接用相机高度阈值分 tier；§2.2 2D 时若开启旋转态守卫，store.astronomy.rotation=false
     const scheduleLOD = (() => {
-      const ctrl0 = getController();
-      if (!ctrl0) return undefined;
-      const viewer = ctrl0.getViewer();
-      const tickListener = viewer.scene.postRender.addEventListener(() => applyLabelLOD(viewer, entities));
-      const storeModeUnsub = useGeographyStore.subscribe(
-        (s) => s.viewMode,
-        (mode) => {
-          const prev = lastModeRef.current;
-          lastModeRef.current = mode;
-          if (mode === '2d' && prev !== '2d') {
-            // 2D 模式下禁止自转：store 端写一次 + controller 执行一次 setRotation(false, 0)
-            const cur = useGeographyStore.getState().astronomy.rotation;
-            if (cur) {
+      try {
+        const ctrl0 = getController();
+        if (!ctrl0) return undefined;
+        const viewer = ctrl0.getViewer();
+        // Q2 关键加固：viewer / scene / postRender 未就绪时跳过，避免 "Cannot read properties of undefined (reading 'scene')"
+        if (!viewer || !viewer.scene || !viewer.scene.postRender) return undefined;
+        const tickListener = viewer.scene.postRender.addEventListener(() => {
+          try { applyLabelLOD(viewer, entities); } catch { /* 每帧回调内永不抛错 */ }
+        });
+        const storeModeUnsub = useGeographyStore.subscribe(
+          (s) => s.viewMode,
+          (mode) => {
+            const prev = lastModeRef.current;
+            lastModeRef.current = mode;
+            if (mode === '2d' && prev !== '2d') {
+              // 2D 模式下禁止自转：store 端写一次 + controller 执行一次 setRotation(false, 0)
+              const cur = useGeographyStore.getState().astronomy.rotation;
+              if (cur) {
+                try {
+                  const s = useGeographyStore.getState() as unknown as { setAstronomy?: (p: Partial<{ rotation: boolean }>) => void };
+                  if (s.setAstronomy) s.setAstronomy({ rotation: false });
+                  else useGeographyStore.setState({ astronomy: { ...useGeographyStore.getState().astronomy, rotation: false } });
+                } catch { /* ignore */ }
+              }
               try {
-                const s = useGeographyStore.getState() as unknown as { setAstronomy?: (p: Partial<{ rotation: boolean }>) => void };
-                if (s.setAstronomy) s.setAstronomy({ rotation: false });
-                else useGeographyStore.setState({ astronomy: { ...useGeographyStore.getState().astronomy, rotation: false } });
+                // CesiumController 暴露的是 setRotation(enabled, speed)
+                const c = ctrl0 as unknown as { setRotation: (en: boolean, sp: number) => void };
+                c.setRotation(false, 0);
               } catch { /* ignore */ }
             }
-            try {
-              // CesiumController 暴露的是 setRotation(enabled, speed)
-              const c = ctrl0 as unknown as { setRotation: (en: boolean, sp: number) => void };
-              c.setRotation(false, 0);
-            } catch { /* ignore */ }
-          }
-        },
-        { fireImmediately: true },
-      );
-      return () => {
-        tickListener();
-        storeModeUnsub?.();
-      };
+          },
+          { fireImmediately: true },
+        );
+        return () => {
+          try { tickListener(); } catch { /* ignore */ }
+          try { storeModeUnsub?.(); } catch { /* ignore */ }
+        };
+      } catch (e) {
+        // Q2 关键：scheduleLOD 构建失败永不冒泡到组件挂载异常（否则整个图层同步崩）
+        console.warn('[CesiumLayerSync] scheduleLOD init fail, skip LOD:', e);
+        return undefined;
+      }
     })();
     if (scheduleLOD) lodHandleRef.current = scheduleLOD;
     // 立即执行一次 LOD 应用，保证图层刚添加的标签不会刷空白
     queueMicrotask(() => {
-      const c = getController();
-      if (c) applyLabelLOD(c.getViewer(), entities);
+      try {
+        const c = getController();
+        if (!c) return;
+        const v = c.getViewer();
+        // 关键：viewer / scene / canvas / camera 任一缺失就跳过（Cesium 内部初始化时序）
+        if (!v || !v.scene || !v.canvas || !v.camera) return;
+        applyLabelLOD(v, entities);
+      } catch (e) {
+        console.warn('[CesiumLayerSync] initial LOD apply skip:', e);
+      }
     });
 
     return () => {
@@ -906,6 +1093,8 @@ export function CesiumLayerSync() {
       unsubPlates();
       unsubGraticule();
       unsubDateLine();
+      unsubLabels();
+      unsubBasemapForLabels();
       unsubWeather();
       unsubEarthquake();
       unsubNaturalEvents();
@@ -1095,9 +1284,21 @@ function tierScaleForCameraHeight(heightMeters: number): number {
  * - 同图层内按 priority 高者先保留，再做屏幕空间重叠的 3 次 offset 贪婪避让
  */
 function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesium.Entity[]>): void {
-  // 估计相机高度（椭球上最近表面距离，够 LOD 用；不需要精确到地形高度）
+  // Q2 关键加固：viewer / camera / scene / canvas 任一缺失，立即返回不抛错
+  if (!viewer) return;
   const cam = viewer.camera;
-  const carto = Cesium.Cartographic.fromCartesian(cam.positionWC);
+  const scene = viewer.scene;
+  const canvas = viewer.canvas;
+  const clock = viewer.clock;
+  if (!cam || !scene || !canvas || !clock) return;
+
+  // 估计相机高度（椭球上最近表面距离，够 LOD 用；不需要精确到地形高度）
+  let carto: Cesium.Cartographic | undefined;
+  try {
+    carto = Cesium.Cartographic.fromCartesian(cam.positionWC);
+  } catch { return; }
+  if (!carto || !Number.isFinite(carto.height)) return;
+
   const h = Math.max(0, carto.height);
   let scale = tierScaleForCameraHeight(h);
   // 乘以 AdaptiveDegrader 全局系数（tier2/3 进一步压缩预算）
@@ -1152,10 +1353,10 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
   // 在当前视口内做"屏幕空间"近似重叠避让（Cesium 投影转 pixel，只对 show=true 生效）
   // 注意：此过程在 postRender 里，若相机变化不大代价低，约 N*K 次比较（N 数百，K≈3 次 offset）
   const keptVisible: Array<{ cx: number; cy: number; w: number; h: number }> = [];
-  const scene = viewer.scene;
-  const canvas = viewer.canvas;
-  const W = canvas.clientWidth;
-  const H = canvas.clientHeight;
+  const W = canvas.clientWidth ?? 0;
+  const H = canvas.clientHeight ?? 0;
+  if (W <= 0 || H <= 0) return;
+
   // 先按可见性 + priority 稳定排序
   const sortedForDodge = allWithLabel
     .filter((x) => {
@@ -1174,7 +1375,7 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
     let pos: Cesium.Cartesian3 | undefined;
     try {
       const p = item.e.position as unknown as { getValue?: (t: Cesium.JulianDate) => Cesium.Cartesian3 | undefined };
-      if (p && typeof p.getValue === 'function') pos = p.getValue(viewer.clock.currentTime);
+      if (p && typeof p.getValue === 'function') pos = p.getValue(clock.currentTime);
       // 若失败退化：尝试直接强制类型转
       if (!pos) pos = item.e.position as unknown as Cesium.Cartesian3;
     } catch { pos = undefined; }
@@ -1186,11 +1387,13 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
       worldToWindowCoordinates?: (s: Cesium.Scene, p: Cesium.Cartesian3, r?: Cesium.Cartesian2) => Cesium.Cartesian2 | undefined;
       wgs84ToWindowCoordinates?: (s: Cesium.Scene, p: Cesium.Cartesian3, r?: Cesium.Cartesian2) => Cesium.Cartesian2 | undefined;
     };
-    if (typeof st.wgs84ToWindowCoordinates === 'function') {
-      windowCoord = st.wgs84ToWindowCoordinates(scene, pos);
-    } else if (typeof st.worldToWindowCoordinates === 'function') {
-      windowCoord = st.worldToWindowCoordinates(scene, pos);
-    }
+    try {
+      if (typeof st.wgs84ToWindowCoordinates === 'function') {
+        windowCoord = st.wgs84ToWindowCoordinates(scene, pos);
+      } else if (typeof st.worldToWindowCoordinates === 'function') {
+        windowCoord = st.worldToWindowCoordinates(scene, pos);
+      }
+    } catch { windowCoord = undefined; }
     if (!windowCoord) continue;
     // label 在点上方偏移 baseOffset.y 像素，近似中心
     const pxW = item.meta.approxPxW;

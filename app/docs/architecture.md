@@ -168,24 +168,28 @@ solarSystemActive=true           → SolarSystemCanvas（React.lazy 动态导入
 
 | 层 | 工具 | 文件 | 覆盖 | 状态 |
 |---|---|---|---|---|
-| 单元 | Vitest + jsdom | `tests/schema.test.ts` | 工具 Schema 校验（15 例） | ✅ |
-| 单元 | Vitest + jsdom | `tests/store.test.ts` | 状态管理（12 例） | ✅ |
-| 单元 | Vitest + jsdom | `tests/voice.test.ts` | 意图解析 + 空格键安全（18 例） | ✅ |
+| 单元 | Vitest + jsdom | `tests/schema.test.ts` | 工具 Schema 校验（23 例） | ✅ |
+| 单元 | Vitest + jsdom | `tests/store.test.ts` | 状态管理（14 例） | ✅ |
+| 单元 | Vitest + jsdom | `tests/voice.test.ts` | 意图解析 + 空格键安全 + 实时对话历史（37 例） | ✅ |
 | 单元 | Vitest + jsdom | `tests/solarSystem.test.ts` | 行星数据/缩放/状态/命令（20 例） | ✅ |
-| 集成 | Vitest + jsdom | `tests/commandBus.test.ts` | 按钮与 AI 共用 Bus（15 例） | ✅ |
+| 单元 | Vitest + jsdom | `tests/geoReferencer.test.ts` | 地名/经纬度解析（9 例） | ✅ |
+| 单元 | Vitest + jsdom | `tests/lessonRuntime.test.ts` | 课程状态机（12 例） | ✅ |
+| 集成 | Vitest + jsdom | `tests/commandBus.test.ts` | 按钮与 AI 共用 Bus（29 例） | ✅ |
 | E2E | Playwright | `e2e/01-page-open.spec.ts` | 页面打开、地球加载 | ✅ |
 | E2E | Playwright | `e2e/02-tool-dock.spec.ts` | 工具坞收放 | ✅ |
 | E2E | Playwright | `e2e/03-view-and-contour.spec.ts` | 二维三维切换、等高线 | ✅ |
 | E2E | Playwright | `e2e/04-lesson-menu.spec.ts` | 课程菜单搜索与打开 | ✅ |
 | E2E | Playwright | `e2e/05-push-to-talk.spec.ts` | 空格录音、输入框安全 | ✅ |
-| 内容 | tsx 脚本 | `src/lessons/validate.ts` | 8 门课程的 Schema/字段/引用校验 | ✅ |
+| E2E | Playwright | `e2e/06-solar-system.spec.ts` | 太阳系视图 | ✅ |
+| E2E | Playwright | `e2e/07-layer-stability.spec.ts` | 图层稳定性、底图轮换、2D/3D 切换 | ✅ |
+| 内容 | tsx 脚本 | `src/lessons/validate.ts` | 9 门课程的 Schema/字段/引用校验 | ✅ |
 
 **运行命令：**
-- 单元 + 集成：`npm test`（80 例全过）
+- 单元 + 集成：`npm test`（144 例全过）
 - 类型检查：`npm run typecheck`
 - 生产构建：`npm run build`
 - 内容校验：`npm run validate:content`
-- E2E：`npm run test:e2e`（需先 `npm run build && npm run preview`）
+- E2E：`npm run test:e2e`（17 例，需先 `npm run build && npm run preview`）
 
 ## 8. 图层同步机制
 

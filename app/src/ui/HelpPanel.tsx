@@ -147,6 +147,7 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
         <div className="flex items-center justify-between border-b border-white/10 px-5 py-3">
           <h2 className="text-base font-medium text-white/90">按键说明 · 操作指南</h2>
           <button
+            data-agent-button="help.close"
             onClick={onClose}
             className="text-white/50 hover:text-white"
             title="关闭（Esc）"
@@ -164,6 +165,7 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
           ] as const).map((t) => (
             <button
               key={t.id}
+              data-agent-button={`help.tab.${t.id}`}
               onClick={() => setTab(t.id)}
               className={`rounded-md px-3 py-1 text-sm transition-colors ${
                 tab === t.id

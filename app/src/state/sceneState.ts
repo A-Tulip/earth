@@ -7,12 +7,35 @@
 
 export type ViewMode = '3d' | '2d' | 'columbus';
 /**
- * §1.2 扩展为 6 种语义；terrain.contour 分析开关仍独立（不冲突）
+ * §1.2 扩展为 13 种语义（含 terrain 历史别名，向后兼容）
  * - political/relief/landform/satellite 默认叠加天地图中文注记
  * - contour：政区底图 + 叠加等高线材质（globe.material=ElevationContour）
  * - osm：开放街道图（不叠中文注记，纯英文）
+ * - amapSatellite / amapPolitical / amapRoad：高德瓦片（卫星/路网+注记/纯路网）
+ * - tiandituSatellite / tiandituPolitical / tiandituRelief：天地图显式瓦片（有 VITE_TIANDITU_TOKEN 时可用，确保中文注记+国内坐标）
+ * - terrain：历史别名 → 内部映射为 relief
  */
-export type BasemapType = 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm';
+export type BasemapType =
+  | 'satellite'
+  | 'political'
+  | 'relief'
+  | 'landform'
+  | 'contour'
+  | 'osm'
+  | 'amapSatellite'
+  | 'amapPolitical'
+  | 'amapRoad'
+  | 'tiandituSatellite'
+  | 'tiandituPolitical'
+  | 'tiandituRelief'
+  | 'terrain';
+
+/**
+ * 历史别名 'terrain' 的解析映射（任何入口都先跑这个）
+ */
+export function normalizeBasemap(bm: BasemapType): Exclude<BasemapType, 'terrain'> {
+  return bm === 'terrain' ? 'relief' : bm;
+}
 
 /** 标注图层开关集合 */
 export interface AnnotationLayers {
@@ -119,6 +142,7 @@ export interface LessonRuntimeState {
   stepTitle: string;
   narration: string;        // 当前讲解文本
   isPaused: boolean;
+  finished?: boolean;       // 是否走到最后一步（自然结束后仍可回看/退出）
 }
 
 /** API 限流提示状态 */
@@ -134,6 +158,35 @@ export interface ApiRateLimitStatus {
 }
 
 /** 临时控件状态 */
+export type LayerErrorKind = 'basemap' | 'terrain' | 'sceneMode' | 'annotation' | 'data' | 'globeMaterial' | 'lessons' | 'ai' | 'unknown';
+export type LayerErrorCategory = 'network' | 'not_found' | 'invalid_args' | 'auth' | 'render' | 'timeout' | 'rate_limit' | 'unknown';
+
+/** Q9 AI 对话消息 */
+export type AIChatRole = 'user' | 'assistant' | 'system';
+export interface AIToolCallVisual {
+  id: string;
+  name: string;
+  args: Record<string, unknown>;
+  status: 'pending' | 'running' | 'success' | 'error';
+  result?: Record<string, unknown> | null;
+  errorMessage?: string | null;
+  startedAt?: string | null;
+  finishedAt?: string | null;
+}
+export interface AIChatMessage {
+  id: string;
+  role: AIChatRole;
+  /** 文本内容；assistant 的文本可以在 toolCalls 之前/之后出现 */
+  content: string;
+  createdAt: string;
+  /** AI 工具调用（用于显示可视化反馈） */
+  toolCalls?: AIToolCallVisual[];
+  /** 这段消息是否已经完成渲染（false=还在流式输出） */
+  done?: boolean;
+  /** 如果本消息因错误终止，保留错误描述 */
+  errorMessage?: string | null;
+}
+
 export interface TransientUIState {
   showGuidance: boolean;    // 首次引导文字
   showCommandMenu: boolean; // 课程菜单
@@ -142,12 +195,45 @@ export interface TransientUIState {
   showContextMenu: boolean; // 上下文操作菜单
   contextMenuActions: ContextAction[];
   showSubtitle: boolean;
+  /** Q9：是否显示 AI 对话侧栏面板 */
+  showAIChat: boolean;
+  /** Q9：AI 对话历史，跨面板打开/关闭保留在 state 里（避免"点关闭就丢聊天记录"） */
+  aiChatHistory: AIChatMessage[];
+  /** Q9：AI 是否正在生成中（用于输入框禁用 / 发送按钮 loading） */
+  aiChatGenerating: boolean;
+  /** Q4 QuestionCard：用户最近一次提交的答案 */
+  lastUserAnswer?: string | null;
+  /** Q4 QuestionCard：最近一次判题结果（对错+解析） */
+  lastQuestionResult?: { correct: boolean; explanation?: string } | null;
   /** API 限流提示（issue #18） */
   rateLimit: ApiRateLimitStatus;
   /** §0.2 Manager 最近一次图层切换错误，用于 Toast 显示，null/undefined 表示无错 */
   lastLayerError?: string | null;
   /** §0.2 lastLayerError 写入时间（ISO8601），UI 侧按此字段变化触发 Toast */
   lastLayerErrorAt?: string | null;
+  /** Q1：错误分类（网络/资源不存在/参数错误/认证/渲染/超时/限流）—— 帮助用户理解和决定下一步 */
+  lastLayerErrorCategory?: LayerErrorCategory | null;
+  /** Q1：错误所属图层类别（basemap/terrain/sceneMode...） */
+  lastLayerErrorKind?: LayerErrorKind | null;
+  /** Q1：重试建议动作（CommandBus 的 name + args 对），若存在则显示"重试"按钮，点击执行 */
+  lastLayerErrorRetryAction?: { name: string; args: Record<string, unknown> } | null;
+  /**
+   * Q2 加载动画：LayerLifeCycleManager 每次调度会把对应 kind → true，结束后 false
+   * LoadingOverlay 组件读取此字段显示叠加层，避免"蓝色底图裸露"的瞬间
+   */
+  layerBusy: Partial<Record<
+    'basemap' | 'terrain' | 'sceneMode' | 'annotation' | 'data' | 'globeMaterial',
+    boolean
+  >>;
+  /**
+   * Q6 启动加载进度（0-100，整数）：
+   *   - 0    : 页面刚打开，还没开始初始化 Cesium
+   *   - 1~99 : 分步推进（Cesium 初始化 / 底图首瓦片 / 地形首帧 / 单例就绪 / 首次渲染）
+   *   - 100  : 全部就绪，AppLoader 开始淡出
+   */
+  startupProgress: number;
+  /** Q6 启动加载阶段的文案（显示在百分比下方，给用户一个"此刻在做什么"的预期） */
+  startupLabel: string | null;
 }
 
 export interface ContextAction {
@@ -191,6 +277,7 @@ export interface GeographySceneState {
 
 export const initialSceneState: GeographySceneState = {
   viewMode: '3d',
+  // 默认 satellite（单元测试一致基线）；若存在 VITE_AMAP_KEY，CesiumCanvas 启动时会切换为 amapSatellite
   basemap: 'satellite',
   solarSystemActive: false,
 
@@ -209,10 +296,12 @@ export const initialSceneState: GeographySceneState = {
   },
 
   astronomy: {
-    axis: true,
-    directPoint: true,
+    // 地轴、晨昏线、公转默认关闭，需通过 UI 明确开启
+    axis: false,
+    directPoint: false,
     twilight: false,
     dayMode: false,
+    // 用户需求：初始界面地球符合地理知识自西向东自转
     rotation: true,
     revolution: false,
   },
@@ -294,7 +383,20 @@ export const initialSceneState: GeographySceneState = {
     showContextMenu: false,
     contextMenuActions: [],
     showSubtitle: false,
+    showAIChat: false,
+    aiChatHistory: [],
+    aiChatGenerating: false,
+    lastUserAnswer: null,
+    lastQuestionResult: null,
     rateLimit: { active: false },
+    lastLayerError: null,
+    lastLayerErrorAt: null,
+    lastLayerErrorCategory: null,
+    lastLayerErrorKind: null,
+    lastLayerErrorRetryAction: null,
+    layerBusy: {},
+    startupProgress: 0,
+    startupLabel: '正在启动…',
   },
 
   rotationSpeed: 1.0,

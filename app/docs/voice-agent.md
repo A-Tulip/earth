@@ -66,46 +66,59 @@ interface LLMAdapter { chat(messages): Promise<{ text, toolCalls }> }
 
 **架构：**
 ```
-浏览器 ──/api/llm/chat──► 服务端代理 ──Bearer ARK_API_KEY──► ark.cn-beijing.volces.com
-        ──/api/tts/synthesize──►            ──X-Api-Access-Key──► sami.bytedance.com
-        ──/api/asr/recognize──►             ──X-Api-Access-Key──► openspeech.bytedance.com
-        ──/api/health──►                    （健康检查）
+浏览器 ──/api/llm/chat──► FastAPI 后端(8787) ──Bearer ARK_API_KEY──► ark.cn-beijing.volces.com
+        ──/api/tts/synthesize──►                ──X-Api-Access-Key──► sami.bytedance.com
+        ──/api/asr/recognition──►               ──X-Api-Access-Key──► openspeech.bytedance.com
+        ──/ws/asr──►                            （流式 ASR WebSocket）
+        ──/api/health──►                        （健康检查）
+        ──/api/charts/generate──►               （matplotlib 图表）
+        ──/api/geocoding/reverse──►             （反向地理编码代理）
 ```
 
-**启动代理：**
-```bash
-# 1. 配置服务端密钥（不入前端构建）
-cp .env.example .env
-# 编辑 .env 填入 VOLC_ARK_API_KEY、VOLC_TTS_APP_ID、VOLC_TTS_ACCESS_KEY 等
+**后端（FastAPI）启动：**
 
-# 2. 启动代理（端口 8787）
-npm run voice:proxy
+```bash
+# 0. （可选）一键准备前后端环境：node_modules + api/.venv + pip 依赖
+make setup
+
+# 1. 配置后端密钥（不入前端构建）
+cp api/.env.example api/.env
+# 编辑 api/.env 填入 VOLC_ARK_API_KEY、VOLC_TTS_APP_ID、VOLC_TTS_ACCESS_KEY 等
+
+# 2. 启动后端 FastAPI（端口 8787，开发模式）
+make api
+#   等价命令（任选其一）：
+#     npm run api:dev          # 在 app/ 目录下
+#     cd api && uvicorn main:app --host 0.0.0.0 --port 8787 --reload
+#     ./earth-api --reload     # 仓库根脚本，自动处理路径
 
 # 3. 另开终端启动前端
-npm run dev
+make dev
+#   等价命令：npm run dev（在 app/ 目录下）
+
+# 一键同时启动前后端（需系统装有 concurrently）
+make start
 ```
 
+> 注：原 `npm run voice:proxy`（Node.js 版）已废弃。FastAPI 后端已完全覆盖其所有端点，两者监听同一端口（8787）互斥，启用 FastAPI 后无需再运行 Node 版。
+
 **前端启用火山引擎：**
-在 `.env.local` 中：
+在 `app/.env.local` 中：
 ```
 VITE_LLM_PROVIDER=volcengine
 VITE_TTS_PROVIDER=volcengine
-VITE_ASR_PROVIDER=volcengine   # 当前自动降级浏览器
+VITE_ASR_PROVIDER=volcengine   # 流式 ASR，WS 鉴权不足时自动降级浏览器
 ```
+
+可选：在 `app/.env` 中用 `VITE_LLM_PROVIDER=volcengine` 作为默认开关（无需 `.env.local`）。
 
 **适配器实现：**
 
 | 类 | 实现 | 说明 |
 |---|---|---|
-| `VolcengineArkLLM` | OpenAI 兼容 + tools function calling | 16 个地理工具定义，温度 0.2 提升指令稳定性 |
+| `VolcengineArkLLM` | OpenAI 兼容 + tools function calling | 30+ 地理工具定义，温度 0.2 提升指令稳定性 |
 | `VolcengineTTS` | HTTP 非流式，base64 → Blob → Audio | 浏览器原生播放，自动释放 ObjectURL |
-| `VolcengineASR` | 健康检查后降级浏览器 | 流式 ASR 需 WebSocket 鉴权，浏览器无法持有 Access Key |
-
-**密钥安全：**
-- 所有 `VOLC_*` 变量仅在 `app/server/` 进程可见（`process.env`）
-- 前端构建产物（`dist/`）不含任何密钥
-- 服务端日志仅输出 enabled 状态（`llm`/`tts`/`asr`），不打印密钥本身
-- 代理失败时返回明确 `code`（`PROVIDER_NOT_CONFIGURED` / `UPSTREAM_ERROR`），前端自动降级
+| `VolcengineASR` | 健康检查 `/api/health.asr` → `StreamingASR`（WebSocket） | 流式 ASR 走 `/ws/asr`，失败自动降级浏览器 |
 
 ### KeywordIntentLLM 覆盖的指令
 
@@ -136,11 +149,48 @@ VITE_ASR_PROVIDER=volcengine   # 当前自动降级浏览器
 - 公开仓库
 - 浏览器直接请求
 
-生产环境通过服务端代理调用 ASR/TTS/LLM，前端只调代理端点。
+**存放位置：**
+- 后端密钥 → `api/.env`（`VOLC_*` 系列），仅 FastAPI 服务进程可见（`process.env` / `python-dotenv`）
+- 前端供应商开关 → `app/.env.local`（`VITE_*_PROVIDER`），仅含供应商名，不含密钥
+- 生产环境：前端只调代理端点（`/api/*`、`/ws/*`），密钥由后端持有
 
-## 6. 可靠性
+**降级与安全细节：**
+- FastAPI 日志仅输出各供应商 enabled 状态（`llm`/`asr`/`tts`），不打印密钥本身
+- 密钥缺失时返回明确 `code`（`PROVIDER_NOT_CONFIGURED` / `UPSTREAM_ERROR`），前端自动降级
+- 前端 `VITE_ASR_PROVIDER=volcengine` 时先探测 `/api/health.asr`，为 false 则退回浏览器 Web Speech API
+- 所有出网请求（LLM 调用、TTS、反向地理编码、图表）均经 FastAPI 代理，避免前端直连第三方服务
+
+## 6. 实时对话模式（`src/voice/RealtimeVoiceChat.ts`）
+
+与 Push-to-Talk（按住空格）不同，实时对话模式为**全双工**：
+
+- 用户随时说话，VAD 自动检测说话开始/结束
+- 检测到句末（静音 800ms）自动提交 LLM
+- AI 回复通过 TTS 实时播放
+- 用户说话时自动打断 TTS（barge-in）
+
+**VAD 状态机：** `idle → listening → processing → speaking`
+
+| 状态 | 触发 | 动作 |
+|---|---|---|
+| `idle` | 超过能量阈值且持续 ≥300ms | 启动 ASR → `listening` |
+| `speaking` | 播放中检测到用户说话 | 停止 TTS（barge-in）→ 重启 ASR → `listening` |
+| `listening` | 静音 ≥800ms | 停止 ASR → 提交 LLM → `processing` |
+| `processing` | LLM 返回并有 TTS 文本 | 执行工具 → 播放 TTS → `speaking` |
+
+**对话历史：** 最多 20 条消息（`trimHistory`），切换课程时自动清空（按 `activeLessonId` 订阅）。
+
+**启用方式：** TopBar 的「实时对话」按钮（`data-agent-button="voice.toggleRealtime"`），或 AI 调用 `realtime.toggle`。启用后自动禁用 Push-to-Talk。
+
+**降级链：**
+1. 流式 ASR（`/ws/asr` WebSocket）+ VAD ← 主路径
+2. 浏览器 Web Speech API（连续模式）+ VAD ← 自动降级
+3. Push-to-Talk 模式 ← 手动降级（关闭实时对话）
+
+## 7. 可靠性
 
 - 请求限流、超时、取消、重试
 - 错误分类（权限/网络/服务/参数）
 - 可观测日志（开发环境）
 - 任何环节失败保留字幕和手动工具能力
+- 实时对话启动失败（麦克风权限/ASR 不可用）→ 提示用户切换到按住空格模式，课堂不中断

@@ -10,6 +10,7 @@ import { useGeographyStore } from '../state/store';
 import { commandBus } from '../commands/bus';
 import { Search, ChevronRight, X } from './icons';
 import { LESSON_CATALOG } from '../lessons/catalog';
+import { LessonRuntime } from '../lessons/runtime';
 
 interface CommandMenuProps {
   open: boolean;
@@ -26,6 +27,8 @@ export function CommandMenu({ open, onClose }: CommandMenuProps) {
       setQuery('');
       setTimeout(() => inputRef.current?.focus(), 50);
       setUI({ showCommandMenu: true });
+      // Q7：打开课程菜单时，异步预热全部课程 import（用户看到菜单时已经在后台下载对应 chunk，第一次点就命中缓存）
+      for (const m of LESSON_CATALOG) LessonRuntime.warmUpLesson(m.id);
     } else {
       setUI({ showCommandMenu: false });
     }
@@ -100,7 +103,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps) {
             placeholder={'搜索课程，如 等高线 / 自转 / 冷锋'}
             className="flex-1 bg-transparent text-sm text-white placeholder-white/40 outline-none"
           />
-          <button onClick={onClose} className="text-white/40 hover:text-white">
+          <button data-agent-button="lessonMenu.close" onClick={onClose} className="text-white/40 hover:text-white">
             <X className="h-4 w-4" />
           </button>
         </div>
@@ -118,6 +121,7 @@ export function CommandMenu({ open, onClose }: CommandMenuProps) {
                 {lessons.map((lesson) => (
                   <button
                     key={lesson.id}
+                    data-agent-button={`lesson.open.${lesson.id}`}
                     onClick={() => handleSelect(lesson.id)}
                     className="group flex w-full items-center gap-3 rounded-lg px-3 py-2 text-left transition-colors hover:bg-white/10"
                   >

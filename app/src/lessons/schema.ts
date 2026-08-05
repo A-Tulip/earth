@@ -26,12 +26,37 @@ export interface LessonMeta {
 export interface LessonStep {
   id: string;
   title: string;
-  narration: string;           // 旁白文本
-  lecture?: string;            // 详细讲义（Markdown）
+  /** 旁白文本（不强制必填：如果留空但提供了 aiPrompt，则进入步骤时调用 LLM 动态生成旁白） */
+  narration?: string;
+  /** 详细讲义（Markdown，可选） */
+  lecture?: string;
+  /**
+   * ✅ ISSUE-6：支持 AI 动态生成课程内容（不写死）
+   * - 如果 narration 为空或省略，但 aiPrompt 存在 → 进入本步时调用 LLM，
+   *   把 aiPrompt + 当前课程标题/目标/场景 拼接成系统提示，由 LLM 生成 1-2 句中文旁白。
+   * - 示例：aiPrompt = "请面向七年级学生，解释为什么山谷风在白天从山谷吹向山顶？"
+   */
+  aiPrompt?: string;
   /** 场景配置 */
   scene: LessonSceneConfig;
   /** 问题（可选） */
   question?: LessonQuestion;
+}
+
+/** 区域叠加：在地球上绘制一个半透明多边形区域（用于三级阶梯、板块、气候带等教学高亮） */
+export interface RegionOverlay {
+  /** 唯一 id（同一课程内建议唯一） */
+  id: string;
+  /** 显示名称（中文，渲染在区域上方） */
+  name: string;
+  /** 十六进制颜色，如 '#f54e00'；缺省按 index 自动取教学色板 */
+  color?: string;
+  /** 多边形边界经纬度 [lon, lat][]
+   *
+   * 注意：多边形闭合由 Cesium 处理（首尾自动闭合），这里只需按顺序给出顶点。
+   * 顶点顺序为逆时针（右手系卷绕），否则多边形会被判为"反卷绕"而显示异常。
+   */
+  coordinates: Array<[number, number]>;
 }
 
 /** 场景配置 */
@@ -43,7 +68,9 @@ export interface LessonSceneConfig {
     duration?: number;
   };
   viewMode?: '2d' | '3d' | 'columbus';
-  basemap?: 'satellite' | 'terrain' | 'political' | 'osm';
+  basemap?: import('../state/sceneState').BasemapType;
+  /** 区域叠加（进入本步时绘制，无 regions 的步骤自动清除上一区域的叠加） */
+  regions?: RegionOverlay[];
   /** 图层状态 */
   layers?: {
     annotations?: Partial<Record<string, boolean>>;

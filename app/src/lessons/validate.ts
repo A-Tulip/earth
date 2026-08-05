@@ -18,6 +18,7 @@ import { fileURLToPath } from 'node:url';
 import { createRequire } from 'node:module';
 import { LESSON_CATALOG } from './catalog';
 import { TOOL_NAMES } from '../commands/schema';
+import type { BasemapType } from '../state/sceneState';
 import type { LessonPackage, LessonMeta, LessonStep } from './schema';
 
 const __dirname = dirname(fileURLToPath(import.meta.url));
@@ -104,7 +105,8 @@ function validateStep(step: Partial<LessonStep>, lessonId: string, idx: number) 
   const prefix = `[${lessonId}] step[${idx}]`;
   if (!step.id) error(`${prefix} id 缺失`);
   if (!step.title) error(`${prefix} title 缺失`);
-  if (!step.narration) error(`${prefix} narration 缺失`);
+  // narration 可选：若缺失则必须提供 aiPrompt（ISSUE-6：AI 动态生成旁白）
+  if (!step.narration && !step.aiPrompt) error(`${prefix} narration 缺失（且未提供 aiPrompt）`);
   if (!step.scene) {
     error(`${prefix} scene 缺失`);
     return;
@@ -124,11 +126,16 @@ function validateStep(step: Partial<LessonStep>, lessonId: string, idx: number) 
     }
   }
 
-  // 视图模式 / 底图枚举
+  // 视图模式 / 底图枚举（与 BasemapType 对齐，避免硬编码列表过期）
   if (step.scene.viewMode && !['2d', '3d', 'columbus'].includes(step.scene.viewMode)) {
     error(`${prefix} scene.viewMode 非法: ${step.scene.viewMode}`);
   }
-  if (step.scene.basemap && !['satellite', 'terrain', 'political', 'osm'].includes(step.scene.basemap)) {
+  const BASEMAP_VALUES: BasemapType[] = [
+    'satellite', 'political', 'relief', 'landform', 'contour', 'osm',
+    'amapSatellite', 'amapPolitical', 'amapRoad',
+    'tiandituSatellite', 'tiandituPolitical', 'tiandituRelief', 'terrain',
+  ];
+  if (step.scene.basemap && !BASEMAP_VALUES.includes(step.scene.basemap)) {
     error(`${prefix} scene.basemap 非法: ${step.scene.basemap}`);
   }
 

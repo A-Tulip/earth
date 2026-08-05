@@ -5,7 +5,50 @@
  * 教材：人教版八年级上册第二章第一节
  */
 
-import { LessonPackage } from '../../src/lessons/schema';
+import { LessonPackage, RegionOverlay } from '../../src/lessons/schema';
+
+/**
+ * 中国地势三级阶梯的简化多边形边界（教学高亮用，非精确政区边界）。
+ * 顶点逆时针，首尾自动闭合。
+ */
+const FIRST_STEP: RegionOverlay = {
+  id: 'first-step',
+  name: '第一级阶梯\n青藏高原',
+  color: '#f54e00',
+  coordinates: [
+    [73, 37], [80, 40], [90, 40], [98, 37], [103, 33], [104, 29],
+    [101, 26], [97, 24], [94, 25], [90, 27], [86, 29], [82, 31],
+    [77, 34], [73, 37],
+  ],
+};
+
+const SECOND_STEP: RegionOverlay = {
+  id: 'second-step',
+  name: '第二级阶梯\n高原盆地',
+  color: '#2b7de9',
+  coordinates: [
+    [104, 41], [110, 44], [117, 46], [124, 48], [128, 46], [125, 43],
+    [120, 41], [115, 39], [111, 37], [113, 35], [116, 34], [119, 32],
+    [121, 30], [120, 28], [117, 26], [114, 24], [110, 22], [107, 22],
+    [104, 24], [102, 27], [101, 30], [103, 33], [104, 36], [103, 39],
+    [104, 41],
+  ],
+};
+
+const THIRD_STEP: RegionOverlay = {
+  id: 'third-step',
+  name: '第三级阶梯\n平原丘陵',
+  color: '#3a9d5d',
+  coordinates: [
+    [128, 46], [133, 43], [134, 39], [133, 35], [130, 31], [127, 30],
+    [124, 31], [121, 33], [118, 35], [116, 34], [114, 31], [112, 29],
+    [110, 28], [109, 26], [110, 24], [112, 24], [114, 26], [116, 28],
+    [118, 30], [120, 33], [122, 36], [123, 39], [124, 42], [126, 45],
+    [128, 46],
+  ],
+};
+
+const ALL_STEPS: RegionOverlay[] = [FIRST_STEP, SECOND_STEP, THIRD_STEP];
 
 const lesson: LessonPackage = {
   meta: {
@@ -52,6 +95,7 @@ const lesson: LessonPackage = {
         viewMode: '3d',
         basemap: 'terrain',
         exaggeration: 3,
+        regions: ALL_STEPS,
       },
     },
     {
@@ -75,6 +119,7 @@ const lesson: LessonPackage = {
         camera: { longitude: 90, latitude: 32, height: 3000000, duration: 2.5 },
         basemap: 'terrain',
         exaggeration: 4,
+        regions: [FIRST_STEP],
       },
     },
     {
@@ -97,6 +142,7 @@ const lesson: LessonPackage = {
         camera: { longitude: 105, latitude: 38, height: 4000000, duration: 2.5 },
         basemap: 'terrain',
         exaggeration: 3,
+        regions: [SECOND_STEP],
       },
     },
     {
@@ -120,6 +166,7 @@ const lesson: LessonPackage = {
         camera: { longitude: 115, latitude: 32, height: 3000000, duration: 2.5 },
         basemap: 'terrain',
         exaggeration: 2,
+        regions: [THIRD_STEP],
       },
     },
     {
@@ -145,6 +192,7 @@ const lesson: LessonPackage = {
         camera: { longitude: 105, latitude: 35, height: 6000000, duration: 2 },
         basemap: 'terrain',
         exaggeration: 3,
+        regions: ALL_STEPS,
       },
     },
     {
@@ -173,6 +221,7 @@ const lesson: LessonPackage = {
         camera: { longitude: 105, latitude: 35, height: 8000000, duration: 3 },
         basemap: 'terrain',
         exaggeration: 3,
+        regions: ALL_STEPS,
       },
     },
   ],

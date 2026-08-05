@@ -20,6 +20,7 @@ import {
   TransientUIState,
   ViewMode,
   BasemapType,
+  normalizeBasemap,
 } from './sceneState';
 
 interface GeographyStore extends GeographySceneState {
@@ -61,7 +62,36 @@ export const useGeographyStore = create<GeographyStore>()(
 
   patch: (partial) => set(partial),
 
-  setViewMode: (mode) => set({ viewMode: mode }),
+  setViewMode: (mode) =>
+    set((s) => {
+      // P3-1 问题7：2D 模式下自动关闭 3D 专属图层 + 地形分析材质
+      //          （避免用户切到 2D 后这些"无效果的切换开关"仍在打开状态，造成困惑）
+      if (mode === '2d') {
+        return {
+          viewMode: mode,
+          astronomy: {
+            ...s.astronomy,
+            axis: false,
+            directPoint: false,
+            twilight: false,
+            rotation: false,
+            revolution: false,
+            // dayMode 是"全球全亮模式"，在 2D 地图上也有效，保留用户选择
+          },
+          terrain: {
+            ...s.terrain,
+            // 2D 地图无 3D globe 表面，这些贴地球表面的材质在 2D 下无视觉意义，统一关
+            contour: false,
+            elevationRamp: false,
+            slope: false,
+            aspect: false,
+            exaggeration: s.terrain.exaggeration,
+            contourSpacing: s.terrain.contourSpacing,
+          },
+        };
+      }
+      return { viewMode: mode };
+    }),
   setBasemap: (basemap) => set({ basemap }),
   setSolarSystemActive: (active) => set({ solarSystemActive: active }),
 

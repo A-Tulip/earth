@@ -1,0 +1,93 @@
+#!/usr/bin/env bash
+# ============================================================
+# earth-api —— 零心智负担启动 FastAPI 后端（一键，无论当前 cwd）
+#
+# 用法（二选一）：
+#   1) cd 仓库根后：     ./earth-api [--port 8787] [--reload] [--extra uvicorn-args...]
+#   2) 系统级软链：     sudo ln -s "$(pwd)/earth-api" /usr/local/bin/earth-api
+#                        然后任意目录运行： earth-api
+#
+# 自动处理：
+#   - 自动定位仓库根 /earth/（$0 相对路径向上找）
+#   - 自动查找 venv：优先 api/.venv/bin/python，其次 python3 / python
+#   - 自动传递 --app-dir api，确保 main.py 可被 import（无论 cwd 在哪）
+#   - 参数：--port（默认 8787）、--host（默认 127.0.0.1）、--reload
+# ============================================================
+set -euo pipefail
+
+# --- 定位仓库根 ---
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+REPO_ROOT="$(cd "${SCRIPT_DIR}" && pwd)"
+API_DIR="${REPO_ROOT}/api"
+
+# --- 选 python 解释器（优先 api/.venv）---
+if [[ -x "${API_DIR}/.venv/bin/python" ]]; then
+  PY="${API_DIR}/.venv/bin/python"
+elif command -v python3 >/dev/null 2>&1; then
+  PY="$(command -v python3)"
+elif command -v python >/dev/null 2>&1; then
+  PY="$(command -v python)"
+else
+  echo "[earth-api] ❌ 找不到 python3 / python，请先安装 Python 3.10+ 或执行：" >&2
+  echo "   cd ${API_DIR} && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt" >&2
+  exit 127
+fi
+
+# --- 解析参数 ---
+HOST="127.0.0.1"
+PORT="8787"
+RELOAD_FLAG=""
+EXTRA_ARGS=()
+while [[ $# -gt 0 ]]; do
+  case "$1" in
+    --port)   PORT="$2"; shift 2 ;;
+    --port=*) PORT="${1#*=}"; shift ;;
+    --host)   HOST="$2"; shift 2 ;;
+    --host=*) HOST="${1#*=}"; shift ;;
+    --reload) RELOAD_FLAG="--reload"; shift ;;
+    -h|--help)
+      cat <<EOF
+Usage: $(basename "$0") [options]
+
+Options:
+  --port NUM      监听端口（默认 8787）
+  --host HOST     监听地址（默认 127.0.0.1；局域网教学用 0.0.0.0）
+  --reload        源码变更自动重载（开发模式）
+  -h, --help      显示帮助
+
+Examples:
+  $(basename "$0") --reload                 # 本机开发：127.0.0.1:8787
+  $(basename "$0") --host 0.0.0.0 --port 9000   # 教室局域网内共享
+EOF
+      exit 0 ;;
+    *) EXTRA_ARGS+=("$1"); shift ;;
+  esac
+done
+
+# --- 启动前自检 ---
+echo "[earth-api] 🧭 REPO_ROOT = ${REPO_ROOT}"
+echo "[earth-api] 🐍 Python  = $(${PY} --version 2>&1 | head -1)"
+echo "[earth-api] 🔌 Host    = ${HOST}:${PORT}   reload=${RELOAD_FLAG:-off}"
+
+# 检查关键依赖（fastapi），缺失则提示
+if ! "${PY}" -c "import fastapi, httpx, dotenv" >/dev/null 2>&1; then
+  echo "[earth-api] ⚠️  核心依赖未安装。正在尝试自动安装（仅限 api/.venv 存在时）..."
+  if [[ "${PY}" == "${API_DIR}/.venv/bin/python" ]]; then
+    "${PY}" -m pip install --quiet -r "${API_DIR}/requirements.txt"
+    echo "[earth-api] ✅ 依赖安装完成"
+  else
+    echo "[earth-api] ❌ 无法自动安装（未使用 api/.venv）。请手动："
+    echo "   cd ${API_DIR} && python3 -m venv .venv && . .venv/bin/activate && pip install -r requirements.txt"
+    exit 2
+  fi
+fi
+
+# --- 启动 Uvicorn（--app-dir 兜底 + PYTHONPATH 兜底双保险）---
+export PYTHONPATH="${API_DIR}:${PYTHONPATH:-}"
+cd "${REPO_ROOT}"
+exec "${PY}" -m uvicorn main:app \
+  --app-dir "${API_DIR}" \
+  --host "${HOST}" \
+  --port "${PORT}" \
+  ${RELOAD_FLAG} \
+  "${EXTRA_ARGS[@]}"

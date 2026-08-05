@@ -34,27 +34,31 @@ export default defineConfig({
     port: 5173,
     host: true,
     proxy: {
-      // 火山引擎语音/LLM 服务端代理（app/server/index.ts）
-      // 启动: npm run voice:proxy
+      // 后端代理（二选一，默认推荐 FastAPI，两者端口与端点完全兼容）：
+      //   A. 【推荐】FastAPI：cd api && pip install -r requirements.txt && uvicorn main:app --port 8787
+      //      或从 app 目录:   npm run api:dev
+      //   B. 兼容原 Node.js 版：  npm run voice:proxy  （不再新增特性，仅保留兼容性）
+      // 端点覆盖：/api/health, /api/llm/chat, /api/tts/synthesize, /api/asr/recognition,
+      //          /api/charts/generate, /api/geocoding/reverse, /ws/asr
       '/api': {
         target: 'http://localhost:8787',
         changeOrigin: true,
-        // 代理不可达时返回明确错误而非崩溃
+        // 代理不可达时仅在 dev 控制台提示，不中断 Vite 主进程
+        // （功能层已在前端做了降级：ASR→浏览器WebSpeech, LLM→关键词匹配, 图表→本地提示）
         configure: (proxy) => {
           proxy.on('error', (err) => {
-            // 仅在 dev 控制台提示，不影响 Vite 主进程
-            console.warn(`[vite proxy] /api 代理失败（语音代理未启动？）: ${err.message}`);
+            console.warn(`[vite proxy] /api 代理失败（后端未启动？请运行 npm run api:dev 或 npm run voice:proxy）: ${err.message}`);
           });
         },
       },
-      // WebSocket 代理：实时流式 ASR
+      // WebSocket 代理：实时流式 ASR（/ws/asr）
       '/ws': {
         target: 'ws://localhost:8787',
         ws: true,
         changeOrigin: true,
         configure: (proxy) => {
           proxy.on('error', (err) => {
-            console.warn(`[vite proxy] /ws WebSocket 代理失败（语音代理未启动？）: ${err.message}`);
+            console.warn(`[vite proxy] /ws WebSocket 代理失败（后端未启动？）: ${err.message}`);
           });
         },
       },

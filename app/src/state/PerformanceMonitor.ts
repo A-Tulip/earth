@@ -117,6 +117,13 @@ export interface DegradeConfig {
   msaaSamples: number;
   /** 星空是否动画（高负载设备关闭 twinkle 动画） */
   starfieldAnimated: boolean;
+  /**
+   * Q1 曝光修复：Bloom 后处理默认全关（之前 Tier0 启用是地球发白/边缘过曝的主因）
+   * 显式做成可配置项，需要时在 UI debug 里单独开
+   */
+  bloomEnabled: boolean;
+  /** FXAA 后处理：T0 开着可以轻微抗锯齿；不影响曝光 */
+  fxaaEnabled: boolean;
 }
 
 export const DEGRADE_TIERS: Record<DegradeTier, DegradeConfig> = {
@@ -132,6 +139,8 @@ export const DEGRADE_TIERS: Record<DegradeTier, DegradeConfig> = {
     fogDensity: 0.0001,
     msaaSamples: 4,
     starfieldAnimated: true,
+    bloomEnabled: false,
+    fxaaEnabled: true,
   },
   /** Tier 1 —— 平衡档（笔记本/手机中高端） */
   1: {
@@ -145,6 +154,8 @@ export const DEGRADE_TIERS: Record<DegradeTier, DegradeConfig> = {
     fogDensity: 0.00012,
     msaaSamples: 2,
     starfieldAnimated: true,
+    bloomEnabled: false,
+    fxaaEnabled: true,
   },
   /** Tier 2 —— 性能优先（集显/旧平板） */
   2: {
@@ -158,6 +169,8 @@ export const DEGRADE_TIERS: Record<DegradeTier, DegradeConfig> = {
     fogDensity: 0.00018,
     msaaSamples: 1,
     starfieldAnimated: false,
+    bloomEnabled: false,
+    fxaaEnabled: false,
   },
   /** Tier 3 —— 应急保命档（低端机/后台） */
   3: {
@@ -171,6 +184,8 @@ export const DEGRADE_TIERS: Record<DegradeTier, DegradeConfig> = {
     fogDensity: 0.00025,
     msaaSamples: 1,
     starfieldAnimated: false,
+    bloomEnabled: false,
+    fxaaEnabled: false,
   },
 };
 
@@ -243,6 +258,15 @@ export class AdaptiveDegrader {
     this._tier = t;
     this.nextChangeAt = Date.now() + 4000; // 强制切后也给 4s 缓冲
     this.emit({ prev, next: t, avgFps: this.lastAvg, minFps: this.lastMin });
+  }
+
+  /**
+   * 手动触发一次"当前 tier 的 listeners 重新应用"
+   * 用于：从 2D 切回 3D 后，需要把被 2D 强制关闭的 atmosphere/fog 恢复（不改变 tier）
+   */
+  reapply(): void {
+    const same = this._tier;
+    this.emit({ prev: same, next: same, avgFps: this.lastAvg, minFps: this.lastMin });
   }
 
   private evaluate(): void {

@@ -7,58 +7,161 @@
 
 import * as Cesium from 'cesium';
 import { useGeographyStore } from '../state/store';
-import { createTickThrottle } from '../state/PerformanceMonitor';
+import { normalizeBasemap } from '../state/sceneState';
+import { createTickThrottle, getGlobalDegrader } from '../state/PerformanceMonitor';
 import { getLayerManager, type OpKind } from './LayerLifeCycleManager';
 
 export type MeasurementMode = 'distance' | 'area' | 'angle' | 'height' | 'profile';
 export type SceneModeStr = '2d' | '3d' | 'columbus';
-export type BasemapStr = 'satellite' | 'political' | 'relief' | 'landform' | 'contour' | 'osm';
+// BasemapStr: 包含 terrain 历史别名，在 setBasemap 内先 normalize 再下发
+export type BasemapStr = import('../state/sceneState').BasemapType;
 
 export const RESET_CAMERA = { lon: 116.4, lat: 35.0, height: 15_000_000, headingDeg: 0, pitchDeg: -90, rollDeg: 0 };
 
 export class CesiumController {
   constructor(private viewer: Cesium.Viewer) {
     this.bindIdleReset();
+    this.applyStartupRenderTuning();
   }
 
-  // ================ 指针空闲 300s → 自动重置到中国 ================
-  private idleResetMs = 5 * 60 * 1000; // 5 分钟（300s）默认
+  /**
+   * 启动时渲染调优：解决"飞往北京"后的马赛克问题。
+   * 关键思路：增大瓦片缓存、收紧街景级 SSE、对数深度缓冲、
+   *          保证 LOD 选择器在拉近视角时愿意拿更精细的瓦片。
+   */
+  private applyStartupRenderTuning(): void {
+    try {
+      const viewer = this.viewer;
+      if (!viewer || !viewer.scene || !viewer.scene.globe) return;
+      const globe = viewer.scene.globe as Cesium.Globe & {
+        maximumScreenSpaceError?: number;
+        tileCacheSize?: number;
+        tileLoadProgressEvent?: Cesium.Event<(numberOfPendingRequests: number, numberOfTilesProcessing: number) => void>;
+      };
+      // (1) 瓦片缓存：默认 ~300，启动至少提到 900，高 tier 叠加 PerformanceMonitor 的更多
+      const curCache = typeof globe.tileCacheSize === 'number' ? globe.tileCacheSize : 300;
+      globe.tileCacheSize = Math.max(curCache, 900);
+      // (2) maximumScreenSpaceError：Cesium 默认 2，启动就收紧到 1.3，后续再按 tier 动态调整
+      const curSSE = typeof globe.maximumScreenSpaceError === 'number' ? globe.maximumScreenSpaceError : 2;
+      if (curSSE > 1.3) globe.maximumScreenSpaceError = 1.3;
+      // (3) 强制渲染一次，避免首帧停留在低 LOD
+      viewer.scene.requestRender();
+    } catch { /* 任何调优失败不影响主流程 */ }
+  }
+
+  /**
+   * 飞行/镜头切换后强制刷新：
+   * - 3 秒内 45+ 帧 requestRender（保证 Cesium 选择器多次迭代取到高 LOD 瓦片）
+   * - 前 2.4s 临时把 maximumScreenSpaceError 压到 0.95（tier0）/ 1.3（tier1）/ 2.0（tier2）
+   * - 完成后回退到 tier 默认值
+   */
+  private postFlightRefresh(scope: 'flyTo' | 'zoom' | 'pitch'): void {
+    try {
+      const viewer = this.viewer;
+      if (!viewer || !viewer.scene || !viewer.scene.globe) return;
+      const globe = viewer.scene.globe as Cesium.Globe & {
+        maximumScreenSpaceError?: number;
+      };
+      const originalSSE = typeof globe.maximumScreenSpaceError === 'number' ? globe.maximumScreenSpaceError : 1.4;
+      const tier = (() => {
+        try { return getGlobalDegrader().tier as number; } catch { return 1; }
+      })();
+      const tightSSE = tier <= 0 ? 0.95 : tier <= 1 ? 1.25 : tier <= 2 ? 1.9 : 2.6;
+      if (typeof globe.maximumScreenSpaceError === 'number') globe.maximumScreenSpaceError = tightSSE;
+      const startedAt = performance.now();
+      const REFRESH_MS = scope === 'flyTo' ? 3000 : 1800;
+      const step = () => {
+        const elapsed = performance.now() - startedAt;
+        viewer.scene.requestRender();
+        if (elapsed < REFRESH_MS) {
+          requestAnimationFrame(step);
+        } else {
+          // 回到初始化设定的 SSE（让 PerformanceMonitor 再按 tier 接管）
+          try {
+            if (typeof globe.maximumScreenSpaceError === 'number') globe.maximumScreenSpaceError = Math.min(originalSSE, 1.4);
+          } catch { /* ignore */ }
+          // 再给 10 帧缓冲，避免刚恢复 SSE 立即降级
+          let extra = 10;
+          const tail = () => {
+            viewer.scene.requestRender();
+            extra -= 1;
+            if (extra > 0) requestAnimationFrame(tail);
+          };
+          requestAnimationFrame(tail);
+        }
+      };
+      requestAnimationFrame(step);
+    } catch { /* ignore */ }
+  }
+
+  // ================ 指针空闲 3min → 自动重置到中国（彻底解决 Q2 拖拽元素/镜头被强制复位的体验：从 4s 检查/40s 触发 改为 18s 检查/180s 触发） ================
+  // Q2：关键区分 —— 自动复位只在"用户从未主动拖动过镜头"时生效（只用于欢迎展示态）。
+  //      一旦用户进行过"人类真实交互"（按住左键拖动地球、按住右键旋转、按住中键倾斜、键盘 WASD / 方向键），
+  //      之后 180s 内绝不自动复位，避免用户定位到的区域被强制拽回中国上空。
+  private idleResetMs = 180 * 1000;   // 3 分钟
+  private idleCheckMs = 18 * 1000;    // 每 18s 检查一次
   private lastUserInputAt = Date.now();
+  /** 人类真实手势（按住拖）最后一次发生的时间戳；任何一次发生后 3min 内不自动复位 */
+  private lastHumanGestureAt = 0;
   private idleTimerId: number | null = null;
   private idleBound = false;
   /** 提供给外部：设置空闲阈值（0 关闭自动重置）；同时重置"最后交互时间"为现在 */
   setIdleReset(ms: number): void {
     this.idleResetMs = Math.max(0, ms);
-    this.lastUserInputAt = Date.now();
+    this.bumpIdle();
     this.ensureIdleTimer();
+  }
+  /** 显式标记"用户活跃"：按钮/拖拽/AI 命令/飞行结束后调用，避免误复位 */
+  bumpIdle(): void { this.lastUserInputAt = Date.now(); }
+  /** 显式标记"人类真实手势发生过"（拖动/旋转/倾斜过镜头），阻止一段时间内的自动复位 */
+  bumpHumanGesture(): void {
+    this.lastHumanGestureAt = Date.now();
+    this.lastUserInputAt = Date.now();
   }
 
   private bindIdleReset(): void {
     if (this.idleBound) return;
+    // 防御：如果 viewer / scene 尚未就绪（构造时 Cesium 初始化时序问题），延迟 1 帧后再绑
+    if (!this.viewer || !this.viewer.scene || !this.viewer.scene.canvas) {
+      requestAnimationFrame(() => this.bindIdleReset());
+      return;
+    }
     this.idleBound = true;
-    const ping = () => { this.lastUserInputAt = Date.now(); };
-    // Scene/ScreenSpaceCameraController 触发：用户拖动、缩放、倾斜都算交互
+    const ping = () => { this.bumpIdle(); };
+    const gesturePing = () => { this.bumpHumanGesture(); };
+    // Scene/ScreenSpaceCameraController：inputChanged 是 SSC 真正处理完交互事件后触发，
+    // 可视为"人类拖动过镜头"的权威信号，记为手势（Q2：避免 40s 自动复位抢镜头）
     try {
       const ssc = this.viewer.scene.screenSpaceCameraController;
-      // 老版本：updateEvent / inputChanged；都挂一遍兜底
       const sscAny = ssc as unknown as {
         inputChanged?: Cesium.Event<any>;
         updateEvent?: Cesium.Event<any>;
       };
       if (sscAny.inputChanged && typeof sscAny.inputChanged.addEventListener === 'function') {
-        sscAny.inputChanged.addEventListener(ping);
+        sscAny.inputChanged.addEventListener(gesturePing);
       }
+      // updateEvent 每帧可能触发，只算轻量 ping（不算手势）
       if (sscAny.updateEvent && typeof sscAny.updateEvent.addEventListener === 'function') {
         sscAny.updateEvent.addEventListener(ping);
       }
     } catch { /* noop */ }
-    // 键盘（键盘 W/A/S/D 键位操控也算）
-    window.addEventListener('keydown', ping, { passive: true });
-    // 指针事件：拖拽、滚动、wheel、点击 canvas
+    // 键盘（键盘 W/A/S/D 键位操控也算手势，属于人类在改视角）
+    window.addEventListener('keydown', gesturePing, { passive: true });
+    // 指针事件：只有按下、释放、wheel 才算真正的操作，避免纯移动导致永远不 idle
     const canvas = this.viewer.scene.canvas as HTMLElement;
-    canvas.addEventListener('pointerdown', ping, { passive: true });
-    canvas.addEventListener('pointermove', ping, { passive: true });
+    // Q2：pointerdown / pointerup 只有主按钮（左键）才算"人类拖过镜头"
+    canvas.addEventListener('pointerdown', (ev) => {
+      if (ev.button === 0 || ev.button === 1 || ev.button === 2) gesturePing();
+    }, { passive: true });
     canvas.addEventListener('wheel', ping, { passive: true });
+    canvas.addEventListener('pointerup', ping, { passive: true });
+    canvas.addEventListener('pointercancel', ping, { passive: true });
+    // 拖到窗口外松手也要算（用户按住拖出 canvas 再放）
+    window.addEventListener('pointerup', ping, { passive: true });
+    window.addEventListener('touchend', ping, { passive: true });
+    window.addEventListener('touchcancel', ping, { passive: true });
+    // touchmove 算手势（用户在触屏设备上拖动地球）
+    window.addEventListener('touchmove', gesturePing, { passive: true });
     this.ensureIdleTimer();
   }
 
@@ -68,20 +171,25 @@ export class CesiumController {
     this.idleTimerId = window.setInterval(() => {
       const now = Date.now();
       if (now - this.lastUserInputAt < this.idleResetMs) return;
-      // 条件门：避免课堂讲解 / 自转中 / 正在飞行时打断用户
+      // Q2 关键加固：人类手势发生后 idleResetMs 内不自动复位
+      //     这保证"用户手动把镜头拖到某城市后，3 分钟内不会被强制拉回中国上空"。
+      if (this.lastHumanGestureAt > 0 && now - this.lastHumanGestureAt < this.idleResetMs) return;
+      // 条件门：避免课堂讲解 / 自转中 / 正在飞行 / 正在测量时打断用户
       try {
         const st = useGeographyStore.getState();
         if (this.rotationActive) return;
-        // lesson.activeLessonId != null 表示正在听课中；isPaused=false 才在推进
-        if (st.lesson?.activeLessonId && !st.lesson.isPaused) return;
+        // activeLessonId 存在（无论 paused 与否）都不打断 → 用户正在课程中
+        if (st.lesson?.activeLessonId) return;
         // measurement.mode !== 'none' 表示用户正在画量尺/面积
         if (st.measurement && st.measurement.mode !== 'none') return;
+        // 飞行中不打断
+        if ((this.viewer.camera as Cesium.Camera & { _flightController?: { tween?: unknown } })._flightController?.tween) return;
         // 距离初始视角已经很近则跳过（避免重复触发 flyTo 抖动）
         if (this.isNearResetView(1.0)) return;
       } catch { /* ignore */ }
       void this.resetToChina({ durationSec: 3.2, force: false });
-      this.lastUserInputAt = Date.now();
-    }, 10_000);
+      this.bumpIdle();
+    }, this.idleCheckMs); // 每 18s 检查一次（避免每 4s 扫一次造成的频繁误触发）
   }
 
   /** 若当前镜头位置/朝向与 RESET_CAMERA 接近（高度偏差小于 ratio），判定为已经在首页视角 */
@@ -108,17 +216,24 @@ export class CesiumController {
   // ============ 镜头 ============
 
   async flyTo(lon: number, lat: number, height: number, duration: number): Promise<void> {
+    // Q10：3D 视图默认斜视 pitch=-35°（更有立体感，帮助学生理解立体地形/自转）
+    //      2D 模式由 flyToLngLat 处理，这个 flyTo 是旧接口，仍保持正俯视
     this.viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
       orientation: {
         heading: 0,
-        pitch: Cesium.Math.toRadians(-90),
+        pitch: Cesium.Math.toRadians(-35),
         roll: 0,
       },
       duration,
     });
+    // 飞行结束后启动 postFlightRefresh：强制多帧渲染 + 临时收紧 SSE，避免马赛克
+    setTimeout(() => this.postFlightRefresh('flyTo'), Math.max(100, duration * 1000));
     return new Promise((resolve) => {
-      setTimeout(resolve, duration * 1000 + 100);
+      setTimeout(() => {
+        this.bumpIdle(); // Q9：飞行结束算"用户刚操作完"
+        resolve();
+      }, duration * 1000 + 100);
     });
   }
 
@@ -129,10 +244,19 @@ export class CesiumController {
   /** 截取当前画面为 PNG DataURL（强制渲染一帧以确保最新画面） */
   takeScreenshot(): string {
     const viewer = this.viewer;
-    // 强制渲染一帧，避免 requestRenderMode 下画面滞后
-    viewer.scene.render(viewer.clock.currentTime);
-    const canvas = viewer.scene.canvas as HTMLCanvasElement;
-    return canvas.toDataURL('image/png');
+    // Q2 关键加固：viewer / scene / canvas 任一未就绪就返回空字符串，避免 "Cannot read scene"
+    if (!viewer || !viewer.scene || !viewer.scene.canvas || !viewer.clock) {
+      return '';
+    }
+    try {
+      // 强制渲染一帧，避免 requestRenderMode 下画面滞后
+      viewer.scene.render(viewer.clock.currentTime);
+      const canvas = viewer.scene.canvas as HTMLCanvasElement;
+      return canvas.toDataURL('image/png');
+    } catch (e) {
+      console.warn('[takeScreenshot] fail:', e);
+      return '';
+    }
   }
 
   // ============ 视图模式 ============
@@ -159,23 +283,69 @@ export class CesiumController {
           if (this.rotationActive) this.setRotation(false, this.rotationSpeed);
           const st = useGeographyStore.getState();
           if (st.astronomy.rotation) useGeographyStore.setState({ astronomy: { ...st.astronomy, rotation: false } });
-          // 2D 设为正俯视（pitch=-90）并重置 frustum
+          // 2D：关掉大气层（无意义，全屏灰/曝光）、固定正俯视 + 适合中国全图的高度
+          try { viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false); } catch { /* ignore */ }
+          try { viewer.scene.globe.showGroundAtmosphere = false; } catch { /* ignore */ }
+          try { (viewer.scene as unknown as { fog?: { enabled?: boolean } }).fog && (((viewer.scene as any).fog.enabled = false)); } catch { /* ignore */ }
+          viewer.scene.globe.enableLighting = false;
+          // 2D：地形材质（等高线/高程分层/坡度/坡向）依赖 3D 地形顶点，2D 正交投影下无意义 → 清空
+          // store 中的 terrain.* 状态保留，切回 3D 时按 store 重新应用
           try {
+            if (viewer.scene.globe.material) {
+              viewer.scene.globe.material = undefined;
+              viewer.scene.requestRender();
+            }
+          } catch { /* ignore */ }
+          // Q1b 2D：强制关 HDR/tonemap pipeline（避免 morph 过程 Cesium 内部打开导致发白）
+          try {
+            const sceneAny = viewer.scene as unknown as { highDynamicRange?: boolean; tonemapped?: boolean };
+            if (typeof sceneAny.highDynamicRange === 'boolean') sceneAny.highDynamicRange = false;
+            if (typeof sceneAny.tonemapped === 'boolean') sceneAny.tonemapped = false;
+          } catch { /* ignore */ }
+          try {
+            // ✅ 视图模式 2D 切换修复：原来直接 setView 跳到中国全图 (104,34.5)
+            //   用户如果正在看"非洲/南美洲/英国"按 2D 会跳回中国，觉得"视图模式都有问题"
+            //   修复：保留当前镜头位置（经纬度），只把 pitch 改成正俯视 -90°，如果高度 < 1.5e6 则适度拉远到能看到国家轮廓
             const c = viewer.camera;
-            c.setView({
-              orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
-            });
+            try {
+              const carto = Cesium.Cartographic.fromCartesian(c.position);
+              const lon = Cesium.Math.toDegrees(carto.longitude);
+              const lat = Cesium.Math.toDegrees(carto.latitude);
+              let h = carto.height;
+              // 2D 最低 1.5e6（避免放大到街景时 2D 正交投影切底图看不到）
+              if (!isFinite(h) || isNaN(h)) h = 17_000_000;
+              h = Math.max(h, 1_500_000);
+              c.setView({
+                destination: Cesium.Cartesian3.fromDegrees(lon, lat, h),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+              });
+            } catch {
+              // 兜底：拿不到当前位置时才退回中国全图（非常保守）
+              c.setView({
+                destination: Cesium.Cartesian3.fromDegrees(104.0, 34.5, 17_000_000),
+                orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+              });
+            }
           } catch (_e) { /* ignore */ }
-          (viewer.scene as unknown as { globe?: { enableLighting?: boolean } }).globe &&
-            ((viewer.scene.globe as Cesium.Globe).enableLighting = false);
+          // Q1b 2D：reapply Degrade，走 applyDegrade 中 2D 专用分支（SSE 更紧/ FXAA 强制开/ cache×1.5）
+          try { getGlobalDegrader().reapply(); } catch { /* ignore */ }
         } else if (mode === '3d') {
-          (viewer.scene as unknown as { globe?: { enableLighting?: boolean } }).globe &&
-            ((viewer.scene.globe as Cesium.Globe).enableLighting = true);
+          viewer.scene.globe.enableLighting = false; // 默认仍关光照（避免夜半球过黑）
+          // 退出 2D → 让 applyDegrade 恢复 tier<=1 的大气/雾化/后处理
+          try { getGlobalDegrader().reapply(); } catch { /* ignore */ }
+          // 3D：按 store 重新应用地形材质（2D 期间被清空，切回 3D 需恢复等高线/分层/坡度/坡向）
+          await this.restoreTerrainMaterialFromStore();
+        } else {
+          // 哥伦布视图：允许 tier<=1 大气，其他与 3D 一致
+          viewer.scene.globe.enableLighting = false;
+          try { getGlobalDegrader().reapply(); } catch { /* ignore */ }
+          await this.restoreTerrainMaterialFromStore();
         }
         viewer.scene.requestRender();
       } finally {
         mgr?.notifyMorphComplete();
       }
+      this.bumpIdle(); // Q9：视图模式切换完成算操作
     };
     if (mgr) await mgr.schedule('sceneMode' as OpKind, wrapped);
     else await wrapped();
@@ -183,8 +353,8 @@ export class CesiumController {
 
   /**
    * 模式感知的镜头飞行：
-   * - 2D：直跳 setView（无 pitch/heading 动效，避免 2D 视图抖动）
-   * - 3D/CV：flyTo 原行为
+   * - 2D：直跳 setView（无 pitch/heading 动效，避免 2D 视图抖动），pitch=-90°（俯视平面）
+   * - 3D/CV：斜俯视 pitch=-35°（Q10 讲解动画：立体效果比正俯视更容易读懂地形）
    */
   async flyToLngLat(
     lon: number, lat: number, height: number,
@@ -193,53 +363,316 @@ export class CesiumController {
     const mode = opts?.mode ?? useGeographyStore.getState().viewMode;
     const duration = opts?.durationSec ?? 2.2;
     const viewer = this.viewer;
+    // Q10 讲解动画优化：3D 视图用 pitch≈-35° 斜视（既看到立体抬升又看到等高线的平面关系）
+    //              2D 视图用 -90° 正俯视（保证 2D 地图不歪）
+    const pitchDeg = mode === '2d' ? -90 : -35;
+    const pitch = Cesium.Math.toRadians(pitchDeg);
     if (mode === '2d') {
       viewer.camera.setView({
         destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
-        orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+        orientation: { heading: 0, pitch, roll: 0 },
       });
       viewer.scene.requestRender();
+      this.postFlightRefresh('flyTo');
+      this.bumpIdle();
       return;
     }
     viewer.camera.flyTo({
       destination: Cesium.Cartesian3.fromDegrees(lon, lat, height),
-      orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
+      orientation: { heading: 0, pitch, roll: 0 },
       duration,
     });
-    return new Promise((resolve) => setTimeout(resolve, duration * 1000 + 120));
+    setTimeout(() => this.postFlightRefresh('flyTo'), Math.max(100, duration * 1000));
+    return new Promise((resolve) => {
+      setTimeout(() => { this.bumpIdle(); resolve(); }, duration * 1000 + 120);
+    });
+  }
+
+  // ============ 街景/视角预设（解决"切换街景/俯视/斜视"需求） ============
+
+  /**
+   * 视角预设枚举：
+   *  - overview:   全球/全国俯视（高度 15,000km，pitch=-90°）
+   *  - region:     省级区域视角（高度 2,500km，pitch=-55°）
+   *  - city:       地级市俯视（高度 350km，pitch=-45°）
+   *  - street:     贴近街景（高度 500m，pitch=-12° 平视）
+   *  - topdown:    正俯视 90°（测量/读平面）
+   *  - oblique45:  经典 45° 斜视（立体地形教学）
+   *  - oblique30:  近 30° 低斜（更贴近无人机航拍视角）
+   */
+  async setViewPreset(preset: 'overview' | 'region' | 'city' | 'street' | 'topdown' | 'oblique45' | 'oblique30'): Promise<void> {
+    const viewer = this.viewer;
+    if (!viewer) return;
+    // 保持当前经纬度中心，只改高度和俯仰角
+    let lon = RESET_CAMERA.lon;
+    let lat = RESET_CAMERA.lat;
+    try {
+      const cam = viewer.camera;
+      if (cam && cam.positionWC) {
+        const c = Cesium.Cartographic.fromCartesian(cam.positionWC);
+        lon = Cesium.Math.toDegrees(c.longitude);
+        lat = Cesium.Math.toDegrees(c.latitude);
+      }
+    } catch { /* 回退到默认中心 */ }
+    const PRESETS: Record<typeof preset, { height: number; pitchDeg: number; durationSec: number }> = {
+      overview:  { height: 15_000_000, pitchDeg: -90, durationSec: 2.0 },
+      region:    { height:  2_500_000, pitchDeg: -55, durationSec: 1.8 },
+      city:      { height:    350_000, pitchDeg: -45, durationSec: 1.6 },
+      street:    { height:        500, pitchDeg: -12, durationSec: 1.6 },
+      topdown:   { height:          0, pitchDeg: -90, durationSec: 1.0 },  // 高度=0 保持当前高度，只调 pitch
+      oblique45: { height:          0, pitchDeg: -45, durationSec: 1.0 },
+      oblique30: { height:          0, pitchDeg: -30, durationSec: 1.0 },
+    };
+    const cfg = PRESETS[preset];
+    // topdown/oblique30/oblique45 高度 0 → 保持当前高度（只改俯仰/heading）
+    const carto = Cesium.Cartographic.fromCartesian(viewer.camera.positionWC);
+    const h = cfg.height > 0 ? cfg.height : carto.height;
+    const pitch = Cesium.Math.toRadians(cfg.pitchDeg);
+    const heading = viewer.camera.heading; // 保持当前水平方向，用户调过方向就尊重
+    viewer.camera.flyTo({
+      destination: Cesium.Cartesian3.fromDegrees(lon, lat, h),
+      orientation: { heading, pitch, roll: 0 },
+      duration: cfg.durationSec,
+    });
+    setTimeout(() => this.postFlightRefresh('flyTo'), cfg.durationSec * 1000);
+    return new Promise((resolve) => setTimeout(resolve, cfg.durationSec * 1000 + 120));
+  }
+
+  /** 俯仰角 + 水平方向精细调节（街景切换时用户想"转头看四周"） */
+  adjustOrientation(delta: { headingDeg?: number; pitchDeg?: number; heightFactor?: number }): void {
+    const viewer = this.viewer;
+    if (!viewer) return;
+    const cam = viewer.camera;
+    try {
+      const curH = cam.heading;
+      const curP = cam.pitch;
+      const newH = curH + Cesium.Math.toRadians(delta.headingDeg ?? 0);
+      const newP = Cesium.Math.clamp(curP + Cesium.Math.toRadians(delta.pitchDeg ?? 0), Cesium.Math.toRadians(-90), 0);
+      cam.setView({
+        orientation: { heading: newH, pitch: newP, roll: 0 },
+      });
+      // 高度缩放：heightFactor>1 拉远，<1 拉近
+      if (delta.heightFactor && delta.heightFactor > 0 && delta.heightFactor !== 1) {
+        const c = Cesium.Cartographic.fromCartesian(cam.positionWC);
+        const targetLon = Cesium.Math.toDegrees(c.longitude);
+        const targetLat = Cesium.Math.toDegrees(c.latitude);
+        const targetH = Math.max(30, Math.min(400_000_000, c.height * delta.heightFactor));
+        cam.setView({
+          destination: Cesium.Cartesian3.fromDegrees(targetLon, targetLat, targetH),
+        });
+      }
+      viewer.scene.requestRender();
+      this.postFlightRefresh('pitch');
+      this.bumpIdle();
+    } catch { /* ignore */ }
   }
 
   // ============ 底图 ============
 
   async setBasemap(basemap: BasemapStr): Promise<void> {
+    // Q2 空值防御：viewer / scene / imageryLayers 未就绪时直接返回，避免 "Cannot read scene"
+    if (!this.viewer || !this.viewer.scene || !this.viewer.imageryLayers) {
+      console.warn('[setBasemap] viewer not ready, skip');
+      return;
+    }
+    // Q4 历史别名：terrain → relief，避免 createBasemapProvider 命中异常分支
+    const bm = normalizeBasemap(basemap);
     const mgr = getLayerManager();
     const run = async (): Promise<void> => {
       const viewer = this.viewer;
       const layers = viewer.imageryLayers;
-      layers.removeAll();
 
-      const { createBasemapProvider } = await import('./terrainProviders');
-      const [base, label] = createBasemapProvider(basemap);
-      layers.addImageryProvider(base);
-      if (label) layers.addImageryProvider(label);
+      let base: Cesium.ImageryProvider;
+      let label: Cesium.ImageryProvider | null = null;
+      let fallbackUsed = false;
+      try {
+        const { createBasemapProvider } = await import('./terrainProviders');
+        const result = createBasemapProvider(bm);
+        base = result[0];
+        label = result[1] ?? null;
+      } catch (e) {
+        // Q11：provider 构建失败 → 回退到 OSM NaturalEarthII 组合，保证不白屏
+        console.warn('[setBasemap] provider build fail, fallback:', bm, e);
+        fallbackUsed = true;
+        base = new Cesium.OpenStreetMapImageryProvider({ url: 'https://tile.openstreetmap.org/' });
+        label = null;
+      }
 
-      // §1.2 contour BasemapType：政区底图 + globe.material=ElevationContour
-      // 其它种类先清空等高线材质（若有）
-      if (basemap === 'contour') {
-        const spacing = useGeographyStore.getState().terrain.contourSpacing || 100;
-        await this.applyGlobeMaterial('contour' as OpKind, () => {
-          viewer.scene.globe.material = Cesium.Material.fromType('ElevationContour', {
-            color: Cesium.Color.fromBytes(255, 100, 0, 255),
-            spacing,
-            width: 1.5,
+      // ================ Q2 crossfade：先加新的（alpha=0 → tween 到 1），再移除旧的 ================
+      // 🌍 空洞根治：保留"最底层兜底海洋瓦片"（__fallbackOceanNoise__），不随底图切换被移除。
+      //   否则每次 setBasemap（含启动时切到高德）都会把兜底层删掉，真实瓦片加载失败处
+      //   就露出深蓝 baseColor → 视觉上就是"地球空洞/黑斑"。
+      const oldLayers: Cesium.ImageryLayer[] = [];
+      for (let i = 0; i < layers.length; i++) {
+        const lyr = layers.get(i);
+        const lyrLabel = (lyr as unknown as { _label?: string })._label;
+        if (lyrLabel === '__fallbackOceanNoise__') continue; // 兜底层保留在 index 0
+        oldLayers.push(lyr);
+      }
+      // 主底图 = 第一个非兜底、非注记的 imagery layer（index 0 现在是兜底海洋层，不能直接当主底图）
+      const getMainBasemapLayer = (): Cesium.ImageryLayer | undefined => {
+        for (let i = 0; i < layers.length; i++) {
+          const lyr = layers.get(i);
+          const lLabel = (lyr as unknown as { _label?: string })._label;
+          if (lLabel === '__fallbackOceanNoise__') continue;
+          const credit = (lyr as unknown as { _credit?: unknown })._credit ?? '';
+          const s = String(credit);
+          if (!s.includes('注记') && !s.includes('标注') && !/cva|style=8/.test(s)) return lyr;
+        }
+        return undefined;
+      };
+
+      // 新 layer 先加（加失败就不动 oldLayers，保证 UI 至少维持旧画面）
+      let newBaseLayer: Cesium.ImageryLayer;
+      let newLabelLayer: Cesium.ImageryLayer | null = null;
+      try {
+        newBaseLayer = layers.addImageryProvider(base);
+        newBaseLayer.alpha = 0;
+        if (label) {
+          try {
+            newLabelLayer = layers.addImageryProvider(label);
+            newLabelLayer.alpha = 0;
+          } catch (e) {
+            console.warn('[setBasemap] label layer add fail, skip:', e);
+            newLabelLayer = null;
+          }
+        }
+      } catch (e) {
+        // 新底图添加都失败：立即放弃，return（不动旧图层）
+        console.warn('[setBasemap] add new layer fail, abort:', e);
+        return;
+      }
+
+      // 等待 baseProvider readyEvent（首次瓦片就绪后再 fade，避免黑/蓝）
+      const waitForProviderReady = (p: Cesium.ImageryProvider, timeoutMs = 4000): Promise<void> => {
+        try {
+          const pAny = p as unknown as { ready?: boolean; readyEvent?: Cesium.Event<(provider: Cesium.ImageryProvider) => void> };
+          if (pAny.ready === true) return Promise.resolve();
+          return new Promise<void>((resolve) => {
+            const done = () => { resolve(); cleanup(); };
+            const cleanup = () => {
+              try { pAny.readyEvent?.removeEventListener(done as never); } catch { /* ignore */ }
+              clearTimeout(tid);
+            };
+            const tid = setTimeout(done, timeoutMs); // 兜底：超时不管 ready 都继续
+            try { pAny.readyEvent?.addEventListener(done as never); } catch { done(); }
+            // requestRenderMode 下 provider 不会主动拉瓦片，必须先触发一次渲染才会开始请求首瓦片，
+            // 否则 ready 永不触发、每次切底图都白等整个 timeoutMs，导致连续切底图（Q3 底图循环）卡顿。
+            try { viewer.scene.requestRender(); } catch { /* ignore */ }
           });
-        });
-      } else {
-        await this.applyGlobeMaterial('globeMaterial', () => {
-          viewer.scene.globe.material = undefined;
-        });
+        } catch {
+          return Promise.resolve();
+        }
+      };
+      try { await waitForProviderReady(base, 1500); } catch { /* ignore timeout */ }
+
+      // alpha tween: 0 → 1 over 480ms，老 layer 同时 1 → 0
+      const DURATION = 480;
+      const t0 = performance.now();
+      const tweenLayerAlpha = (layer: Cesium.ImageryLayer, from: number, to: number) => new Promise<void>((resolve) => {
+        const step = () => {
+          const t = Math.min(1, (performance.now() - t0) / DURATION);
+          // easeOutCubic
+          const e = 1 - Math.pow(1 - t, 3);
+          layer.alpha = from + (to - from) * e;
+          if (t >= 1) { resolve(); return; }
+          requestAnimationFrame(step);
+        };
+        requestAnimationFrame(step);
+      });
+      // 新/旧同时做方向相反的 tween
+      const tweens: Promise<void>[] = [tweenLayerAlpha(newBaseLayer, 0, 1)];
+      if (newLabelLayer) tweens.push(tweenLayerAlpha(newLabelLayer, 0, 1));
+      for (const old of oldLayers) tweens.push(tweenLayerAlpha(old, old.alpha ?? 1, 0));
+      await Promise.all(tweens);
+
+      // fade 完成后移除旧的
+      for (const old of oldLayers) {
+        try { layers.remove(old, true); } catch { /* ignore */ }
+      }
+      // 确保新 layer alpha 最终归 1
+      newBaseLayer.alpha = 1;
+      if (newLabelLayer) newLabelLayer.alpha = 1;
+
+      // §1.2 Basemap → globe.material 映射（地貌查看功能）
+      //  - contour:   政区底图 + 等高线线条
+      //  - relief:    卫星底图 + 灰度分层阴影 + 地形夸张 2.0x（立体晕渲感）
+      //  - landform:  政区底图 + 彩色高程分层（绿-黄-棕-白）+ 地形夸张 2.5x
+      //  - 其它:       无 globe.material（纯底图瓦片）
+      {
+        const tStore = useGeographyStore.getState();
+        const exaggerationByKind: Partial<Record<string, number>> = {
+          contour: 1.5,
+          relief: 2.0,
+          landform: 2.5,
+        };
+        const exaggeration = exaggerationByKind[bm];
+        // 切换地形夸张：relief/landform/contour 教学推荐倍率，其他恢复 store 中用户自定义值（无则 1.0）
+        if (typeof exaggeration === 'number') {
+          await this.setTerrainExaggeration(exaggeration);
+        } else if (tStore.terrain && !tStore.terrain.exaggeration) {
+          await this.setTerrainExaggeration(1.0);
+        }
+        if (bm === 'contour') {
+          const spacing = tStore.terrain.contourSpacing || 100;
+          // ⚠️ 参数必须与 showContour() 内完全一致：否则"先开等高线再切到 contour 底图风格"会出现两次
+          //    等高线颜色/粗细突变，老师讲课时会以为图层状态错了。
+          await this.applyGlobeMaterial('contour' as OpKind, () => {
+            viewer.scene.globe.material = Cesium.Material.fromType('ElevationContour', {
+              color: Cesium.Color.fromBytes(26, 26, 26, 255), // 暖黑等高线（与 tool 命令入口一致）
+              spacing,
+              width: 2.2, // 与 showContour() 同宽
+            });
+          });
+        } else if (bm === 'relief') {
+          await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
+            // 灰度浮雕：用高程渐变 + 暗色调，呈现"晕渲图"效果
+            const globe = viewer.scene.globe;
+            globe.material = Cesium.Material.fromType('ElevationRamp', {
+              image: this.createReliefRampImage(),
+              minimumHeight: -6000,
+              maximumHeight: 8850,
+            });
+            // relief: 把主底图图层 alpha 降低，让灰度浮雕透出（兜底海洋层不算主底图）
+            try {
+              const main = getMainBasemapLayer();
+              if (main) main.alpha = 0.62;
+            } catch { /* ignore */ }
+          });
+        } else if (bm === 'landform') {
+          await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
+            // 彩色分层设色：教学标准色（低地绿→丘陵黄→山地棕→极高山白）
+            const globe = viewer.scene.globe;
+            globe.material = Cesium.Material.fromType('ElevationRamp', {
+              image: this.createLandformRampImage(),
+              minimumHeight: -8000,
+              maximumHeight: 9000,
+            });
+            // landform: 主底图降 alpha 到 0.35，让彩色分层设色更主导
+            try {
+              const main = getMainBasemapLayer();
+              if (main) main.alpha = 0.35;
+            } catch { /* ignore */ }
+          });
+        } else {
+          await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
+            viewer.scene.globe.material = undefined;
+            // 恢复主底图 alpha=1
+            try {
+              const main = getMainBasemapLayer();
+              if (main) main.alpha = 1;
+            } catch { /* ignore */ }
+          });
+        }
       }
       viewer.scene.requestRender();
+      // Q2：底图切换完成后同步 labels（地名注记瓦片）可见性
+      // —— 因为 imageryLayers 被重建了，之前对 label layer 的 show=false 设置会丢失
+      try {
+        const labelsVisible = useGeographyStore.getState().annotations.labels;
+        this.setLabelImageryVisible(labelsVisible);
+      } catch { /* ignore：GeographyStore 未就绪时跳过 */ }
+      this.bumpIdle(); // Q9：底图切换完成算操作
     };
     if (mgr) await mgr.schedule('basemap' as OpKind, run);
     else await run();
@@ -265,21 +698,53 @@ export class CesiumController {
       verticalExaggeration: number;
       verticalExaggerationRelativeHeight: number;
     };
-    scene.verticalExaggeration = value;
-    scene.verticalExaggerationRelativeHeight = 0;
+    // Q10：地形夸张切换动画。直接赋值会"瞬间抬升/坍塌"，过渡不自然。
+    //      用 requestAnimationFrame 线性插值 220ms 平滑过渡，既不卡也不突兀。
+    const from = scene.verticalExaggeration ?? 1;
+    const to = Math.max(1, Number.isFinite(value) ? value : 1);
+    if (Math.abs(from - to) < 0.001) {
+      scene.verticalExaggeration = to;
+      scene.verticalExaggerationRelativeHeight = 0;
+      return;
+    }
+    const DURATION_MS = 220;
+    const startT = performance.now();
+    return new Promise<void>((resolve) => {
+      const step = () => {
+        const t = Math.min(1, (performance.now() - startT) / DURATION_MS);
+        // easeOutCubic：开始快、结尾慢，视觉更自然（抬升减速像真实地貌）
+        const k = 1 - Math.pow(1 - t, 3);
+        const v = from + (to - from) * k;
+        scene.verticalExaggeration = v;
+        scene.verticalExaggerationRelativeHeight = 0;
+        this.viewer.scene.requestRender();
+        if (t < 1) {
+          (typeof requestAnimationFrame !== 'undefined' ? requestAnimationFrame : (fn: FrameRequestCallback) => setTimeout(() => fn(performance.now()), 16))(step);
+        } else {
+          resolve();
+        }
+      };
+      step();
+    });
   }
 
   async showContour(spacing: number): Promise<void> {
+    if (!this.viewer?.scene?.globe) return;
     await this.applyGlobeMaterial('globeMaterial', () => {
       this.viewer.scene.globe.material = Cesium.Material.fromType('ElevationContour', {
-        color: Cesium.Color.fromBytes(255, 100, 0, 255),
+        // 颜色：暖棕 #6b4a2e（东亚地形图等高线常用色），替代纯黑 #1a1a1a
+        // 原因：纯黑在缩放到街道级时看起来"一片黑、很吓人"；暖棕天然贴近等高线教学直觉，
+        //       对卫星影像/政区图/relief 分层色带都有足够对比度，视觉更柔和。
+        // 线宽：2.0（比 1.5 粗、比 2.2 细），街道级仍可辨，但不会显得黑压压一片。
+        color: Cesium.Color.fromBytes(107, 74, 46, 230),
         spacing,
-        width: 1.5,
+        width: 2.0,
       });
     });
   }
 
   async showElevationRamp(): Promise<void> {
+    if (!this.viewer?.scene?.globe) return;
     await this.applyGlobeMaterial('globeMaterial', () => {
       const globe = this.viewer.scene.globe;
       globe.material = Cesium.Material.fromType('ElevationRamp', {
@@ -291,6 +756,7 @@ export class CesiumController {
   }
 
   async showSlope(): Promise<void> {
+    if (!this.viewer?.scene?.globe) return;
     await this.applyGlobeMaterial('globeMaterial', () => {
       const globe = this.viewer.scene.globe;
       globe.material = Cesium.Material.fromType('SlopeRamp', {
@@ -300,6 +766,7 @@ export class CesiumController {
   }
 
   async showAspect(): Promise<void> {
+    if (!this.viewer?.scene?.globe) return;
     // Cesium 无内置 AspectRamp 材质，使用自定义 Fabric GLSL shader
     // 通过地形法线计算坡向（方位角），映射到 8 方向色环
     await this.applyGlobeMaterial('globeMaterial', () => {
@@ -328,10 +795,28 @@ export class CesiumController {
 
   /** 清除地形材质（globeMaterial kind，显式 destroy 纹理） */
   clearTerrainMaterial(): void {
+    if (!this.viewer?.scene?.globe) return;
     // Fire-and-forget; tsc will complain without await; wrap:
     void this.applyGlobeMaterial('globeMaterial', () => {
       this.viewer.scene.globe.material = undefined;
     });
+  }
+
+  /**
+   * 按 store 中的 terrain.* 状态重新应用地形材质。
+   * 用于从 2D 切回 3D/哥伦布时恢复此前被清空的等高线/高程分层/坡度/坡向。
+   * 优先级：坡向 > 坡度 > 高程分层 > 等高线（与 Cesium 单材质限制一致，同一时间只显示一种）。
+   */
+  private async restoreTerrainMaterialFromStore(): Promise<void> {
+    try {
+      const st = useGeographyStore.getState().terrain;
+      // 椭球回退（无真实地形）时不应用地形材质
+      if (!st.available) return;
+      if (st.aspect) await this.showAspect();
+      else if (st.slope) await this.showSlope();
+      else if (st.elevationRamp) await this.showElevationRamp();
+      else if (st.contour) await this.showContour(st.contourSpacing || 200);
+    } catch { /* ignore：恢复失败不影响模式切换主线 */ }
   }
 
   // ============ 天文可视化 ============
@@ -580,8 +1065,16 @@ export class CesiumController {
   // ============ 图层同步 ============
 
   async updateLayer(layer: string, visible: boolean): Promise<void> {
+    if (!this.viewer?.scene?.globe) return;
     // 具体图层渲染由 React 组件根据 store 状态处理
     // 这里只处理需要 Cesium API 的特殊图层
+    if (layer === 'labels') {
+      // 地名图层：切换注记瓦片叠加层（天地图 cva_w / 高德 style=8）的显示/隐藏
+      // 注记层一般是 imageryLayers 中 index >= 1 的叠加层（index 0 是底图）
+      this.setLabelImageryVisible(visible);
+      // 同时如果还有 placenames 实体层也一并切换（如果 CesiumLayerSync 管理了地名实体）
+      return;
+    }
     if (layer === 'twilight') {
       // 晨昏线：真实昼夜分界 —— 启用方向光 + globe.enableLighting
       // 太阳方向由当前时间动态计算，与 directPoint 一致
@@ -637,6 +1130,53 @@ export class CesiumController {
   }
 
   /**
+   * 切换注记瓦片叠加层（labels 图层）的可见性。
+   * —— 识别规则：credit 文本中包含 "标注"、"天地图标注"、"AutoNavi"、"注记" 的 imagery layer 视为注记层。
+   * —— 同时对于高德/天地图双 layer 模式：index >= 1 的叠加层优先被当作注记层（在 setBasemap 中我们把 label 放在第二个）。
+   */
+  setLabelImageryVisible(visible: boolean): void {
+    try {
+      const viewer = this.viewer;
+      if (!viewer || !viewer.imageryLayers) return;
+      const layers = viewer.imageryLayers;
+      const count = layers.length;
+      let foundAny = false;
+      for (let i = 0; i < count; i++) {
+        const lyr = layers.get(i);
+        if (!lyr) continue;
+        // 识别方式：1) index >= 1 且有中文 credit 描述；2) provider 名称含注记关键字；
+        let isLabelLayer = i >= 1; // 保守：双瓦片组合中的叠加层（index 1+）默认视为候选
+        try {
+          const creditText = (lyr as any)._credit?.html ?? (lyr as any)._credit?.text ?? '';
+          const hasLabelCredit = /标注|注记|天地图.*标注|AutoNavi.*注记|cva|style=8/.test(String(creditText));
+          if (hasLabelCredit) isLabelLayer = true;
+          // 再看 imageryProvider credit
+          const providerAny = (lyr as any)._imageryProvider as any;
+          if (providerAny) {
+            const pCredit = providerAny._credit?.html ?? providerAny._credit?.text ?? providerAny.credit ?? '';
+            if (/标注|注记|天地图.*标注|AutoNavi.*注记|cva_w|cva|style=8/.test(String(pCredit))) isLabelLayer = true;
+          }
+        } catch { /* ignore credit 访问失败 */ }
+        if (isLabelLayer) {
+          try {
+            (lyr as any).show = visible;
+            foundAny = true;
+          } catch { /* ignore */ }
+        }
+      }
+      // 若没有识别到任何注记瓦片层（例如无天地图/高德 key，回退到纯英文底图情况）——
+      // 此时 labels 图层切换不做任何瓦片操作（本身就没有中文注记可切），记一次 warning 便于排查
+      if (!foundAny) {
+        // 仅在 visible=true 时打日志，避免关闭时刷屏
+        if (visible) console.debug('[setLabelImageryVisible] 未检测到注记瓦片层，labels 切换无效（如需中文注记请配置天地图/高德 key）');
+      }
+      try { viewer.scene.requestRender(); } catch { /* ignore */ }
+    } catch (e) {
+      console.warn('[setLabelImageryVisible] fail:', e);
+    }
+  }
+
+  /**
    * 设置太阳高度角（直射点纬度）—— 配合 astronomy.setSunHeight 命令
    * 教学演示用：让用户手动调整太阳高度角，观察晨昏线与直射点变化
    */
@@ -656,6 +1196,7 @@ export class CesiumController {
   private measureEntities: Cesium.Entity[] = [];
   private measureHandler: Cesium.ScreenSpaceEventHandler | null = null;
   private measureMode: MeasurementMode | null = null;
+  private regionEntities: Cesium.Entity[] = [];
 
   /** 屏幕坐标 → 地球表面笛卡尔坐标（优先 globe.pick，回退 ellipsoid） */
   private pickSurface(windowPos: Cesium.Cartesian2): Cesium.Cartesian3 | undefined {
@@ -930,6 +1471,66 @@ export class CesiumController {
     return e;
   }
 
+  // ============ 区域叠加（三级阶梯 / 板块 / 气候带教学高亮） ============
+
+  /** 教学色板：暖橙 → 天蓝 → 苔绿 → 紫 → 玫红，按 index 轮询 */
+  private static REGION_PALETTE = [
+    '#f54e00', '#2b7de9', '#3a9d5d', '#8e5bd6', '#d6336c',
+  ];
+
+  /** 移除当前所有区域叠加实体 */
+  clearRegions(): void {
+    if (!this.viewer) return;
+    this.regionEntities.forEach((e) => this.viewer.entities.remove(e));
+    this.regionEntities = [];
+    this.viewer.scene.requestRender();
+  }
+
+  /**
+   * 在世界表面绘制一组半透明多边形区域（clampToGround，卫星/政区/地形底图均可见）
+   * - 每个区域：填充色 45% 透明度 + 描边 2px + 居中名称标签
+   * - 填充使用 Entity.polygon.hierarchy（自动按地形贴地），无需 GeoJSON 异步加载
+   */
+  highlightRegions(regions: Array<{
+    id: string; name: string; color?: string; coordinates: Array<[number, number]>;
+  }>): void {
+    if (!this.viewer) return;
+    this.clearRegions();
+    regions.forEach((r, idx) => {
+      const hex = r.color ?? CesiumController.REGION_PALETTE[idx % CesiumController.REGION_PALETTE.length];
+      const fill = Cesium.Color.fromCssColorString(hex);
+      const outline = Cesium.Color.fromCssColorString(hex).withAlpha(1);
+      const centerLon = r.coordinates.reduce((s, p) => s + p[0], 0) / r.coordinates.length;
+      const centerLat = r.coordinates.reduce((s, p) => s + p[1], 0) / r.coordinates.length;
+      const positions = r.coordinates.map(([lon, lat]) => Cesium.Cartesian3.fromDegrees(lon, lat));
+
+      const entity = this.viewer.entities.add({
+        id: `region-${r.id}`,
+        position: Cesium.Cartesian3.fromDegrees(centerLon, centerLat, 200),
+        polygon: {
+          hierarchy: new Cesium.PolygonHierarchy(positions),
+          material: fill.withAlpha(0.45),
+          outline: true,
+          outlineColor: outline,
+          height: 0,
+          classificationType: Cesium.ClassificationType.TERRAIN,
+        },
+        label: {
+          text: r.name,
+          font: 'bold 15px Noto Sans SC, sans-serif',
+          fillColor: Cesium.Color.WHITE,
+          outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+          outlineWidth: 4,
+          style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+          pixelOffset: new Cesium.Cartesian2(0, -10),
+          disableDepthTestDistance: Number.POSITIVE_INFINITY,
+        },
+      });
+      this.regionEntities.push(entity);
+    });
+    this.viewer.scene.requestRender();
+  }
+
   // ============ 地形采样 ============
 
   async sampleHeight(lon: number, lat: number): Promise<number | undefined> {
@@ -983,6 +1584,49 @@ export class CesiumController {
     gradient.addColorStop(0.65, '#ffffcc');
     gradient.addColorStop(0.8, '#d73027');
     gradient.addColorStop(1.0, '#ffffff');
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1, 256);
+    return canvas;
+  }
+
+  /** 灰度浮雕（relief）色带：深海深蓝→浅海灰白→平原灰→丘陵深灰→山脉近黑，形成"晕渲浮雕"感 */
+  private createReliefRampImage(): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createLinearGradient(0, 256, 0, 0);
+    gradient.addColorStop(0.00, '#0a0d14'); // 深海：近黑
+    gradient.addColorStop(0.30, '#2f3640'); // 海床：深灰蓝
+    gradient.addColorStop(0.45, '#7f8c8d'); // 海平面：中灰
+    gradient.addColorStop(0.50, '#bdc3c7'); // 平原：浅灰
+    gradient.addColorStop(0.70, '#636e72'); // 丘陵：深灰
+    gradient.addColorStop(0.88, '#2d3436'); // 山脉：暗灰
+    gradient.addColorStop(1.00, '#dfe6e9'); // 极高山/雪顶：近白高亮
+    ctx.fillStyle = gradient;
+    ctx.fillRect(0, 0, 1, 256);
+    return canvas;
+  }
+
+  /** 教学标准分层设色（landform）：初中地理教材配色
+   *  深海蓝→浅海青绿→平原绿→丘陵黄→高原橙→山地棕→极高山白
+   */
+  private createLandformRampImage(): HTMLCanvasElement {
+    const canvas = document.createElement('canvas');
+    canvas.width = 1;
+    canvas.height = 256;
+    const ctx = canvas.getContext('2d')!;
+    const gradient = ctx.createLinearGradient(0, 256, 0, 0);
+    gradient.addColorStop(0.00, '#003f80'); // -8000m 深海
+    gradient.addColorStop(0.25, '#3a7ea5'); // 海床
+    gradient.addColorStop(0.42, '#8ecae6'); // 浅海 / 海平面
+    gradient.addColorStop(0.50, '#74c69d'); // 0 ~ 200m 平原 翠绿
+    gradient.addColorStop(0.62, '#b7e4c7'); // 平原过渡
+    gradient.addColorStop(0.68, '#f9e79f'); // 200 ~ 500m 丘陵 淡黄
+    gradient.addColorStop(0.76, '#f5c26b'); // 500 ~ 1000m 低山 橙黄
+    gradient.addColorStop(0.84, '#c97c3c'); // 1000 ~ 2000m 高原 棕褐
+    gradient.addColorStop(0.92, '#7f5539'); // 2000 ~ 4500m 山地 深棕
+    gradient.addColorStop(1.00, '#ffffff'); // 4500m+  极高山 雪白
     ctx.fillStyle = gradient;
     ctx.fillRect(0, 0, 1, 256);
     return canvas;

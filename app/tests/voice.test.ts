@@ -17,6 +17,7 @@ import {
   createASRAdapter,
   createTTSAdapter,
   createLLMAdapter,
+  LLMMessage,
 } from '../src/voice/adapters';
 import { validateToolCall } from '../src/commands/schema';
 import { isEditable } from '../src/voice/PushToTalk';
@@ -55,8 +56,10 @@ describe('KeywordIntentLLM 意图解析', () => {
     ]);
     const call = response.toolCalls!.find((c) => c.name === 'camera.flyTo');
     expect(call).toBeDefined();
-    expect(call!.args.longitude).toBe(116.4);
-    expect(call!.args.latitude).toBe(39.9);
+    // 更精确的坐标（原先是 116.4/39.9 两位小数，升级后采用 3 位小数的 WGS-84 城市坐标）
+    expect(Number(call!.args.longitude)).toBeCloseTo(116.407, 2);
+    expect(Number(call!.args.latitude)).toBeCloseTo(39.904, 2);
+    expect(Number(call!.args.height)).toBeGreaterThanOrEqual(50_000); // 至少 50km 高度
   });
 
   it('"显示城市" 解析为 layer.toggle cities visible=true', async () => {
@@ -291,5 +294,75 @@ describe('火山引擎适配器错误处理（无服务端代理）', () => {
   it('VolcengineASR abort 不抛错', () => {
     const asr = new VolcengineASR();
     expect(() => asr.abort()).not.toThrow();
+  });
+});
+
+describe('RealtimeVoiceChat 对话历史管理', () => {
+  // 测试 trimHistory / clearHistory / course-change-clear-history 逻辑
+  // 从 RealtimeVoiceChat 中提取纯函数逻辑测试
+
+  const MAX_HISTORY = 20;
+
+  function makeHistory(count: number, startRole: 'user' = 'user'): LLMMessage[] {
+    return Array.from({ length: count }, (_, i) => ({
+      role: (i % 2 === 0 ? startRole : 'assistant' as const),
+      content: `msg ${i}`,
+    }));
+  }
+
+  function trimHistoryStub(history: LLMMessage[]): LLMMessage[] {
+    // 复制 RealtimeVoiceChat.ts 中的 trimHistory 逻辑进行单元测试
+    while (history.length > MAX_HISTORY) {
+      const firstNonSysIdx = history.findIndex((m) => m.role !== 'system');
+      if (firstNonSysIdx < 0) {
+        history.splice(0, 1);
+      } else {
+        const end = Math.min(firstNonSysIdx + 2, history.length);
+        history.splice(firstNonSysIdx, end - firstNonSysIdx);
+      }
+    }
+    return history;
+  }
+
+  it('空数组不修剪', () => {
+    const h: LLMMessage[] = [];
+    trimHistoryStub(h);
+    expect(h).toHaveLength(0);
+  });
+
+  it('小于等于 20 不修剪', () => {
+    const h = makeHistory(20);
+    trimHistoryStub(h);
+    expect(h).toHaveLength(20);
+  });
+
+  it('超过 20 时删除最老的一对 user+assistant', () => {
+    const h = makeHistory(22);
+    // 22 → 删除前 2 → 剩余 20
+    trimHistoryStub(h);
+    expect(h).toHaveLength(20);
+    // 剩余第一条应该是 msg 2
+    expect(h[0].content).toBe('msg 2');
+  });
+
+  it('保留 system 提示，只删除 user+assistant', () => {
+    const h: LLMMessage[] = [
+      { role: 'system', content: 'system prompt' },
+      ...makeHistory(21),
+    ];
+    // total 22 → 删除最老一对 user+assistant → 20，system 保留在开头
+    trimHistoryStub(h);
+    expect(h).toHaveLength(20);
+    expect(h[0].role).toBe('system');
+    expect(h[0].content).toBe('system prompt');
+  });
+
+  it('全 system 时逐个删除最老', () => {
+    const h: LLMMessage[] = Array.from({ length: 25 }, () => ({
+      role: 'system' as const,
+      content: 'sys',
+    }));
+    trimHistoryStub(h);
+    expect(h).toHaveLength(20);
   });
 });

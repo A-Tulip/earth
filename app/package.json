@@ -15,7 +15,9 @@
     "test:e2e": "playwright test",
     "validate:content": "tsx src/lessons/validate.ts",
     "download:textures": "bash scripts/download-textures.sh",
-    "voice:proxy": "tsx server/index.ts"
+    "voice:proxy": "tsx server/index.ts",
+    "api:dev": "cd ../api && uvicorn main:app --host 0.0.0.0 --port 8787 --reload",
+    "api:start": "cd ../api && uvicorn main:app --host 0.0.0.0 --port 8787"
   },
   "dependencies": {
     "cesium": "^1.143.0",

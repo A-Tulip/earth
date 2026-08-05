@@ -14,13 +14,15 @@ describe('GeographySceneState 初始状态', () => {
     expect(state.basemap).toBe('satellite');
   });
 
-  it('默认开启经纬线、地名、地轴、太阳直射点、自转；晨昏线默认关闭', () => {
+  it('默认开启经纬线、地名、自西向东自转；地轴/直射点/晨昏线需 UI 明确开启', () => {
     const state = useGeographyStore.getState();
     expect(state.annotations.graticule).toBe(true);
     expect(state.annotations.labels).toBe(true);
-    expect(state.astronomy.axis).toBe(true);
-    expect(state.astronomy.directPoint).toBe(true);
+    // 地轴、直射点、晨昏线默认关闭
+    expect(state.astronomy.axis).toBe(false);
+    expect(state.astronomy.directPoint).toBe(false);
     expect(state.astronomy.twilight).toBe(false);
+    // 用户需求：初始界面地球自转
     expect(state.astronomy.rotation).toBe(true);
   });
 

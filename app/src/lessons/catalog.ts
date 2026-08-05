@@ -115,4 +115,24 @@ export const LESSON_CATALOG: LessonMeta[] = [
     references: ['普通高中地理课程标准（2017年版2020年修订）'],
     curriculumStandard: '普通高中地理课程标准 2017版 - 选择性必修1',
   },
+  {
+    id: 'typical-landforms',
+    level: 'junior',
+    category: 'natural',
+    title: '典型地貌巡礼',
+    description: '用上帝视角真实观察丹霞、喀斯特、雅丹、峡谷、火山、冰川等典型地貌',
+    tags: ['地貌', '丹霞', '喀斯特', '雅丹', '峡谷', '火山', '冰川'],
+    grade: '八年级',
+    objectives: [
+      '认识常见典型地貌的形态特征',
+      '将地貌形态与成因（侵蚀、堆积、外力作用）建立联系',
+      '学会用"上帝视角"立体观察真实地貌',
+    ],
+    duration: 12,
+    references: [
+      '义务教育地理课程标准（2022年版）',
+      '人教版八年级上册地形与地貌',
+    ],
+    curriculumStandard: '义务教育地理课程标准 2022年版 - 中国地理：地形与地势',
+  },
 ];

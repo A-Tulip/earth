@@ -22,7 +22,7 @@ export interface GeoRefEntry {
   latitude: number;
   /** 推荐相机高度（米） */
   height: number;
-  /** 标签分类：省会/直辖市/山脉/河流/湖泊/海洋/盆地/平原/高原/岛屿/海峡/国际城市 */
+  /** 标签分类：省会/直辖市/山脉/河流/湖泊/海洋/盆地/平原/高原/岛屿/海峡/国际城市/典型地貌 */
   kind:
     | 'capital'
     | 'mountain'
@@ -34,7 +34,8 @@ export interface GeoRefEntry {
     | 'plateau'
     | 'island'
     | 'strait'
-    | 'global';
+    | 'global'
+    | 'landform';
 }
 
 export const GEO_REFERENCES: GeoRefEntry[] = [
@@ -125,6 +126,26 @@ export const GEO_REFERENCES: GeoRefEntry[] = [
   { name: '黄土高原', longitude: 107.0, latitude: 37.0, height: 900_000, kind: 'plateau' },
   { name: '云贵高原', longitude: 104.0, latitude: 26.0, height: 800_000, kind: 'plateau' },
   { name: '内蒙古高原', longitude: 112.0, latitude: 42.0, height: 900_000, kind: 'plateau' },
+
+  // === 典型地貌（支持"上帝视角"查看真实地貌，含国内/国外） ===
+  { name: '丹霞山', aliases: ['丹霞地貌', '丹霞'], longitude: 113.746, latitude: 24.949, height: 120_000, kind: 'landform' },
+  { name: '桂林', aliases: ['桂林山水', '漓江', '喀斯特地貌'], longitude: 110.290, latitude: 25.274, height: 150_000, kind: 'landform' },
+  { name: '张家界', aliases: ['张家界地貌', '砂岩峰林'], longitude: 110.479, latitude: 29.117, height: 120_000, kind: 'landform' },
+  { name: '雅丹地貌', aliases: ['魔鬼城', '乌尔禾'], longitude: 85.75, latitude: 45.0, height: 200_000, kind: 'landform' },
+  { name: '雅鲁藏布大峡谷', longitude: 94.9, latitude: 29.6, height: 250_000, kind: 'landform' },
+  { name: '长白山天池', aliases: ['天池', '火山湖'], longitude: 128.06, latitude: 42.006, height: 120_000, kind: 'landform' },
+  { name: '五大连池', aliases: ['火山群'], longitude: 126.21, latitude: 48.72, height: 150_000, kind: 'landform' },
+  { name: '黄河壶口瀑布', aliases: ['壶口瀑布', '壶口'], longitude: 110.402, latitude: 36.132, height: 80_000, kind: 'landform' },
+  { name: '长江三角洲', aliases: ['长三角'], longitude: 121.0, latitude: 31.0, height: 300_000, kind: 'landform' },
+  { name: '珠穆朗玛绒布冰川', aliases: ['绒布冰川', '冰川'], longitude: 86.83, latitude: 28.05, height: 150_000, kind: 'landform' },
+  { name: '青海祁连山', aliases: ['祁连山'], longitude: 98.5, latitude: 38.5, height: 400_000, kind: 'landform' },
+  { name: '台湾野柳', aliases: ['野柳海岸', '海蚀地貌'], longitude: 121.69, latitude: 25.207, height: 60_000, kind: 'landform' },
+  { name: '富士山', aliases: ['富士山火山'], longitude: 138.727, latitude: 35.3606, height: 200_000, kind: 'landform' },
+  { name: '撒哈拉沙漠', aliases: ['撒哈拉', '沙丘'], longitude: 15.0, latitude: 23.0, height: 2_000_000, kind: 'landform' },
+  { name: '东非大裂谷', aliases: ['大裂谷'], longitude: 36.0, latitude: -1.0, height: 2_000_000, kind: 'landform' },
+  { name: '科罗拉多大峡谷', aliases: ['大峡谷美国'], longitude: -112.11, latitude: 36.10, height: 250_000, kind: 'landform' },
+  { name: '大堡礁', aliases: ['珊瑚礁'], longitude: 147.0, latitude: -18.0, height: 400_000, kind: 'landform' },
+  { name: '喜马拉雅冰川', aliases: ['喜马拉雅冰塔林'], longitude: 86.0, latitude: 28.0, height: 300_000, kind: 'landform' },
 
   // === 岛屿 ===
   { name: '台湾岛', aliases: ['宝岛'], longitude: 121.0, latitude: 23.8, height: 400_000, kind: 'island' },

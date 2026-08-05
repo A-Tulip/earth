@@ -26,7 +26,8 @@ export type DataProviderId =
   | 'precipitation'
   | 'cities'
   | 'plates'
-  | 'rivers';
+  | 'rivers'
+  | 'geocoding'; // Q4 Nominatim 反向地理编码
 
 // ============ 城市数据（预置，回退用） ============
 
@@ -109,30 +110,43 @@ export interface WeatherData {
   temp: number;
   weather: string;
   weatherCode: number;
+  // Q4 扩展：按坐标取天气时返回风/湿度/气压（保持向后兼容，全部可选）
+  wind?: number;       // km/h
+  humidity?: number;   // %
+  pressure?: number;   // hPa
 }
 
 export async function fetchWeather(city: CityData): Promise<WeatherData> {
+  return fetchWeatherByCoord(city.lon, city.lat, city.name);
+}
+
+/** 按经纬度取天气（镜头中心/点击位置/任意坐标），可选指定显示名 */
+export async function fetchWeatherByCoord(lon: number, lat: number, displayName = ''): Promise<WeatherData> {
   try {
-    const url = `https://api.open-meteo.com/v1/forecast?latitude=${city.lat}&longitude=${city.lon}&current=temperature_2m,weather_code&timezone=auto`;
-    // 使用缓存：天气 10 分钟 TTL
+    const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl&timezone=auto`;
     const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_10M });
     const temp = Math.round(data.current?.temperature_2m ?? 25);
     const code = data.current?.weather_code ?? 0;
-
-    return {
-      city: city.name,
-      lon: city.lon,
-      lat: city.lat,
+    const result: WeatherData = {
+      city: displayName || `${lon.toFixed(1)}, ${lat.toFixed(1)}`,
+      lon,
+      lat,
       temp,
       weather: weatherCodeToString(code),
       weatherCode: code,
     };
+    const wind = data.current?.wind_speed_10m;
+    const humidity = data.current?.relative_humidity_2m;
+    const pressure = data.current?.pressure_msl;
+    if (typeof wind === 'number') result.wind = Math.round(wind);
+    if (typeof humidity === 'number') result.humidity = Math.round(humidity);
+    if (typeof pressure === 'number') result.pressure = Math.round(pressure);
+    return result;
   } catch {
-    // 回退：返回默认数据
     return {
-      city: city.name,
-      lon: city.lon,
-      lat: city.lat,
+      city: displayName || `${lon.toFixed(1)}, ${lat.toFixed(1)}`,
+      lon,
+      lat,
       temp: 25,
       weather: '离线',
       weatherCode: -1,
@@ -231,6 +245,7 @@ export const DATA_PROVIDERS: DataProviderInfo[] = [
   { id: 'weather', name: '实时天气', source: 'Open-Meteo', license: 'CC BY 4.0', requiresNetwork: true, hasFallback: true },
   { id: 'earthquake', name: '地震数据', source: 'USGS', license: 'Public Domain', requiresNetwork: true, hasFallback: true },
   { id: 'natural-events', name: '自然事件', source: 'NASA EONET', license: 'Public Domain', requiresNetwork: true, hasFallback: true },
+  { id: 'geocoding', name: '地名查询（经纬度→国家/城市）', source: 'Nominatim (OpenStreetMap)', license: 'ODbL 1.0', requiresNetwork: true, hasFallback: true },
   { id: 'cities', name: '城市数据', source: '预置', license: '内部', requiresNetwork: false, hasFallback: true },
   { id: 'gdp', name: 'GDP 数据', source: 'World Bank / 预置', license: 'CC BY 4.0', requiresNetwork: false, hasFallback: true },
   { id: 'population', name: '人口数据', source: '预置', license: '内部', requiresNetwork: false, hasFallback: true },
@@ -669,4 +684,135 @@ const PRESET_ADMIN_BOUNDS: AdminBoundary[] = [
 
 export function getAdminBounds(): AdminBoundary[] {
   return PRESET_ADMIN_BOUNDS;
+}
+
+// ============ Nominatim 反向地理编码（OSM 免费服务，CC0 + ODbL 回退） ============
+
+export interface ReverseGeocodeResult {
+  country: string;
+  state?: string;
+  county?: string;
+  city?: string;
+  suburb?: string;
+  village?: string;
+  postcode?: string;
+  timezone: string;
+  displayName: string;
+  /** 是否命中离线回退（预置城市），方便 UI 打标 */
+  fallback: boolean;
+}
+
+/**
+ * 反向地理编码：经纬度 → 国家/州/城市 + 时区
+ * 调用链（3 层降级，确保课堂不中断）：
+ *   Layer 1: 本地 FastAPI /api/geocoding/reverse（128-entry × 300s TTL + Nominatim 代理，推荐）
+ *   Layer 2: 直连 Nominatim OpenStreetMap（公开 CORS，1rps 限流）
+ *   Layer 3: EXTENDED_CITIES 内最近的城市（Haversine 最近邻，完全离线）
+ */
+export async function reverseGeocode(lon: number, lat: number): Promise<ReverseGeocodeResult> {
+  // ---- Layer 1: FastAPI 同源代理（优先：带缓存 + 不限流 + 中文友好）----
+  try {
+    const url = `/api/geocoding/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&lang=zh-CN&zoom=14`;
+    const resp = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(4000) });
+    if (resp.ok) {
+      const data = await resp.json();
+      if (data?.ok && (data.name || data.display_name || data.address)) {
+        const addr: Record<string, string> = (data.address as Record<string, string>) || {};
+        const displayName: string = data.display_name || data.name || '';
+        const country = addr.country || '';
+        const timezone = (() => {
+          const hours = Math.round(lon / 15);
+          const sign = hours >= 0 ? '+' : '';
+          return `UTC${sign}${hours}`;
+        })();
+        return {
+          country,
+          state: addr.state,
+          county: addr.county || addr.district,
+          city: addr.city || addr.town || addr.municipality,
+          suburb: addr.suburb || addr.district,
+          village: addr.village || addr.hamlet,
+          postcode: addr.road ? undefined : (addr.postcode || undefined),
+          timezone,
+          displayName,
+          fallback: false,
+        };
+      }
+    }
+  } catch {
+    // Layer 1 失败（FastAPI 未启动 / 网络不通）→ 静默进入 Layer 2
+  }
+
+  // ---- Layer 2: 直连 Nominatim OpenStreetMap ----
+  try {
+    const params = new URLSearchParams({
+      lat: String(lat),
+      lon: String(lon),
+      format: 'jsonv2',
+      zoom: '10',
+      addressdetails: '1',
+      accept_language: 'zh-CN,en;q=0.5',
+    });
+    const url = `https://nominatim.openstreetmap.org/reverse?${params.toString()}`;
+    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_24H });
+    const addr: Record<string, string> = data?.address ?? {};
+    const displayName: string = data?.display_name ?? '';
+
+    const country =
+      addr.country ||
+      addr['ISO3166-2-lvl4']?.split('-')[0] ||
+      '';
+    const timezone = (() => {
+      const hours = Math.round(lon / 15);
+      const sign = hours >= 0 ? '+' : '';
+      return `UTC${sign}${hours}`;
+    })();
+
+    return {
+      country,
+      state: addr.state,
+      county: addr.county,
+      city: addr.city || addr.town || addr.municipality,
+      suburb: addr.suburb || addr.neighbourhood,
+      village: addr.village || addr.hamlet,
+      postcode: addr.postcode,
+      timezone,
+      displayName,
+      fallback: false,
+    };
+  } catch {
+    // ---- Layer 3: 离线最近邻城市（Haversine）----
+    const fallback = findNearestCity(lon, lat);
+    return {
+      country: fallback.country,
+      city: fallback.name,
+      timezone: fallback.timezone ?? 'UTC+0',
+      displayName: `${fallback.name}, ${fallback.country}（离线最近邻）`,
+      fallback: true,
+    };
+  }
+}
+
+function haversineKm(lon1: number, lat1: number, lon2: number, lat2: number): number {
+  const R = 6371;
+  const toRad = (d: number) => (d * Math.PI) / 180;
+  const dLat = toRad(lat2 - lat1);
+  const dLon = toRad(lon2 - lon1);
+  const a =
+    Math.sin(dLat / 2) ** 2 +
+    Math.cos(toRad(lat1)) * Math.cos(toRad(lat2)) * Math.sin(dLon / 2) ** 2;
+  return 2 * R * Math.asin(Math.sqrt(a));
+}
+
+function findNearestCity(lon: number, lat: number): CityData {
+  let best = EXTENDED_CITIES[0];
+  let bestD = Number.POSITIVE_INFINITY;
+  for (const c of EXTENDED_CITIES) {
+    const d = haversineKm(lon, lat, c.lon, c.lat);
+    if (d < bestD) {
+      bestD = d;
+      best = c;
+    }
+  }
+  return best;
 }

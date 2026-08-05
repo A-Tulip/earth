@@ -32,6 +32,8 @@ export default {
         'fade-out': 'fadeOut 0.5s ease-out forwards',
         'slide-up': 'slideUp 0.35s cubic-bezier(0.16, 1, 0.3, 1)',
         'pulse-soft': 'pulseSoft 2s ease-in-out infinite',
+        'spin-slow': 'spinSlow 2.4s linear infinite',
+        'spin-reverse': 'spinReverse 1.6s linear infinite',
       },
       keyframes: {
         fadeIn: { '0%': { opacity: '0' }, '100%': { opacity: '1' } },
@@ -44,6 +46,8 @@ export default {
           '0%, 100%': { opacity: '0.6' },
           '50%': { opacity: '1' },
         },
+        spinSlow: { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(360deg)' } },
+        spinReverse: { from: { transform: 'rotate(0deg)' }, to: { transform: 'rotate(-360deg)' } },
       },
     },
   },

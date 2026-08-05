@@ -9,7 +9,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useGeographyStore } from '../state/store';
 import { commandBus } from '../commands/bus';
-import { BookOpen, Mic, MicOff, Maximize, Globe, Sun, Camera, Search, X, MapPin, RadioTower } from './icons';
+import { BookOpen, Mic, MicOff, Maximize, Globe, Sun, Camera, Search, X, MapPin, RadioTower, Home, MessageSquare } from './icons';
 import { searchCities, type CityData } from '../data/providers';
 
 interface TopBarProps {
@@ -23,6 +23,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
   const lesson = useGeographyStore((s) => s.lesson);
   const voice = useGeographyStore((s) => s.voice);
   const solarSystemActive = useGeographyStore((s) => s.solarSystemActive);
+  const aiChatActive = useGeographyStore((s) => s.ui.showAIChat);
 
   // 城市搜索状态
   const [searchOpen, setSearchOpen] = useState(false);
@@ -118,6 +119,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
                 className="w-56 bg-transparent text-sm text-white placeholder:text-white/30 outline-none"
               />
               <button
+                data-agent-button="search.close"
                 onClick={() => { setSearchOpen(false); setQuery(''); setResults([]); }}
                 className="text-white/40 hover:text-white/80"
                 title="关闭搜索"
@@ -156,6 +158,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
           </div>
         ) : (
           <button
+            data-agent-button="search.open"
             onClick={() => { setSearchOpen(true); }}
             disabled={solarSystemActive}
             className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 backdrop-blur-sm transition-all ${
@@ -172,7 +175,23 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
 
       {/* 右上角：操作按钮 */}
       <div className="pointer-events-auto flex items-center gap-2">
+        {/* Q2：回到首页按钮，把相机复位的控制权交给用户，替代 4s 强制自动复位 */}
         <button
+          data-agent-button="camera.home"
+          onClick={() => commandBus.execute({ name: 'camera.reset', args: {} })}
+          disabled={solarSystemActive}
+          className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 backdrop-blur-sm transition-all ${
+            solarSystemActive
+              ? 'bg-ink-800/40 text-white/20 ring-white/5 cursor-not-allowed'
+              : 'bg-ink-800/80 text-white/80 ring-geo-500/20 hover:bg-ink-700/80 hover:text-white'
+          }`}
+          title={solarSystemActive ? '太阳系视图不支持首页定位' : '回到首页（中国上空）'}
+        >
+          <Home className="h-4 w-4" />
+        </button>
+
+        <button
+          data-agent-button="lesson.openMenu"
           onClick={onOpenCommandMenu}
           className="flex items-center gap-1.5 rounded-lg bg-ink-800/80 px-3 py-1.5 text-sm text-white/80 ring-1 ring-geo-500/20 backdrop-blur-sm hover:bg-ink-700/80 hover:text-white transition-all"
         >
@@ -180,7 +199,23 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
           <span>课程</span>
         </button>
 
+        {/* Q9：AI 对话按钮（顶栏入口），打开/关闭右下角 AI 地理助教面板 */}
         <button
+          data-agent-button="ai.chat.toggle"
+          onClick={() => commandBus.execute({ name: 'aiChat.toggle', args: {} })}
+          className={`flex items-center gap-1.5 rounded-lg px-3 py-1.5 text-sm ring-1 backdrop-blur-sm transition-all ${
+            aiChatActive
+              ? 'bg-indigo-500/20 text-indigo-200 ring-indigo-400/40 hover:bg-indigo-500/30'
+              : 'bg-ink-800/80 text-white/80 ring-geo-500/20 hover:bg-ink-700/80 hover:text-white'
+          }`}
+          title="AI 地理助教（文本命令 / 工具调用反馈）"
+        >
+          <MessageSquare className="h-4 w-4" />
+          <span className="hidden sm:inline">AI 对话</span>
+        </button>
+
+        <button
+          data-agent-button="view.toggleSolarSystem"
           onClick={() => commandBus.execute({
             name: solarSystemActive ? 'view.showEarth' : 'view.showSolarSystem',
             args: {},
@@ -197,6 +232,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
 
         {/* 截图按钮（仅地球视图可用，太阳系视图禁用） */}
         <button
+          data-agent-button="camera.screenshot"
           onClick={() => commandBus.execute({ name: 'camera.screenshot', args: {} })}
           disabled={solarSystemActive}
           className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 backdrop-blur-sm transition-all ${
@@ -210,6 +246,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
         </button>
 
         <button
+          data-agent-button="voice.toggleMute"
           onClick={onToggleMute}
           className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 backdrop-blur-sm transition-all ${
             voice.muted
@@ -224,6 +261,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
         {/* 实时对话模式切换（全双工，VAD 自动检测说话） */}
         {onToggleRealtimeChat && (
           <button
+            data-agent-button="voice.toggleRealtime"
             onClick={onToggleRealtimeChat}
             disabled={voice.muted}
             className={`flex h-8 w-8 items-center justify-center rounded-lg ring-1 backdrop-blur-sm transition-all ${
@@ -246,6 +284,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
         )}
 
         <button
+          data-agent-button="window.toggleFullscreen"
           onClick={toggleFullscreen}
           className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-800/80 text-white/80 ring-1 ring-geo-500/20 backdrop-blur-sm hover:bg-ink-700/80 hover:text-white transition-all"
           title="全屏"
@@ -256,6 +295,7 @@ export function TopBar({ onOpenCommandMenu, onToggleMute, onToggleRealtimeChat, 
         {/* 帮助按钮 */}
         {onOpenHelp && (
           <button
+            data-agent-button="help.open"
             onClick={onOpenHelp}
             className="flex h-8 w-8 items-center justify-center rounded-lg bg-ink-800/80 text-white/80 ring-1 ring-geo-500/20 backdrop-blur-sm hover:bg-ink-700/80 hover:text-white transition-all"
             title="按键说明（? 键打开）"

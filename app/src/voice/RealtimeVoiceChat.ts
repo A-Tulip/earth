@@ -26,6 +26,7 @@ import { useCallback, useEffect, useRef } from 'react';
 import { ASRAdapter, TTSAdapter, LLMAdapter, LLMMessage } from './adapters';
 import { commandBus } from '../commands/bus';
 import { useGeographyStore } from '../state/store';
+import { LESSON_CATALOG } from '../lessons/catalog';
 
 interface RealtimeVoiceChatOptions {
   asr: ASRAdapter;
@@ -64,7 +65,31 @@ export function useRealtimeVoiceChat({ asr, tts, llm, enabled = false }: Realtim
   const lastVoiceRef = useRef<number>(0);
   const asrActiveRef = useRef<boolean>(false);
   const ttsAbortRef = useRef<boolean>(false);
+  /** 当前正在进行的 ASR.start() Promise；stop 前先 await，避免"还没启动就被 stop"丢整句 */
+  const asrStartPromiseRef = useRef<Promise<void> | null>(null);
   const store = useGeographyStore;
+  // ✅ ISSUE-2：实时对话历史累积（同 PushToTalk，最多 20 条消息，课程切换清空）
+  const historyRef = useRef<LLMMessage[]>([]);
+  const lastLessonIdRef = useRef<string | null>(null);
+
+  /** 历史过长时，删除最老的 user+assistant 对 */
+  const trimHistory = useCallback(() => {
+    const MAX = 20;
+    while (historyRef.current.length > MAX) {
+      const firstNonSysIdx = historyRef.current.findIndex((m) => m.role !== 'system');
+      if (firstNonSysIdx < 0) {
+        historyRef.current.splice(0, 1);
+      } else {
+        const end = Math.min(firstNonSysIdx + 2, historyRef.current.length);
+        historyRef.current.splice(firstNonSysIdx, end - firstNonSysIdx);
+      }
+    }
+  }, []);
+
+  /** 清空对话历史 */
+  const clearHistory = useCallback(() => {
+    historyRef.current = [];
+  }, []);
 
   /** 设置对话状态（同步 ref 和 UI） */
   const setState = useCallback((next: ChatState) => {
@@ -123,9 +148,14 @@ export function useRealtimeVoiceChat({ asr, tts, llm, enabled = false }: Realtim
       asr.setOnPartial?.((text: string) => {
         store.getState().setVoice({ partialText: text });
       });
-      await asr.start();
+      // 记录本次启动的 Promise：VAD 检测到句末时会先 await 它，确保麦克风真正就绪
+      // 之后再 stop()，避免"start() 还没完成（health 探测/麦克风就绪）就被 stop() 返回空"丢整句。
+      const p = asr.start();
+      asrStartPromiseRef.current = p;
+      await p;
     } catch (err) {
       asrActiveRef.current = false;
+      asrStartPromiseRef.current = null;
       const message = err instanceof Error ? err.message : 'ASR 启动失败';
       store.getState().setVoice({
         error: `实时对话 ASR 失败：${message}。可切换到按住空格模式。`,
@@ -139,6 +169,12 @@ export function useRealtimeVoiceChat({ asr, tts, llm, enabled = false }: Realtim
     if (!asrActiveRef.current) return '';
     asrActiveRef.current = false;
     try {
+      // 关键：先等 start() 真正完成（麦克风已启动），再 stop()。
+      // 否则 VAD 瞬间判定句末、start() 还在 await 时 stop() 会返回空文本。
+      if (asrStartPromiseRef.current) {
+        await asrStartPromiseRef.current;
+        asrStartPromiseRef.current = null;
+      }
       const result = await asr.stop();
       return result.text.trim();
     } catch {
@@ -157,16 +193,69 @@ export function useRealtimeVoiceChat({ asr, tts, llm, enabled = false }: Realtim
     store.getState().setVoice({ transcript: userText, partialText: '' });
 
     try {
-      const systemPrompt = `你是地理教学助手。根据用户的语音指令，调用相应的地理工具。
-可用工具：等高线、高程分层、坡度、坡向、地形夸张、二维三维切换、底图切换、飞行定位、图层开关、课程打开、动画播放暂停、太阳系切换、截图、测量。
-用户指令：${userText}`;
+      // ✅ ISSUE-2：拼接上下文
+      const s = store.getState();
+      const sceneContext: string[] = [];
+      // 课程上下文
+      if (s.lesson.activeLessonId) {
+        const meta = LESSON_CATALOG.find((c) => c.id === s.lesson.activeLessonId);
+        if (meta) {
+          const levelStr = meta.level === 'junior' ? '初中' : '高中';
+          const categoryMap: Record<string, string> = {
+            natural: '自然地理',
+            human: '人文地理',
+            regional: '区域地理',
+            'earth-map': '地球与地图',
+          };
+          const categoryStr = categoryMap[meta.category] ?? meta.category;
+          sceneContext.push(`正在上课：${meta.title}（${meta.grade} ${levelStr} · ${categoryStr}）`);
+        }
+        sceneContext.push(`当前步骤 ${s.lesson.currentStep + 1}/${s.lesson.totalSteps}：${s.lesson.stepTitle || '未命名步骤'}`);
+      }
+      // 镜头 / 选中对象
+      const cam = s.camera;
+      sceneContext.push(`镜头坐标：经度 ${cam.longitude.toFixed(1)}°，纬度 ${cam.latitude.toFixed(1)}°，高度 ${Math.round(cam.height)}m`);
+      if (s.selected?.name) sceneContext.push(`选中对象：${s.selected.kind}「${s.selected.name}」`);
+      // 图层
+      const activeLayers: string[] = [];
+      for (const [k, v] of Object.entries(s.annotations)) if (v === true) activeLayers.push(k);
+      for (const [k, v] of Object.entries(s.astronomy)) if (v === true) activeLayers.push(k);
+      for (const [k, v] of Object.entries(s.data)) if (v === true) activeLayers.push(k);
+      if (activeLayers.length) sceneContext.push(`已开图层：${activeLayers.join('、')}`);
+      sceneContext.push(`视图模式：${s.viewMode}，底图：${s.basemap}`);
+      // 地形分析
+      const terrain = s.terrain;
+      if (terrain.contour) sceneContext.push(`分析层：等高线（间距 ${terrain.contourSpacing}m）`);
+      else if (terrain.elevationRamp) sceneContext.push(`分析层：高程分层设色`);
+      else if (terrain.slope) sceneContext.push(`分析层：坡度图`);
+      else if (terrain.aspect) sceneContext.push(`分析层：坡向图`);
+      if (terrain.exaggeration !== 1) sceneContext.push(`地形夸张：${terrain.exaggeration}×`);
+
+      const systemPrompt = `你是初高中地理 AI 教学助手（"地理画布"平台）。请用简洁、准确、符合课标的中文回答学生。
+角色规则：
+- 你能看到当前地球画布的状态（镜头、图层、课程进度），作为回答上下文。
+- 当学生指令可通过地理工具完成时（等高线、图层切换、飞行定位、二维三维切换、地形夸张、课程控制、测量标注、动画控制等），使用 toolCalls 返回；否则直接用 text 回答。
+- 可用工具清单：等高线、高程分层、坡度、坡向、地形夸张、二维三维切换、底图切换、飞行定位、图层开关（osm/卫星/天地图矢量/国家基础地理信息中心影像/高德卫星/EsriOcean/地形/国界/地震/天气/GDP/人口/气温/降水/城市/板块/水系/经纬网）、课程打开、课程下一步/上一步、动画播放/暂停/重置、问题出题、解释概念、测量、标注、太阳系切换、截图。
+- 回答不能编造虚假地理数据；不确定的给出边界并建议学生查阅对应课标章节。
+${sceneContext.length ? `\n【当前画布上下文】\n${sceneContext.join('\n')}` : ''}
+${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.length / 2)} 轮对话，学生可能会追问上一轮问题】` : ''}`;
 
       const messages: LLMMessage[] = [
         { role: 'system', content: systemPrompt },
+        ...historyRef.current,
         { role: 'user', content: userText },
       ];
 
       const response = await llm.chat(messages);
+
+      // ✅ ISSUE-2：累积历史
+      historyRef.current.push({ role: 'user', content: userText });
+      historyRef.current.push({
+        role: 'assistant',
+        content: response.text || '',
+        toolCalls: response.toolCalls,
+      });
+      trimHistory();
 
       // 执行工具调用
       if (response.toolCalls && response.toolCalls.length > 0) {
@@ -198,7 +287,7 @@ export function useRealtimeVoiceChat({ asr, tts, llm, enabled = false }: Realtim
       });
       setState('idle');
     }
-  }, [llm, tts, store, setState]);
+  }, [llm, tts, store, setState, trimHistory]);
 
   /** VAD 检测：计算 RMS 音量 */
   const computeRms = useCallback((): number => {
@@ -325,11 +414,25 @@ export function useRealtimeVoiceChat({ asr, tts, llm, enabled = false }: Realtim
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [enabled]);
 
+  /** 课程切换时清空对话历史 */
+  useEffect(() => {
+    return store.subscribe(
+      (s) => s.lesson.activeLessonId,
+      (newId) => {
+        if (newId !== lastLessonIdRef.current) {
+          clearHistory();
+          lastLessonIdRef.current = newId;
+        }
+      },
+      { fireImmediately: true },
+    );
+  }, [store, clearHistory]);
+
   /** 切换实时对话模式 */
   const toggleRealtimeChat = useCallback(() => {
     const active = store.getState().voice.realtimeChatActive;
     store.getState().setVoice({ realtimeChatActive: !active, error: null });
   }, [store]);
 
-  return { toggleRealtimeChat };
+  return { toggleRealtimeChat, clearHistory };
 }

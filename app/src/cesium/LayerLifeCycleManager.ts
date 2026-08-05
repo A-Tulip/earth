@@ -11,10 +11,14 @@
  */
 import * as Cesium from 'cesium';
 import { useGeographyStore } from '../state/store';
+import type { TransientUIState } from '../state/sceneState';
+
+import type { LayerErrorCategory, LayerErrorKind } from '../state/sceneState';
 
 export type OpKind =
   | 'sceneMode'
   | 'basemap'
+  | 'terrain'
   | 'globeMaterial'
   | 'annotations'
   | 'entities'
@@ -28,13 +32,39 @@ interface PendingOp {
   resolve: (v: unknown) => void;
   reject: (e: unknown) => void;
   controller: AbortController;
+  retryAction?: { name: string; args: Record<string, unknown> } | null;
 }
 
 type Snapshot = Partial<Record<OpKind, unknown>>;
 
+// ---------- Q1 错误分类：根据 OpKind + 错误消息文本推断 LayerErrorCategory ----------
+function classifyError(kind: OpKind, err: Error): LayerErrorCategory {
+  const m = (err?.message ?? '').toLowerCase() + ' ' + (err?.name ?? '').toLowerCase();
+  if (/(fetch|network|xhr|xmlhttprequest|net::|failed to load|failed to fetch|load.*image|tile.*error|request failed|connection)/.test(m)) return 'network';
+  if (/(404|not found).*resource/.test(m) || m.includes('404 not found')) return 'not_found';
+  if (/(401|403|auth|unauthorized|token|key|permission|credential|cors)/.test(m) || /no *'access-control-allow-origin'/.test(m)) return 'auth';
+  if (/(408|timeout|timed ?out|abort|took too long|exceeded)/.test(m)) return 'timeout';
+  if (/(429|too many|rate ?limit|throttl|quota)/.test(m)) return 'rate_limit';
+  if (/(invalid|malformed|bad request|out of range|expected|missing|parameter|argument)/.test(m)) return 'invalid_args';
+  // Q2：运行期空引用 / 类型错误 → 归类为 render（渲染过程中 Cesium 对象被提前销毁或未就绪），不再误判为 "资源不存在"
+  if (/(render|webgl|shader|canvas|context|draw|typeerror|referenceerror|cannot read|reading|undefined is not|null is not)/.test(m)) return 'render';
+  return 'unknown';
+}
+
+const OP_TO_KIND: Record<OpKind, LayerErrorKind> = {
+  sceneMode: 'sceneMode',
+  basemap: 'basemap',
+  terrain: 'terrain',
+  globeMaterial: 'globeMaterial',
+  annotations: 'annotation',
+  entities: 'annotation',
+  dataLayer: 'data',
+};
+
 const ALL_KINDS: OpKind[] = [
   'sceneMode',
   'basemap',
+  'terrain',
   'globeMaterial',
   'annotations',
   'entities',
@@ -48,9 +78,20 @@ export class LayerLifeCycleManager {
   private readonly queue: PendingOp[] = [];
   private readonly prevState: Snapshot = {};
   private sceneMorphing = false;
+  /** 首帧渲染完成前为 false，此时所有错误静默处理，不弹"渲染失败"弹窗 */
+  private initialized = false;
 
   constructor(viewer: Cesium.Viewer) {
     this.viewer = viewer;
+    // 监听首帧渲染完成 → 标记 initialized = true
+    try {
+      const off = viewer.scene.postRender.addEventListener(() => {
+        this.initialized = true;
+        try { off(); } catch { /* ignore */ }
+      });
+      // 兜底：3s 后强制标记为已初始化
+      setTimeout(() => { this.initialized = true; }, 3000);
+    } catch { /* ignore */ }
   }
 
   /**
@@ -61,6 +102,7 @@ export class LayerLifeCycleManager {
   async schedule<T>(
     kind: OpKind,
     run: (signal: AbortSignal) => Promise<T>,
+    opts?: { retryAction?: { name: string; args: Record<string, unknown> } | null },
   ): Promise<T | undefined> {
     const mustEnqueue =
       (this.sceneMorphing && kind !== 'sceneMode') ||
@@ -74,6 +116,7 @@ export class LayerLifeCycleManager {
           resolve: resolve as (v: unknown) => void,
           reject: () => {},
           controller,
+          retryAction: opts?.retryAction,
         });
       });
     }
@@ -83,6 +126,7 @@ export class LayerLifeCycleManager {
       resolve: () => {},
       reject: () => {},
       controller: new AbortController(),
+      retryAction: opts?.retryAction,
     }) as Promise<T | undefined>;
   }
 
@@ -119,6 +163,46 @@ export class LayerLifeCycleManager {
     this.busy[kind] = v;
     const snap = { ...this.busy };
     this.subs.forEach((cb) => cb(snap));
+    // ====== Q2：同步到 store.ui.layerBusy，供 LoadingOverlay 渲染 ======
+    // OpKind → store 层名称映射（store 使用简写）
+    type StoreKind = NonNullable<keyof TransientUIState['layerBusy']>;
+    const KIND_TO_STORE: Partial<Record<OpKind, StoreKind>> = {
+      basemap: 'basemap',
+      terrain: 'terrain',
+      sceneMode: 'sceneMode',
+      globeMaterial: 'globeMaterial',
+      annotations: 'annotation',
+      entities: 'annotation',
+      dataLayer: 'data',
+    };
+    try {
+      const st = useGeographyStore.getState();
+      // 重新根据当前 snap 构建（每一个 kind 映射后 true/false，合并为一个）
+      const next: TransientUIState['layerBusy'] = { ...(st.ui.layerBusy ?? {}) };
+      // 先基于 snap 所有 OpKind 更新
+      const storeKindsSeen = new Set<StoreKind>();
+      for (const opk of ALL_KINDS) {
+        const sk = KIND_TO_STORE[opk];
+        if (!sk) continue;
+        storeKindsSeen.add(sk);
+        // 只要任一对应 OpKind 为 true → true
+        if (snap[opk]) next[sk] = true;
+      }
+      // 对已经置 true 的，若所有对应 OpKind 都 false → 置 false
+      for (const sk of storeKindsSeen) {
+        if (next[sk]) {
+          const anyTrue = ALL_KINDS.some((opk) => KIND_TO_STORE[opk] === sk && snap[opk]);
+          if (!anyTrue) next[sk] = false;
+        }
+      }
+      // 浅比较
+      const prev = st.ui.layerBusy ?? {};
+      const prevKeys = Object.keys(prev).filter((k) => prev[k as keyof typeof prev]);
+      const nextKeys = Object.keys(next).filter((k) => next[k as keyof typeof next]);
+      if (prevKeys.length !== nextKeys.length || nextKeys.some((k) => !prev[k as keyof typeof prev])) {
+        useGeographyStore.setState({ ui: { ...st.ui, layerBusy: next } });
+      }
+    } catch { /* ignore：store 未就绪时跳过 */ }
   }
 
   private async runOne(op: PendingOp): Promise<unknown> {
@@ -147,7 +231,7 @@ export class LayerLifeCycleManager {
       } catch (_rollbackErr) {
         // ignore rollback failure, still report UI error
       }
-      this.reportUiError(op.kind, err as Error);
+      this.reportUiError(op, err as Error);
       op.resolve(undefined); // never reject — white-screen protection
       this.setBusy(op.kind, false);
       void this.drainQueue();
@@ -177,16 +261,20 @@ export class LayerLifeCycleManager {
 
   private nextFrameRender(): Promise<void> {
     const viewer = this.viewer;
+    // 防御：viewer / scene 未就绪时跳过，避免 "Cannot read properties of undefined (reading 'scene')"
+    if (!viewer || !viewer.scene) return Promise.resolve();
     return new Promise((resolve) => {
-      viewer.scene.requestRender();
+      try { viewer.scene.requestRender(); } catch { /* noop */ }
       requestAnimationFrame(() => resolve());
     });
   }
 
   private cleanupBeforeRun(kind: OpKind): Promise<void> {
+    const viewer = this.viewer;
+    if (!viewer || !viewer.scene || !viewer.scene.globe) return Promise.resolve();
     // 0.2 Rule 3: 显式销毁 globe.material uniforms 的 Cesium.Texture
     if (kind === 'globeMaterial') {
-      const globe = this.viewer.scene.globe as Cesium.Globe & {
+      const globe = viewer.scene.globe as Cesium.Globe & {
         material?: {
           uniforms?: Record<string, unknown>;
         };
@@ -209,6 +297,7 @@ export class LayerLifeCycleManager {
     const st = useGeographyStore.getState();
     switch (kind) {
       case 'basemap': return { basemap: st.basemap };
+      case 'terrain': return { terrain: { ...st.terrain } };
       case 'globeMaterial': return { terrain: { ...st.terrain } };
       case 'annotations': return { annotations: { ...st.annotations } };
       case 'entities': return { astronomy: { ...st.astronomy } };
@@ -226,6 +315,7 @@ export class LayerLifeCycleManager {
       case 'basemap':
         if (typeof snap.basemap === 'string') store.setBasemap(snap.basemap as never);
         break;
+      case 'terrain':
       case 'globeMaterial':
         if (snap.terrain) store.setTerrain(snap.terrain as Parameters<typeof store.setTerrain>[0]);
         break;
@@ -246,13 +336,55 @@ export class LayerLifeCycleManager {
     await this.nextFrameRender();
   }
 
-  private reportUiError(kind: OpKind, err: Error): void {
+  private reportUiError(op: PendingOp, err: Error): void {
+    // 初始化期间（首帧渲染未完成）：所有错误静默处理，不弹"渲染失败"弹窗
+    // 这是 "Cannot read properties of undefined (reading 'scene')" 的根因防护
+    if (!this.initialized) {
+      console.warn('[LayerLifeCycleManager] init-phase error (suppressed):', op.kind, err?.message ?? err);
+      return;
+    }
+    const kind = op.kind;
     const store = useGeographyStore.getState();
+    const cat = classifyError(kind, err);
+    const uiKind = OP_TO_KIND[kind] ?? 'unknown';
     const msg = `${kind}: ${err?.message ?? String(err)}`;
+    // Q1：根据 op.kind 自动推断 retryAction（若调用方没传，基于 snapshot 生成）
+    let retryAction = op.retryAction ?? null;
+    if (!retryAction) {
+      const snap = this.prevState[kind] as Record<string, unknown> | undefined;
+      switch (kind) {
+        case 'basemap': {
+          const bm = snap?.basemap ?? store.basemap;
+          retryAction = { name: 'view.setBasemap', args: { basemap: bm } };
+          break;
+        }
+        case 'terrain':
+        case 'globeMaterial': {
+          const t = snap?.terrain ?? store.terrain;
+          retryAction = { name: 'view.setBasemap', args: { basemap: store.basemap } };
+          // terrain 没有直接 public 命令，回退到切 basemap 触发 provider 重建
+          break;
+        }
+        case 'sceneMode': {
+          const vm = snap?.viewMode ?? store.viewMode;
+          retryAction = { name: 'view.setMode', args: { mode: vm } };
+          break;
+        }
+        case 'annotations':
+        case 'entities':
+        case 'dataLayer':
+          // 无通用重放命令，留给调用方指定；此处留 null（UI 上显示"已自动回退"即可）
+          retryAction = null;
+          break;
+      }
+    }
     try {
       store.setUI({
         lastLayerError: msg,
         lastLayerErrorAt: new Date().toISOString(),
+        lastLayerErrorCategory: cat,
+        lastLayerErrorKind: uiKind,
+        lastLayerErrorRetryAction: retryAction,
       } as Parameters<typeof store.setUI>[0]);
     } catch (_e) {
       console.error('[LayerLifeCycleManager]', msg);

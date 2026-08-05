@@ -14,6 +14,8 @@ export default defineConfig({
     },
   },
   test: {
+    // 单元测试不读 .env.local，避免用户本地密钥/高德 key 改变初始 basemap 默认值
+    envFile: false,
     environment: 'jsdom',
     globals: true,
     include: ['tests/**/*.test.{ts,tsx}'],
