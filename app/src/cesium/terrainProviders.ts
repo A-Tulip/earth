@@ -24,14 +24,19 @@ declare global {
 }
 
 function attachTileErrorListener(provider: Cesium.ImageryProvider, kind: string): void {
-  if (provider.errorEvent && typeof (provider.errorEvent as any).addEventListener === 'function') {
-    (provider.errorEvent as any).addEventListener((providerError: any) => {
-      const layerManager = window.__layerManager || null;
-      const msg = `TileError(${kind}): ${providerError?.message || 'tile fetch failed'}`;
-      console.warn('[TileError]', kind, msg);
-      layerManager?.reportExternalError?.(kind as any, new Error(msg));
-    });
-  }
+  if (typeof window === 'undefined') return;
+  const errorEvent = (provider as any).errorEvent;
+  if (!errorEvent || typeof errorEvent.addEventListener !== 'function') return;
+
+  let reported = false;
+  errorEvent.addEventListener((providerError: any) => {
+    if (reported) return;
+    reported = true;
+    const layerManager = (window as any).__layerManager || null;
+    const msg = `TileError(${kind}): ${providerError?.message || 'tile fetch failed'}`;
+    console.warn('[TileError]', kind, msg);
+    layerManager?.reportExternalError?.(kind, new Error(msg));
+  });
 }
 
 // ============ 环境变量 ============
