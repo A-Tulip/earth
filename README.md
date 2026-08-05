@@ -15,6 +15,8 @@ npm run dev
 
 **零配置即可启动**：不需要任何环境变量。无 ion token 时使用 OSM 免 token 底图 + 椭球地形；无云端 ASR/TTS/LLM 时使用浏览器 Web Speech API + 本地关键词意图解析回退。
 
+> **可选的云端能力**：如需火山引擎语音/大模型，另起终端启动 FastAPI 后端——`cp api/.env.example api/.env` 填密钥后 `make api`（端口 8787）。详见下方[配置](#配置可选)。
+
 ## 使用
 
 ### 语音（桌面端）
@@ -33,19 +35,40 @@ npm run dev
 
 ## 配置（可选）
 
+**零配置即可启动**：不需要任何密钥即可看到完整地球。以下均为可选增强。
+
+### 前端（`app/.env.local`）
+
 ```bash
 cd app
-cp .env.example .env.local
+cp .env.example .env.local   # 仅填需要的 VITE_ 开关
 ```
 
-| 变量 | 作用 | 不填的回退 |
-|---|---|---|
-| `VITE_CESIUM_ION_TOKEN` | Cesium World Terrain + 高清影像 | OSM 底图 + 椭球地形 |
-| `VITE_ASR_PROVIDER` | 语音识别供应商 | 浏览器 Web Speech API |
-| `VITE_TTS_PROVIDER` | 语音合成供应商 | 浏览器 speechSynthesis |
-| `VITE_LLM_PROVIDER` | 意图理解供应商 | 本地关键词解析 |
+| 变量 | 作用 | 不填的回退 | 申请地址 |
+|---|---|---|---|
+| `VITE_CESIUM_ION_TOKEN` | Cesium World Terrain（真实地形，等高线/坡度/高程分析）| OSM 底图 + 椭球地形 | https://ion.cesium.com/tokens |
+| `VITE_TIANDITU_TOKEN` | 天地图中英文注记卫星/政区/地形底图 | OSM / Esri（英文注记）| https://console.tianditu.gov.cn/api/key |
+| `VITE_AMAP_KEY` | 高德卫星/路网/中文注记（街景级，zoom 19–20）| OSM / Esri 回退 | https://console.amap.com/dev/key/app |
+| `VITE_ASR_PROVIDER` | 语音识别供应商（`browser`/`volcengine`）| 浏览器 Web Speech API | — |
+| `VITE_TTS_PROVIDER` | 语音合成供应商（`browser`/`volcengine`）| 浏览器 speechSynthesis | — |
+| `VITE_LLM_PROVIDER` | 意图理解供应商（`keyword`/`volcengine`）| 本地关键词解析 | — |
 
-申请 Cesium ion token：https://ion.cesium.com/tokens
+### 后端（火山引擎云端能力，可选）
+
+启用云端语音/大模型前，先配置 FastAPI 后端密钥：
+
+```bash
+cp api/.env.example api/.env   # 填入所需的 VOLC_* 密钥
+make api                        # 启动后端（端口 8787）
+```
+
+| 密钥 | 作用 | 申请地址 |
+|---|---|---|
+| `VOLC_ARK_API_KEY` | 豆包大模型（LLM 意图理解/回答）| https://console.volcengine.com/ark |
+| `VOLC_ASR_API_KEY` / `VOLC_ASR_APP_ID` | 流式语音识别（ASR）| https://console.volcengine.com/speech/app |
+| `VOLC_TTS_API_KEY` / `VOLC_TTS_APP_ID` | 语音合成（TTS）| https://console.volcengine.com/speech/app |
+
+> 详细密钥项、鉴权模式与申请步骤见 [api/.env.example](api/.env.example)。所有真实密钥只进服务端，前端通过 `/api/*` 同源代理调用，绝不暴露到浏览器。
 
 ## 构建与测试
 
