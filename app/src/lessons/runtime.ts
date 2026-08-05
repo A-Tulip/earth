@@ -555,9 +555,7 @@ export class LessonRuntime {
     if (!wantAnyTerrainMaterial && hasAnyTerrainMaterialNow) {
       try {
         await commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__' } });
-      } catch {
-        /* ignore */
-      }
+      } catch (e) { console.warn('[EmptyCatch] lessons/runtime.ts:558', (e as any)?.message ?? e); }
     }
 
     // 时间维度：先写 store（CesiumCanvas 订阅驱动时钟）；若步骤不想要时间动画则关闭

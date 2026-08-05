@@ -116,25 +116,25 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
                 `[CesiumCanvas] layer 加载失败 status=${e?.statusCode ?? ''} url=${(e?.url ?? '').slice(0, 140)} msg=${e?.message ?? String(err)}`,
               );
             });
-          } catch { /* ignore */ }
+          } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:119', (e as any)?.message ?? e); }
         }
       };
       watchTiles();
       // 后续 setBasemap 动态新增的 layer 也一并监听
       viewer.imageryLayers.layerAdded.addEventListener(() => watchTiles());
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:125', (e as any)?.message ?? e); }
     // (0) 基岩色：默认 Globe 无瓦片处为 BLACK（纯黑），在深空蓝色 Starfield 上就是"黑洞"。
     //     改成带一点点深蓝的基岩色 —— 瓦片没加载完的地方看起来是
     //     一致的真实深色海洋，而不是"破洞"。
-    try { (viewer.scene.globe as unknown as { baseColor?: Cesium.Color }).baseColor = Cesium.Color.fromBytes(6, 14, 30, 255); } catch { /* ignore */ }
+    try { (viewer.scene.globe as unknown as { baseColor?: Cesium.Color }).baseColor = Cesium.Color.fromBytes(6, 14, 30, 255); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:129', (e as any)?.message ?? e); }
     // (0b) 关 globe 半透明：半透明会让背面瓦片透过正面看到，视觉上像"镂空"
     try {
       const g = viewer.scene.globe as unknown as { translucency?: { enabled?: boolean } };
       if (g.translucency && typeof g.translucency.enabled === 'boolean') g.translucency.enabled = false;
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:134', (e as any)?.message ?? e); }
     // (0c) 隐藏瓦片加载失败的红色错误纹理 + 失败提示
-    try { (viewer.scene.globe as unknown as { showTileFailures?: boolean }).showTileFailures = false; } catch { /* ignore */ }
-    try { (viewer.scene as unknown as { tileLoadFailureMessage?: boolean }).tileLoadFailureMessage = false; } catch { /* ignore */ }
+    try { (viewer.scene.globe as unknown as { showTileFailures?: boolean }).showTileFailures = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:136', (e as any)?.message ?? e); }
+    try { (viewer.scene as unknown as { tileLoadFailureMessage?: boolean }).tileLoadFailureMessage = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:137', (e as any)?.message ?? e); }
     // ✅ ISSUE 通用内容贴图修复：如果瓦片 CORS / 403 / 断网 全失败，会看到一个纯深蓝黑的"纯色球"，
     //   用户以为"全都是贴图/没渲染"。这里补一个程序化 Canvas 海洋底纹作为"最后兜底瓦片"：
     //   - 当 imageryLayers 全空或全失败时，显示一个带海洋噪声纹理（非纯色）的底图
@@ -192,7 +192,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       //    → 把真实卫星图盖在下面，用户看到的是"假蓝色噪声球"；而真实瓦片加载失败处又露出黑色空洞。
       //    改为插入 index 0：真实瓦片成功 → 盖住兜底；失败 → 兜底透出，不再有黑洞。
       const fbLayer = viewer.imageryLayers.addImageryProvider(fallbackProvider, 0);
-      try { (fbLayer as unknown as { _label?: string })._label = '__fallbackOceanNoise__'; } catch { /* ignore */ }
+      try { (fbLayer as unknown as { _label?: string })._label = '__fallbackOceanNoise__'; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:195', (e as any)?.message ?? e); }
       fbLayer.alpha = 1;
     } catch { /* ignore：如果 fallback 构建失败，保持原来 baseColor 也不会崩溃 */ }
     // (1) 地形深度 vs 球壳/大气层 z-fighting → 关 against-terrain 深度测试
@@ -200,12 +200,12 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     // (2) 背面剔除关：背面剔除会把视角稍偏背面的椭球面片直接剔除，出现"挖洞"
     viewer.scene.globe.backFaceCulling = false;
     // (2b) Q6 加强：关 debug tile 边框（部分 Cesium 版本默认可能开），避免 seam 视觉
-    try { (viewer.scene.globe as unknown as { showTileBoundaries?: boolean }).showTileBoundaries = false; } catch { /* ignore */ }
+    try { (viewer.scene.globe as unknown as { showTileBoundaries?: boolean }).showTileBoundaries = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:203', (e as any)?.message ?? e); }
     // (2c) Q6 加强：启用对数深度缓冲，减少远/近裁剪面比例失衡造成的 z-fighting
     try {
       const sceneAny = viewer.scene as unknown as { logarithmicDepthBuffer?: boolean };
       if (typeof sceneAny.logarithmicDepthBuffer === 'boolean') sceneAny.logarithmicDepthBuffer = true;
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:208', (e as any)?.message ?? e); }
     // (3) 收紧近裁剪面：PerspectiveFrustum near public number
     try {
       const f = viewer.camera.frustum as Cesium.PerspectiveFrustum;
@@ -217,7 +217,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       // 2D 正交投影：near/far 类似处理
       const f2 = viewer.camera.frustum as Cesium.OrthographicFrustum;
       if (typeof f2.near === 'number' && f2.near < 10) f2.near = 10;
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:220', (e as any)?.message ?? e); }
     // (4) Sky/地面大气：亮度修正（Q1 曝光根治）
     //     - HDR tonemap pipeline 默认开 → 教学底图偏白/过曝；关掉线性输出更接近真实卫星图
     //     - skyAtmosphere brightnessShift 负 → 边缘大气辉光不刺眼
@@ -231,7 +231,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       };
       if (typeof sceneAny.highDynamicRange === 'boolean') sceneAny.highDynamicRange = false;
       if (typeof sceneAny.tonemapped === 'boolean') sceneAny.tonemapped = false;
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:234', (e as any)?.message ?? e); }
     if (viewer.scene.skyAtmosphere) {
       viewer.scene.skyAtmosphere.show = true;
       // ⚠️ 从 -0.12 → -0.05：之前压暗太狠，大气临边衔接时变成一圈死黑轮廓（视觉上的"黑洞边缘"）
@@ -253,9 +253,9 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       if (typeof globeAny.atmosphereHueShift === 'number') globeAny.atmosphereHueShift = -0.02; // Q5
       // 关水面高光：教学用的 Esri/天地图/高德卫星底图都已经自带水面纹理，动态水面高光会让海洋局部发亮（Q1 另一曝光源）
       if (typeof globeAny.showWaterEffect === 'boolean') globeAny.showWaterEffect = false;
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:256', (e as any)?.message ?? e); }
     // (5) Cesium 原生 SkyBox：直接置 null（比 show=false 更干净，避免哪怕 show=false 的对象占资源）
-    try { (viewer.scene as unknown as { skyBox?: Cesium.SkyBox | null }).skyBox = null; } catch { /* ignore */ }
+    try { (viewer.scene as unknown as { skyBox?: Cesium.SkyBox | null }).skyBox = null; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:258', (e as any)?.message ?? e); }
     // (6) Cesium 原生 Sun/Moon：
     //    ⚠️ ISSUE-1b 浮动圆盘根因：scene.sun = null / scene.moon = null 在部分 Cesium 版本上是只读属性，
     //       静默赋值失败后，Cesium 仍然会在镜头靠近太阳/月亮方向时绘制巨大的 billboard 圆（无光照材质，
@@ -263,10 +263,10 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     //       三重防御：(a) try/catch 包 null 赋值 (b) 若属性是 getter-only 则 fallback 设 .show = false
     //                (c) 启动后立即 removeAll 非业务实体 + clear 场景里的多余 primitive
     try { (viewer.scene as unknown as { sun?: unknown }).sun = null; } catch {
-      try { const s = (viewer.scene as unknown as { sun?: { show?: boolean } }).sun; s && (s.show = false); } catch { /* ignore */ }
+      try { const s = (viewer.scene as unknown as { sun?: { show?: boolean } }).sun; s && (s.show = false); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:266', (e as any)?.message ?? e); }
     }
     try { (viewer.scene as unknown as { moon?: unknown }).moon = null; } catch {
-      try { const m = (viewer.scene as unknown as { moon?: { show?: boolean } }).moon; m && (m.show = false); } catch { /* ignore */ }
+      try { const m = (viewer.scene as unknown as { moon?: { show?: boolean } }).moon; m && (m.show = false); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:269', (e as any)?.message ?? e); }
     }
     // ISSUE-1b 第二层清理：Cesium 在 Viewer 构造函数内会默认创建一些 primitives/entities（比如
     //   调试球体、label 集合、旧版本 moon/sun primitive）。构造完成后 clearAll 未知内容，
@@ -277,9 +277,9 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       // 清理所有非 globe 相关 primitive
       const pc = viewer.scene.primitives;
       for (let i = pc.length - 1; i >= 0; i--) {
-        try { pc.remove(pc.get(i)); } catch { /* ignore */ }
+        try { pc.remove(pc.get(i)); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:280', (e as any)?.message ?? e); }
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:282', (e as any)?.message ?? e); }
     // (7) 统一背景色（透传，和 Starfield 深蓝衔接）
     viewer.scene.backgroundColor = Cesium.Color.TRANSPARENT;
 
@@ -297,11 +297,11 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       if (typeof globeAny.maximumScreenSpaceError === 'number') {
         globeAny.maximumScreenSpaceError = 1.4;
       }
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:300', (e as any)?.message ?? e); }
     // (3) Globe 光照细节：normal-based shading（让地形在任何底图下都更有"皮纹"质感）
     try {
       (viewer.scene.globe as unknown as { showSkirts?: boolean }).showSkirts = true;
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:304', (e as any)?.message ?? e); }
 
     // ============== LayerLifeCycleManager 单例注入 ==============
     // Q2 同步创建（不用动态 import）：确保 terrain 异步加载 schedule 之前单例已就绪
@@ -342,7 +342,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
           if (tAny.ready === false && tAny.readyPromise) {
             await Promise.race([tAny.readyPromise, new Promise((r) => setTimeout(r, 6000))]);
           }
-        } catch { /* ignore */ }
+        } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:345', (e as any)?.message ?? e); }
         if (!cancelled) useGeographyStore.getState().setTerrain({ available: true });
       });
     }
@@ -385,13 +385,13 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       const switchToAmap = () => {
         if (amapSwitched || cancelled) return;
         amapSwitched = true;
-        try { offAmap(); } catch { /* ignore */ }
+        try { offAmap(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:388', (e as any)?.message ?? e); }
         void Promise.resolve().then(async () => {
           if (cancelled) return;
           try {
             await controller.setBasemap('amapSatellite');
             useGeographyStore.getState().setBasemap('amapSatellite');
-          } catch { /* ignore */ }
+          } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:394', (e as any)?.message ?? e); }
         });
       };
       const offAmap = viewer.scene.postRender.addEventListener(switchToAmap);
@@ -428,7 +428,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
           };
           if (typeof sceneAny.highDynamicRange === 'boolean') sceneAny.highDynamicRange = false;
           if (typeof sceneAny.tonemapped === 'boolean') sceneAny.tonemapped = false;
-        } catch { /* ignore */ }
+        } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:431', (e as any)?.message ?? e); }
         // (B) Globe tileCacheSize（若暴露了 setTileCacheSize / _tileCacheSize）
         const globe = viewer.scene.globe as unknown as {
           tileCacheSize?: number; _tileCacheSize?: number;
@@ -458,14 +458,21 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
         }
         // (D) 地形夸张倍数：越低 → 顶点变形越小
         try {
-          const terrainExag = useGeographyStore.getState().terrain?.exaggeration;
-          if (terrainExag != null) {
-            useGeographyStore.setState({
-              terrain: { ...useGeographyStore.getState().terrain, exaggeration: cfg.terrainExaggeration },
-            });
+          const st = useGeographyStore.getState();
+          const lessonActive = !!st.lesson?.activeLessonId || (window as any)._lessonActiveForExaggerationGuard;
+          const perfSkipWrite = lessonActive;
+          if (!perfSkipWrite) {
+            const terrainExag = st.terrain?.exaggeration;
+            if (terrainExag != null) {
+              useGeographyStore.setState({
+                terrain: { ...st.terrain, exaggeration: cfg.terrainExaggeration },
+              });
+            }
+            (viewer.scene.globe as unknown as { _terrainExaggeration?: number })._terrainExaggeration = cfg.terrainExaggeration;
+          } else {
+            (viewer.scene.globe as unknown as { _terrainExaggeration?: number })._terrainExaggeration = cfg.terrainExaggeration;
           }
-          (viewer.scene.globe as unknown as { _terrainExaggeration?: number })._terrainExaggeration = cfg.terrainExaggeration;
-        } catch { /* ignore */ }
+        } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:475', (e as any)?.message ?? e); }
         // (E) 后处理：FXAA/Bloom 由 DegradeConfig 控制；Bloom 默认全关（Q1 曝光修复）
         try {
           const p = (viewer.scene.postProcessStages as unknown as {
@@ -476,19 +483,19 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
           const fxaaWant = curModeIs2D ? true : cfg.fxaaEnabled;
           if (p.fxaa) (p.fxaa as unknown as { enabled?: boolean }).enabled = fxaaWant;
           if (p.bloom) (p.bloom as unknown as { enabled?: boolean }).enabled = cfg.bloomEnabled;
-        } catch { /* ignore */ }
+        } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:486', (e as any)?.message ?? e); }
         // (F) 大气层：低档关掉，省全屏后处理 pass；**2D 模式下一律关**（大气层仅 3D/哥伦布有意义）
         try {
           const curMode = viewer.scene.mode;
           const anyAtm = cfg.tier <= 1 && curMode !== Cesium.SceneMode.SCENE2D;
           viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = anyAtm);
           viewer.scene.globe.showGroundAtmosphere = anyAtm;
-        } catch { /* ignore */ }
+        } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:493', (e as any)?.message ?? e); }
         // (G) 太阳/月亮：任何 tier 都关闭 Cesium 原生太阳 billboard（Q8：消除天空日食大黑圆/空洞；
         //         DirectionalLight 不需要 sun.show 就能构建；太阳直射点标注我们自己有 astro-direct-point 实体
         //         SunLight 也不依赖 sun.show —— 它只是读取 sun 的方向向量，而方向向量仍可从 scene.sun.positionWC 读取
-        try { viewer.scene.sun && (viewer.scene.sun.show = false); } catch { /* ignore */ }
-        try { viewer.scene.moon && (viewer.scene.moon.show = false); } catch { /* ignore */ }
+        try { viewer.scene.sun && (viewer.scene.sun.show = false); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:497', (e as any)?.message ?? e); }
+        try { viewer.scene.moon && (viewer.scene.moon.show = false); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:498', (e as any)?.message ?? e); }
         // (H) 把 solar 像素比上限挂到 window 全局（SolarEngine 懒加载时读取）
         (window as unknown as { _solarPixelRatioClamp?: number })._solarPixelRatioClamp = cfg.solarPixelRatioClamp;
         // (I) 把 labelLODFactor 暴露给 CesiumLayerSync applyLabelLOD()
@@ -580,8 +587,8 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       const finalize = () => {
         if (done) return;
         done = true;
-        try { off(); } catch { /* ignore */ }
-        try { window.clearTimeout(tOut); } catch { /* ignore */ }
+        try { off(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:590', (e as any)?.message ?? e); }
+        try { window.clearTimeout(tOut); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:591', (e as any)?.message ?? e); }
         pushStartup(100, null);
       };
       const off = viewer.scene.postRender.addEventListener(() => {
@@ -597,8 +604,8 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       const msg = ev?.message ?? String(ev);
       if (typeof msg === 'string' && (msg.includes('Cesium') || msg.includes('tile') || msg.includes('render') || msg.includes('WebGL'))) {
         console.warn('[CesiumCanvas] swallowed render error:', msg);
-        try { ev.preventDefault?.(); } catch { /* noop */ }
-        try { viewer.scene.requestRender(); } catch { /* ignore */ }
+        try { ev.preventDefault?.(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:607', (e as any)?.message ?? e); }
+        try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:608', (e as any)?.message ?? e); }
       }
     };
     const onUnhandledRejection = (ev: PromiseRejectionEvent) => {
@@ -607,7 +614,7 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       // 忽略已知 Cesium/网络瓦片类 Promise 异常（不致命，白屏更严重）
       if (rStr && /Cesium|tile|ImageryProvider|Terrain|network|fetch|CORS|404|429|5\d\d/i.test(rStr)) {
         console.warn('[CesiumCanvas] swallowed unhandled rejection:', rStr);
-        try { ev.preventDefault?.(); } catch { /* noop */ }
+        try { ev.preventDefault?.(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:617', (e as any)?.message ?? e); }
       }
     };
     window.addEventListener('error', onGlobalError);

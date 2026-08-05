@@ -81,10 +81,10 @@ export function CesiumLayerSync() {
               } else {
                 viewer.entities.remove(e);
               }
-            } catch { /* ignore */ }
+            } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:84', (e as any)?.message ?? e); }
           }
           entities[key] = [];
-          try { viewer.scene.requestRender(); } catch { /* ignore */ }
+          try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:87', (e as any)?.message ?? e); }
         };
         if (mgr) void mgr.schedule(kind, async () => run());
         else run();
@@ -125,10 +125,10 @@ export function CesiumLayerSync() {
                 if (idx.has(idStr)) {
                   merged.push(idx.get(idStr)!);
                   // build 过程已经 add 了 cand（因为 build 内部是 viewer.entities.add），移除它避免重复
-                  try { viewer.entities.remove(cand); } catch { /* ignore */ }
+                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:128', (e as any)?.message ?? e); }
                 } else {
                   merged.push(alreadyInViewer);
-                  try { viewer.entities.remove(cand); } catch { /* ignore */ }
+                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:131', (e as any)?.message ?? e); }
                 }
               } else {
                 merged.push(cand);
@@ -136,8 +136,8 @@ export function CesiumLayerSync() {
             }
             entities[key] = merged;
             backfillLabelMeta(merged);
-            try { applyLabelLOD(viewer, entities); } catch { /* ignore */ }
-            try { viewer.scene.requestRender(); } catch { /* ignore */ }
+            try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:139', (e as any)?.message ?? e); }
+            try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:140', (e as any)?.message ?? e); }
           } catch (e) {
             console.warn('[CesiumLayerSync] ensureLayer build fail', key, e);
           }
@@ -171,7 +171,7 @@ export function CesiumLayerSync() {
             if (existing.length === 0) {
               entities[key] = built;
               backfillLabelMeta(built);
-              try { applyLabelLOD(viewer, entities); } catch { /* ignore */ }
+              try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:174', (e as any)?.message ?? e); }
             } else {
               // 冲突：有旧引用了 → 按 id 建索引，只有不存在的才保留；新建的重复 id 立即 remove
               const idx = new Map<string, Cesium.Entity>();
@@ -182,7 +182,7 @@ export function CesiumLayerSync() {
                 const idStr = String(cand.id);
                 if (idx.has(idStr)) {
                   // 已存在 → cand 是 buildAsync 内部 viewer.entities.add 创建的重复，移除它
-                  try { viewer.entities.remove(cand); } catch { /* ignore */ }
+                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:185', (e as any)?.message ?? e); }
                 } else {
                   finalList.push(cand);
                   idx.set(idStr, cand);
@@ -190,9 +190,9 @@ export function CesiumLayerSync() {
               }
               entities[key] = finalList;
               backfillLabelMeta(finalList);
-              try { applyLabelLOD(viewer, entities); } catch { /* ignore */ }
+              try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:193', (e as any)?.message ?? e); }
             }
-            try { viewer.scene.requestRender(); } catch { /* ignore */ }
+            try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:195', (e as any)?.message ?? e); }
           } catch (e) {
             console.warn('[CesiumLayerSync] async build fail', key, e);
           }
@@ -1051,20 +1051,20 @@ export function CesiumLayerSync() {
                   const s = useGeographyStore.getState() as unknown as { setAstronomy?: (p: Partial<{ rotation: boolean }>) => void };
                   if (s.setAstronomy) s.setAstronomy({ rotation: false });
                   else useGeographyStore.setState({ astronomy: { ...useGeographyStore.getState().astronomy, rotation: false } });
-                } catch { /* ignore */ }
+                } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1054', (e as any)?.message ?? e); }
               }
               try {
                 // CesiumController 暴露的是 setRotation(enabled, speed)
                 const c = ctrl0 as unknown as { setRotation: (en: boolean, sp: number) => void };
                 c.setRotation(false, 0);
-              } catch { /* ignore */ }
+              } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1060', (e as any)?.message ?? e); }
             }
           },
           { fireImmediately: true },
         );
         return () => {
-          try { tickListener(); } catch { /* ignore */ }
-          try { storeModeUnsub?.(); } catch { /* ignore */ }
+          try { tickListener(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1066', (e as any)?.message ?? e); }
+          try { storeModeUnsub?.(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1067', (e as any)?.message ?? e); }
         };
       } catch (e) {
         // Q2 关键：scheduleLOD 构建失败永不冒泡到组件挂载异常（否则整个图层同步崩）
@@ -1305,7 +1305,7 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
   try {
     const f = (window as unknown as { _labelLODFactor?: number })._labelLODFactor;
     if (typeof f === 'number' && f > 0) scale *= f;
-  } catch { /* ignore */ }
+  } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1308', (e as any)?.message ?? e); }
 
   // 收集图层内有标签的实体（按 layerKind bucket）
   const buckets = new Map<LabelMeta['layerKind'], Array<{ e: Cesium.Entity; meta: LabelMeta }>>();
@@ -1332,11 +1332,11 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
     const lbl = e.label!;
     if (lbl.show !== undefined) {
       // Cesium Property 在赋值为 boolean 常量时通常自动包一层
-      try { (lbl as any).show = !hideByHeight; } catch { /* noop */ }
+      try { (lbl as any).show = !hideByHeight; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1335', (e as any)?.message ?? e); }
     }
     // 清 pixelOffset 到 base
     if (lbl.pixelOffset !== undefined) {
-      try { (lbl as any).pixelOffset = Cesium.Cartesian2.clone(meta.baseOffset); } catch { /* noop */ }
+      try { (lbl as any).pixelOffset = Cesium.Cartesian2.clone(meta.baseOffset); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1339', (e as any)?.message ?? e); }
     }
   }
 
@@ -1346,7 +1346,7 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
     if (arr.length <= budget) return;
     arr.sort((a, b) => b.meta.priority - a.meta.priority);
     for (let i = budget; i < arr.length; i++) {
-      try { ((arr[i].e.label as any).show) = false; } catch { /* noop */ }
+      try { ((arr[i].e.label as any).show) = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1349', (e as any)?.message ?? e); }
     }
   });
 
@@ -1436,14 +1436,14 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
               item.meta.baseOffset.x + ox,
               item.meta.baseOffset.y + oy,
             );
-          } catch { /* noop */ }
+          } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1439', (e as any)?.message ?? e); }
         }
         break;
       }
     }
     if (!placed) {
       // 3 次都冲突 → 隐藏（避免文字叠在一起）
-      try { ((item.e.label as any).show) = false; } catch { /* noop */ }
+      try { ((item.e.label as any).show) = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1446', (e as any)?.message ?? e); }
     }
   }
 }

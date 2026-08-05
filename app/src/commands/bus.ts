@@ -629,9 +629,9 @@ export function registerCommandHandlers() {
             if (cur.finished) return;
             if (!runtime) return;
             void runtime.nextStep().catch(() => null);
-          } catch { /* ignore */ }
+          } catch (e) { console.warn('[EmptyCatch] commands/bus.ts:632', (e as any)?.message ?? e); }
         }, 1500);
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('[EmptyCatch] commands/bus.ts:634', (e as any)?.message ?? e); }
     }
 
     return { ok: true, data: { correct, explanation }, message: correct ? '回答正确!' : '回答错误' };

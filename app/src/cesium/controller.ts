@@ -79,7 +79,7 @@ export class CesiumController {
           // 回到初始化设定的 SSE（让 PerformanceMonitor 再按 tier 接管）
           try {
             if (typeof globe.maximumScreenSpaceError === 'number') globe.maximumScreenSpaceError = Math.min(originalSSE, 1.4);
-          } catch { /* ignore */ }
+          } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:82', (e as any)?.message ?? e); }
           // 再给 10 帧缓冲，避免刚恢复 SSE 立即降级
           let extra = 10;
           const tail = () => {
@@ -91,7 +91,7 @@ export class CesiumController {
         }
       };
       requestAnimationFrame(step);
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:94', (e as any)?.message ?? e); }
   }
 
   // ================ 指针空闲 3min → 自动重置到中国（彻底解决 Q2 拖拽元素/镜头被强制复位的体验：从 4s 检查/40s 触发 改为 18s 检查/180s 触发） ================
@@ -144,7 +144,7 @@ export class CesiumController {
       if (sscAny.updateEvent && typeof sscAny.updateEvent.addEventListener === 'function') {
         sscAny.updateEvent.addEventListener(ping);
       }
-    } catch { /* noop */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:147', (e as any)?.message ?? e); }
     // 键盘（键盘 W/A/S/D 键位操控也算手势，属于人类在改视角）
     window.addEventListener('keydown', gesturePing, { passive: true });
     // 指针事件：只有按下、释放、wheel 才算真正的操作，避免纯移动导致永远不 idle
@@ -186,7 +186,7 @@ export class CesiumController {
         if ((this.viewer.camera as Cesium.Camera & { _flightController?: { tween?: unknown } })._flightController?.tween) return;
         // 距离初始视角已经很近则跳过（避免重复触发 flyTo 抖动）
         if (this.isNearResetView(1.0)) return;
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:189', (e as any)?.message ?? e); }
       void this.resetToChina({ durationSec: 3.2, force: false });
       this.bumpIdle();
     }, this.idleCheckMs); // 每 18s 检查一次（避免每 4s 扫一次造成的频繁误触发）
@@ -284,9 +284,9 @@ export class CesiumController {
           const st = useGeographyStore.getState();
           if (st.astronomy.rotation) useGeographyStore.setState({ astronomy: { ...st.astronomy, rotation: false } });
           // 2D：关掉大气层（无意义，全屏灰/曝光）、固定正俯视 + 适合中国全图的高度
-          try { viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false); } catch { /* ignore */ }
-          try { viewer.scene.globe.showGroundAtmosphere = false; } catch { /* ignore */ }
-          try { (viewer.scene as unknown as { fog?: { enabled?: boolean } }).fog && (((viewer.scene as any).fog.enabled = false)); } catch { /* ignore */ }
+          try { viewer.scene.skyAtmosphere && (viewer.scene.skyAtmosphere.show = false); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:287', (e as any)?.message ?? e); }
+          try { viewer.scene.globe.showGroundAtmosphere = false; } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:288', (e as any)?.message ?? e); }
+          try { (viewer.scene as unknown as { fog?: { enabled?: boolean } }).fog && (((viewer.scene as any).fog.enabled = false)); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:289', (e as any)?.message ?? e); }
           viewer.scene.globe.enableLighting = false;
           // 2D：地形材质（等高线/高程分层/坡度/坡向）依赖 3D 地形顶点，2D 正交投影下无意义 → 清空
           // store 中的 terrain.* 状态保留，切回 3D 时按 store 重新应用
@@ -295,13 +295,13 @@ export class CesiumController {
               viewer.scene.globe.material = undefined;
               viewer.scene.requestRender();
             }
-          } catch { /* ignore */ }
+          } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:298', (e as any)?.message ?? e); }
           // Q1b 2D：强制关 HDR/tonemap pipeline（避免 morph 过程 Cesium 内部打开导致发白）
           try {
             const sceneAny = viewer.scene as unknown as { highDynamicRange?: boolean; tonemapped?: boolean };
             if (typeof sceneAny.highDynamicRange === 'boolean') sceneAny.highDynamicRange = false;
             if (typeof sceneAny.tonemapped === 'boolean') sceneAny.tonemapped = false;
-          } catch { /* ignore */ }
+          } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:304', (e as any)?.message ?? e); }
           try {
             // ✅ 视图模式 2D 切换修复：原来直接 setView 跳到中国全图 (104,34.5)
             //   用户如果正在看"非洲/南美洲/英国"按 2D 会跳回中国，觉得"视图模式都有问题"
@@ -326,19 +326,19 @@ export class CesiumController {
                 orientation: { heading: 0, pitch: Cesium.Math.toRadians(-90), roll: 0 },
               });
             }
-          } catch (_e) { /* ignore */ }
+          } catch (_e) { console.warn('[EmptyCatch] cesium/controller.ts:329', (_e as any)?.message ?? _e); }
           // Q1b 2D：reapply Degrade，走 applyDegrade 中 2D 专用分支（SSE 更紧/ FXAA 强制开/ cache×1.5）
-          try { getGlobalDegrader().reapply(); } catch { /* ignore */ }
+          try { getGlobalDegrader().reapply(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:331', (e as any)?.message ?? e); }
         } else if (mode === '3d') {
           viewer.scene.globe.enableLighting = false; // 默认仍关光照（避免夜半球过黑）
           // 退出 2D → 让 applyDegrade 恢复 tier<=1 的大气/雾化/后处理
-          try { getGlobalDegrader().reapply(); } catch { /* ignore */ }
+          try { getGlobalDegrader().reapply(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:335', (e as any)?.message ?? e); }
           // 3D：按 store 重新应用地形材质（2D 期间被清空，切回 3D 需恢复等高线/分层/坡度/坡向）
           await this.restoreTerrainMaterialFromStore();
         } else {
           // 哥伦布视图：允许 tier<=1 大气，其他与 3D 一致
           viewer.scene.globe.enableLighting = false;
-          try { getGlobalDegrader().reapply(); } catch { /* ignore */ }
+          try { getGlobalDegrader().reapply(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:341', (e as any)?.message ?? e); }
           await this.restoreTerrainMaterialFromStore();
         }
         viewer.scene.requestRender();
@@ -464,7 +464,7 @@ export class CesiumController {
       viewer.scene.requestRender();
       this.postFlightRefresh('pitch');
       this.bumpIdle();
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:467', (e as any)?.message ?? e); }
   }
 
   // ============ 底图 ============
@@ -551,14 +551,14 @@ export class CesiumController {
           return new Promise<void>((resolve) => {
             const done = () => { resolve(); cleanup(); };
             const cleanup = () => {
-              try { pAny.readyEvent?.removeEventListener(done as never); } catch { /* ignore */ }
+              try { pAny.readyEvent?.removeEventListener(done as never); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:554', (e as any)?.message ?? e); }
               clearTimeout(tid);
             };
             const tid = setTimeout(done, timeoutMs); // 兜底：超时不管 ready 都继续
             try { pAny.readyEvent?.addEventListener(done as never); } catch { done(); }
             // requestRenderMode 下 provider 不会主动拉瓦片，必须先触发一次渲染才会开始请求首瓦片，
             // 否则 ready 永不触发、每次切底图都白等整个 timeoutMs，导致连续切底图（Q3 底图循环）卡顿。
-            try { viewer.scene.requestRender(); } catch { /* ignore */ }
+            try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:561', (e as any)?.message ?? e); }
           });
         } catch {
           return Promise.resolve();
@@ -588,7 +588,7 @@ export class CesiumController {
 
       // fade 完成后移除旧的
       for (const old of oldLayers) {
-        try { layers.remove(old, true); } catch { /* ignore */ }
+        try { layers.remove(old, true); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:591', (e as any)?.message ?? e); }
       }
       // 确保新 layer alpha 最终归 1
       newBaseLayer.alpha = 1;
@@ -637,7 +637,7 @@ export class CesiumController {
             try {
               const main = getMainBasemapLayer();
               if (main) main.alpha = 0.62;
-            } catch { /* ignore */ }
+            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:640', (e as any)?.message ?? e); }
           });
         } else if (bm === 'landform') {
           await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
@@ -652,7 +652,7 @@ export class CesiumController {
             try {
               const main = getMainBasemapLayer();
               if (main) main.alpha = 0.35;
-            } catch { /* ignore */ }
+            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:655', (e as any)?.message ?? e); }
           });
         } else {
           await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
@@ -661,7 +661,7 @@ export class CesiumController {
             try {
               const main = getMainBasemapLayer();
               if (main) main.alpha = 1;
-            } catch { /* ignore */ }
+            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:664', (e as any)?.message ?? e); }
           });
         }
       }
@@ -1161,7 +1161,7 @@ export class CesiumController {
           try {
             (lyr as any).show = visible;
             foundAny = true;
-          } catch { /* ignore */ }
+          } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:1164', (e as any)?.message ?? e); }
         }
       }
       // 若没有识别到任何注记瓦片层（例如无天地图/高德 key，回退到纯英文底图情况）——
@@ -1170,7 +1170,7 @@ export class CesiumController {
         // 仅在 visible=true 时打日志，避免关闭时刷屏
         if (visible) console.debug('[setLabelImageryVisible] 未检测到注记瓦片层，labels 切换无效（如需中文注记请配置天地图/高德 key）');
       }
-      try { viewer.scene.requestRender(); } catch { /* ignore */ }
+      try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:1173', (e as any)?.message ?? e); }
     } catch (e) {
       console.warn('[setLabelImageryVisible] fail:', e);
     }

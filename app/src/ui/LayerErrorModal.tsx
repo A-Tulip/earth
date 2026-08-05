@@ -72,7 +72,7 @@ export function LayerErrorModal() {
             lastLayerErrorKind: null,
             lastLayerErrorRetryAction: null,
           } as unknown as Parameters<typeof store.setUI>[0]);
-        } catch { /* ignore */ }
+        } catch (e) { console.warn('[EmptyCatch] ui/LayerErrorModal.tsx:75', (e as any)?.message ?? e); }
       }, 260);
     }, 14_000);
     return () => {
@@ -103,7 +103,7 @@ export function LayerErrorModal() {
           lastLayerErrorKind: null,
           lastLayerErrorRetryAction: null,
         } as unknown as Parameters<typeof store.setUI>[0]);
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('[EmptyCatch] ui/LayerErrorModal.tsx:106', (e as any)?.message ?? e); }
     }, 240);
   };
 

@@ -347,7 +347,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
     const onBlur = () => {
       if (isRecordingRef.current) {
         isRecordingRef.current = false;
-        try { asr.abort(); } catch { /* ignore */ }
+        try { asr.abort(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:350', (e as any)?.message ?? e); }
         store.getState().setVoice({ listening: false, asrStreaming: false });
       }
     };
@@ -356,7 +356,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
     const onVisibilityChange = () => {
       if (document.hidden && isRecordingRef.current) {
         isRecordingRef.current = false;
-        try { asr.abort(); } catch { /* ignore */ }
+        try { asr.abort(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:359', (e as any)?.message ?? e); }
         store.getState().setVoice({ listening: false, asrStreaming: false });
       }
     };
@@ -404,7 +404,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
 
   /** 打断当前旁白 */
   const interrupt = useCallback(() => {
-    try { tts.stop(); } catch { /* ignore */ }
+    try { tts.stop(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:407', (e as any)?.message ?? e); }
     store.getState().setVoice({ speaking: false });
   }, [tts, store]);
 

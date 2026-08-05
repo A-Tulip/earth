@@ -41,7 +41,7 @@ export function extractApiError(errJson: unknown, fallback?: string): string {
   try {
     const s = JSON.stringify(o);
     if (s && s.length < 240) return s;
-  } catch { /* ignore */ }
+  } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:44', (e as any)?.message ?? e); }
   return fallback ?? '服务调用失败（未知错误）';
 }
 
@@ -82,7 +82,7 @@ export class BrowserSpeechASR implements ASRAdapter {
 
   private flushPartial(): void {
     const combined = this.finalText + (this.interimText ? (this.finalText ? ' ' : '') + this.interimText : '');
-    try { this.onPartialCb?.(combined); } catch { /* ignore */ }
+    try { this.onPartialCb?.(combined); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:85', (e as any)?.message ?? e); }
   }
 
   async start(): Promise<void> {
@@ -215,7 +215,7 @@ export class BrowserSpeechASR implements ASRAdapter {
 
   private cleanupRecognition(): void {
     if (!this.recognition) return;
-    try { this.recognition.abort(); } catch { /* ignore */ }
+    try { this.recognition.abort(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:218', (e as any)?.message ?? e); }
     this.recognition.onstart = null;
     this.recognition.onresult = null;
     this.recognition.onerror = null;
@@ -228,7 +228,7 @@ export class BrowserSpeechASR implements ASRAdapter {
   abort(): void {
     this.stopResolve?.({ text: '', isFinal: true });
     this.cleanupRecognition();
-    try { this.onPartialCb?.(''); } catch { /* ignore */ }
+    try { this.onPartialCb?.(''); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:231', (e as any)?.message ?? e); }
   }
 
   isListening(): boolean {
@@ -293,7 +293,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
 
       const synth = window.speechSynthesis;
       // 先清空队列，避免上一条还在讲
-      try { synth.cancel(); } catch { /* ignore */ }
+      try { synth.cancel(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:296', (e as any)?.message ?? e); }
       this.clearPoll();
 
       const utter = new SpeechSynthesisUtterance(text);
@@ -321,7 +321,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
         // 如果 voices 还没加载好，Chrome/Edge 在 speak() 后可能刚加载完成——再重新设一次 voice
         if (!v) {
           const v2 = this.pickZhVoice();
-          if (v2) try { utter.voice = v2; } catch { /* ignore */ }
+          if (v2) try { utter.voice = v2; } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:324', (e as any)?.message ?? e); }
         }
         this.startPoll(finish);
       };
@@ -363,7 +363,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
         } else {
           stopCount = 0;
         }
-      } catch { /* ignore */ }
+      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:366', (e as any)?.message ?? e); }
     }, 500);
   }
 
@@ -376,7 +376,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
 
   stop(): void {
     if ('speechSynthesis' in window) {
-      try { window.speechSynthesis.cancel(); } catch { /* ignore */ }
+      try { window.speechSynthesis.cancel(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:379', (e as any)?.message ?? e); }
     }
     this.speaking = false;
     this.clearPoll();
@@ -941,7 +941,7 @@ export class VolcengineArkLLM implements LLMAdapter, IntentChatLLM {
         const args = (safeJSONParse<Record<string, unknown>>(tc.function?.arguments ?? '{}') ?? {}) as Record<string, unknown>;
         const name = tc.function?.name ?? '';
         if (name) toolCalls.push({ name, args });
-      } catch { /* noop */ }
+      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:944', (e as any)?.message ?? e); }
     });
 
     // 槽位 2：服务端自定义 {reply, commands}（非流式 JSON）
@@ -1216,7 +1216,7 @@ export class StreamingASR implements ASRAdapter {
       const cleanupAndResolve = () => { clearTimeout(timeout); resolve(); };
       const cleanupAndReject = (e: Error) => {
         clearTimeout(timeout);
-        try { ws.close(); } catch (_e) { /* noop */ }
+        try { ws.close(); } catch (_e) { console.warn('[EmptyCatch] voice/adapters.ts:1219', (_e as any)?.message ?? _e); }
         reject(e);
       };
 
@@ -1237,7 +1237,7 @@ export class StreamingASR implements ASRAdapter {
               is_little_endian: true,  // JS Int16Array 总是系统字节序，macOS/Windows/ARM/Linux 都是 LE
             },
           }));
-        } catch (_e) { /* noop */ }
+        } catch (_e) { console.warn('[EmptyCatch] voice/adapters.ts:1240', (_e as any)?.message ?? _e); }
       });
 
       ws.addEventListener('message', (event) => {
@@ -1777,9 +1777,7 @@ export class S2SAdapter {
     if (this.ws) {
       try {
         this.ws.close();
-      } catch {
-        /* ignore */
-      }
+      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1780', (e as any)?.message ?? e); }
       this.ws = null;
     }
     this.ready = false;
@@ -1840,9 +1838,7 @@ export class S2SAdapter {
         const text = new TextDecoder().decode(payload);
         try {
           this.cb.onSessionStarted?.(JSON.parse(text).dialog_id || '');
-        } catch {
-          /* ignore */
-        }
+        } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1843', (e as any)?.message ?? e); }
         break;
       }
       case 451: {
@@ -1852,9 +1848,7 @@ export class S2SAdapter {
           const obj = JSON.parse(text) as { results?: Array<{ text: string; is_interim: boolean }> };
           const r = obj.results?.[0];
           if (r) this.cb.onASRResponse?.(r.text, r.is_interim);
-        } catch {
-          /* ignore */
-        }
+        } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1855', (e as any)?.message ?? e); }
         break;
       }
       case 459:
@@ -1866,9 +1860,7 @@ export class S2SAdapter {
         try {
           const obj = JSON.parse(text) as { content?: string };
           if (obj.content) this.cb.onChatResponse?.(obj.content);
-        } catch {
-          /* ignore */
-        }
+        } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1869', (e as any)?.message ?? e); }
         break;
       }
       case 352:

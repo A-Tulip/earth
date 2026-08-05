@@ -87,11 +87,12 @@ export class LayerLifeCycleManager {
     try {
       const off = viewer.scene.postRender.addEventListener(() => {
         this.initialized = true;
-        try { off(); } catch { /* ignore */ }
+        try { off(); } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:90', (e as any)?.message ?? e); }
       });
       // 兜底：3s 后强制标记为已初始化
       setTimeout(() => { this.initialized = true; }, 3000);
-    } catch { /* ignore */ }
+    } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:94', (e as any)?.message ?? e); }
+    if (typeof window !== 'undefined') { (window as any).__layerManager = this; }
   }
 
   /**
@@ -207,17 +208,22 @@ export class LayerLifeCycleManager {
 
   private async runOne(op: PendingOp): Promise<unknown> {
     this.setBusy(op.kind, true);
+    let timeoutId: ReturnType<typeof setTimeout> | undefined;
     try {
       // 0.2 Rule 1: Cleanup → 下一帧 → Apply
       await this.cleanupBeforeRun(op.kind);
       await this.nextFrameRender();
       if (op.controller.signal.aborted) {
+        if (timeoutId !== undefined) clearTimeout(timeoutId);
         op.resolve(undefined);
         this.setBusy(op.kind, false);
         void this.drainQueue();
         return undefined;
       }
-      const result = await op.run(op.controller.signal);
+      const timeoutMs = 15000;
+      const timeoutPromise = new Promise<never>((_, rej) => { timeoutId = setTimeout(() => { op.controller.abort(); rej(new Error('LayerOpTimedOut: ' + timeoutMs + 'ms for ' + op.kind)); }, timeoutMs); });
+      const result = await Promise.race([op.run(op.controller.signal), timeoutPromise]);
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
       // 0.2 Rule 4: snapshot for rollback
       this.prevState[op.kind] = this.snapshotKind(op.kind);
       op.resolve(result);
@@ -225,6 +231,7 @@ export class LayerLifeCycleManager {
       void this.drainQueue();
       return result;
     } catch (err) {
+      if (timeoutId !== undefined) clearTimeout(timeoutId);
       console.warn('[LayerLifeCycleManager] rollback', op.kind, err);
       try {
         await this.rollbackKind(op.kind);
@@ -264,7 +271,7 @@ export class LayerLifeCycleManager {
     // 防御：viewer / scene 未就绪时跳过，避免 "Cannot read properties of undefined (reading 'scene')"
     if (!viewer || !viewer.scene) return Promise.resolve();
     return new Promise((resolve) => {
-      try { viewer.scene.requestRender(); } catch { /* noop */ }
+      try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:274', (e as any)?.message ?? e); }
       requestAnimationFrame(() => resolve());
     });
   }
@@ -284,7 +291,7 @@ export class LayerLifeCycleManager {
         Object.values(mat.uniforms).forEach((v) => {
           const t = v as { destroy?: () => void; isDestroyed?: () => boolean } | undefined;
           if (t && typeof t.destroy === 'function' && !t.isDestroyed?.()) {
-            try { t.destroy(); } catch (_e) { /* noop */ }
+            try { t.destroy(); } catch (_e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:294', (_e as any)?.message ?? _e); }
           }
         });
       }
@@ -389,6 +396,13 @@ export class LayerLifeCycleManager {
     } catch (_e) {
       console.error('[LayerLifeCycleManager]', msg);
     }
+  }
+
+  reportExternalError(kindHint: string, err: Error): void {
+    const kindMap: Record<string, OpKind> = { tianditu:'basemap', amapSat:'basemap', amapRoad:'basemap', amapLabel:'basemap', esriSat:'basemap', esriStreet:'basemap', usgsRelief:'basemap', osm:'basemap', offlineNE:'basemap', terrain:'terrain', terrarium:'terrain', ion:'terrain', earthquake:'dataLayer', naturalEvents:'dataLayer' };
+    const mappedKind = (kindMap[kindHint] ?? 'basemap') as OpKind;
+    this.reportUiError({ kind: mappedKind, retryAction: null, run: async () => {}, resolve: () => {}, reject: () => {}, controller: new AbortController() }, err instanceof Error ? err : new Error(String(err)));
+    void this.rollbackKind(mappedKind);
   }
 }
 

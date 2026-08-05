@@ -165,17 +165,13 @@ export function useRealtimeS2SChat({ adapter, enabled = false }: RealtimeS2SChat
       processorRef.current.onaudioprocess = null;
       try {
         processorRef.current.disconnect();
-      } catch {
-        /* ignore */
-      }
+      } catch (e) { console.warn('[EmptyCatch] voice/RealtimeS2SChat.ts:168', (e as any)?.message ?? e); }
       processorRef.current = null;
     }
     if (micSourceRef.current) {
       try {
         micSourceRef.current.disconnect();
-      } catch {
-        /* ignore */
-      }
+      } catch (e) { console.warn('[EmptyCatch] voice/RealtimeS2SChat.ts:176', (e as any)?.message ?? e); }
       micSourceRef.current = null;
     }
     if (captureCtxRef.current) {
@@ -193,9 +189,7 @@ export function useRealtimeS2SChat({ adapter, enabled = false }: RealtimeS2SChat
     stopCapture();
     try {
       adapter.finishSession();
-    } catch {
-      /* ignore */
-    } finally {
+    } catch (e) { console.warn('[EmptyCatch] voice/RealtimeS2SChat.ts:196', (e as any)?.message ?? e); } finally {
       sessionReadyRef.current = false;
     }
     playerRef.current?.stop();

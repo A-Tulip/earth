@@ -241,7 +241,7 @@ export class AdaptiveDegrader {
 
   /** 外部调用：给一个 FPS 样本（一般由 FpsCounter.subscribe 触发） */
   feed(fps: number, avgFrameMs: number): void {
-    this.sampleListeners.forEach((cb) => { try { cb(fps, avgFrameMs); } catch { /* ignore */ } });
+    this.sampleListeners.forEach((cb) => { try { cb(fps, avgFrameMs); } catch (e) { console.warn('[EmptyCatch] state/PerformanceMonitor.ts:244', (e as any)?.message ?? e); } });
     // 入窗
     this.window.push(fps);
     while (this.window.length > this.WINDOW_SIZE) this.window.shift();
@@ -300,7 +300,7 @@ export class AdaptiveDegrader {
   }
 
   private emit(t: TierTransition): void {
-    this.listeners.forEach((cb) => { try { cb(t); } catch { /* noop */ } });
+    this.listeners.forEach((cb) => { try { cb(t); } catch (e) { console.warn('[EmptyCatch] state/PerformanceMonitor.ts:303', (e as any)?.message ?? e); } });
   }
 }
 

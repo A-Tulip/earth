@@ -103,7 +103,9 @@ export function searchCities(query: string, limit = 8): CityData[] {
 
 // ============ 天气数据（Open-Meteo 免费接口） ============
 
-export interface WeatherData {
+export type OfflineMarker = { _offline?: boolean };
+
+export interface WeatherData extends OfflineMarker {
   city: string;
   lon: number;
   lat: number;
@@ -143,6 +145,7 @@ export async function fetchWeatherByCoord(lon: number, lat: number, displayName 
     if (typeof pressure === 'number') result.pressure = Math.round(pressure);
     return result;
   } catch {
+    console.warn('[DataProvider] fetchWeatherByCoord failed');
     return {
       city: displayName || `${lon.toFixed(1)}, ${lat.toFixed(1)}`,
       lon,
@@ -150,6 +153,7 @@ export async function fetchWeatherByCoord(lon: number, lat: number, displayName 
       temp: 25,
       weather: '离线',
       weatherCode: -1,
+      _offline: true,
     };
   }
 }
@@ -194,7 +198,8 @@ export async function fetchEarthquakes(minMagnitude = 4.5): Promise<EarthquakeDa
       time: new Date(f.properties.time).toISOString(),
     }));
   } catch {
-    return []; // 回退：空数据
+    console.warn('[DataProvider] fetchEarthquakes failed');
+    throw new Error('EarthquakeDataUnavailable');
   }
 }
 
@@ -226,7 +231,8 @@ export async function fetchNaturalEvents(): Promise<NaturalEventData[]> {
       }));
     });
   } catch {
-    return [];
+    console.warn('[DataProvider] fetchNaturalEvents failed');
+    throw new Error('NaturalEventsUnavailable');
   }
 }
 
@@ -309,7 +315,7 @@ export function getPopulation(): PopulationData[] {
 
 // ============ 温度数据（Open-Meteo Climate API） ============
 
-export interface TemperatureData {
+export interface TemperatureData extends OfflineMarker {
   city: string;
   lon: number;
   lat: number;
@@ -331,13 +337,13 @@ export async function fetchTemperature(city: CityData): Promise<TemperatureData>
       monthly: monthly.map((v: number) => (v == null || isNaN(v) ? 0 : Math.round(v * 10) / 10)),
     };
   } catch {
-    return { city: city.name, lon: city.lon, lat: city.lat, annualAvg: 15, monthly: [] };
+    return { city: city.name, lon: city.lon, lat: city.lat, annualAvg: 15, monthly: [], _offline: true };
   }
 }
 
 // ============ 降水数据（Open-Meteo Climate API） ============
 
-export interface PrecipitationData {
+export interface PrecipitationData extends OfflineMarker {
   city: string;
   lon: number;
   lat: number;
@@ -358,7 +364,7 @@ export async function fetchPrecipitation(city: CityData): Promise<PrecipitationD
       monthly: monthly.map((v: number) => (v == null || isNaN(v) ? 0 : Math.round(v))),
     };
   } catch {
-    return { city: city.name, lon: city.lon, lat: city.lat, annualTotal: 800, monthly: [] };
+    return { city: city.name, lon: city.lon, lat: city.lat, annualTotal: 800, monthly: [], _offline: true };
   }
 }
 

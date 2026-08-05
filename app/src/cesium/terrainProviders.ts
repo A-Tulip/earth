@@ -17,6 +17,23 @@
 import * as Cesium from 'cesium';
 import type { BasemapType as SceneBasemapType } from '../state/sceneState';
 
+declare global {
+  interface Window {
+    __layerManager?: { reportExternalError: (kind: string, err: Error) => void };
+  }
+}
+
+function attachTileErrorListener(provider: Cesium.ImageryProvider, kind: string): void {
+  if (provider.errorEvent && typeof (provider.errorEvent as any).addEventListener === 'function') {
+    (provider.errorEvent as any).addEventListener((providerError: any) => {
+      const layerManager = window.__layerManager || null;
+      const msg = `TileError(${kind}): ${providerError?.message || 'tile fetch failed'}`;
+      console.warn('[TileError]', kind, msg);
+      layerManager?.reportExternalError?.(kind as any, new Error(msg));
+    });
+  }
+}
+
 // ============ 环境变量 ============
 
 const TIANDITU_TOKEN = import.meta.env.VITE_TIANDITU_TOKEN as string | undefined;
@@ -57,23 +74,28 @@ export function createBasemapProvider(
 
   // -------- Q7 高德优先（若有 AMAP_KEY 或用户直接选 amap*）--------
   if (type === 'amapSatellite' || type === 'amapPolitical' || type === 'amapRoad') {
+    if (!AMAP_KEY && type.startsWith('amap')) {
+      if (type === 'amapSatellite') {
+        return [createFallbackBasemapProvider('satellite'), null];
+      }
+      if (type === 'amapPolitical' || type === 'amapRoad') {
+        return [createFallbackBasemapProvider('political'), null];
+      }
+    }
     const keyQ = AMAP_KEY ? `&key=${encodeURIComponent(AMAP_KEY)}` : '';
     if (type === 'amapSatellite') {
-      // 卫星底 + 注记层（style=8）
       return [
-        createAmapProvider(6, keyQ),
-        createAmapProvider(8, keyQ),
+        createAmapProvider(6, keyQ, 'amapSat'),
+        createAmapProvider(8, keyQ, 'amapLabel'),
       ];
     }
     if (type === 'amapPolitical') {
-      // 路网矢量底（style=7）+ 注记层（style=8）
       return [
-        createAmapProvider(7, keyQ),
-        createAmapProvider(8, keyQ),
+        createAmapProvider(7, keyQ, 'amapRoad'),
+        createAmapProvider(8, keyQ, 'amapLabel'),
       ];
     }
-    // amapRoad：仅路网矢量（不叠注记，供调试/组合）
-    return [createAmapProvider(7, keyQ), null];
+    return [createAmapProvider(7, keyQ, 'amapRoad'), null];
   }
 
   // -------- 历史别名 terrain → relief，避免 baseKind 类型漂移 --------
@@ -136,7 +158,7 @@ function createTiandituProvider(
     `&LAYER=${layer.split('_')[0]}&TILEMATRIXSET=w&FORMAT=tiles` +
     `&TILECOL={x}&TILEROW={y}&TILEMATRIX={z}&tk=${token}`;
 
-  return new Cesium.WebMapTileServiceImageryProvider({
+  const provider = new Cesium.WebMapTileServiceImageryProvider({
     url,
     layer: layer.split('_')[0],
     style: 'default',
@@ -145,6 +167,8 @@ function createTiandituProvider(
     maximumLevel: maxLevel,
     credit: '国家地理信息公共服务平台 天地图',
   });
+  attachTileErrorListener(provider, 'tianditu');
+  return provider;
 }
 
 /**
@@ -153,45 +177,93 @@ function createTiandituProvider(
 function createFallbackBasemapProvider(
   type: 'satellite' | 'political' | 'relief' | 'landform' | 'osm',
 ): Cesium.ImageryProvider {
-  switch (type) {
-    case 'satellite':
-      return new Cesium.UrlTemplateImageryProvider({
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
-        maximumLevel: 19,
-        credit: 'Esri, Maxar, Earthstar Geographics',
-      });
+  try {
+    switch (type) {
+      case 'satellite': {
+        const provider = new Cesium.UrlTemplateImageryProvider({
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Imagery/MapServer/tile/{z}/{y}/{x}',
+          maximumLevel: 19,
+          credit: 'Esri, Maxar, Earthstar Geographics',
+        });
+        attachTileErrorListener(provider, 'esriSat');
+        return provider;
+      }
 
-    case 'relief':
-      // Esri World Topo Map（地形晕渲+注记，地势图）
-      return new Cesium.UrlTemplateImageryProvider({
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
-        maximumLevel: 19,
-        credit: 'Esri',
-      });
+      case 'relief': {
+        const provider = new Cesium.UrlTemplateImageryProvider({
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Topo_Map/MapServer/tile/{z}/{y}/{x}',
+          maximumLevel: 19,
+          credit: 'Esri',
+        });
+        attachTileErrorListener(provider, 'esriStreet');
+        return provider;
+      }
 
-    case 'landform':
-      // 地貌：USGS World Shaded Relief（分层设色质感）
-      return new Cesium.UrlTemplateImageryProvider({
-        url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}',
-        // Q8: 16→18，允许拉伸缩放
-        maximumLevel: 18,
-        credit: 'USGS',
-      });
+      case 'landform': {
+        const provider = new Cesium.UrlTemplateImageryProvider({
+          url: 'https://basemap.nationalmap.gov/arcgis/rest/services/USGSShadedReliefOnly/MapServer/tile/{z}/{y}/{x}',
+          maximumLevel: 18,
+          credit: 'USGS',
+        });
+        attachTileErrorListener(provider, 'usgsRelief');
+        return provider;
+      }
 
-    case 'political':
-      // Esri World Street Map（政区图）
-      return new Cesium.UrlTemplateImageryProvider({
-        url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
-        maximumLevel: 19,
-        credit: 'Esri',
-      });
+      case 'political': {
+        const provider = new Cesium.UrlTemplateImageryProvider({
+          url: 'https://server.arcgisonline.com/ArcGIS/rest/services/World_Street_Map/MapServer/tile/{z}/{y}/{x}',
+          maximumLevel: 19,
+          credit: 'Esri',
+        });
+        attachTileErrorListener(provider, 'esriStreet');
+        return provider;
+      }
 
-    case 'osm':
-    default:
-      return new Cesium.OpenStreetMapImageryProvider({
-        url: 'https://tile.openstreetmap.org/',
-        maximumLevel: 19,
+      case 'osm':
+      default: {
+        const provider = new Cesium.OpenStreetMapImageryProvider({
+          url: 'https://tile.openstreetmap.org/',
+          maximumLevel: 19,
+        });
+        attachTileErrorListener(provider, 'osm');
+        return provider;
+      }
+    }
+  } catch {
+    return createOfflineNaturalEarthProvider();
+  }
+}
+
+export function createOfflineNaturalEarthProvider(): Cesium.ImageryProvider {
+  try {
+    const provider = new Cesium.SingleTileImageryProvider({
+      url: Cesium.buildModuleUrl('Assets/Textures/NaturalEarthII'),
+    });
+    attachTileErrorListener(provider, 'offlineNE');
+    return provider;
+  } catch {
+    try {
+      const provider = new Cesium.OpenStreetMapImageryProvider({
+        url: 'offline placeholder',
+        maximumLevel: 0,
       });
+      attachTileErrorListener(provider, 'offlineNE');
+      return provider;
+    } catch {
+      const canvas = document.createElement('canvas');
+      canvas.width = 1;
+      canvas.height = 1;
+      const ctx = canvas.getContext('2d');
+      if (ctx) {
+        ctx.fillStyle = '#1a5276';
+        ctx.fillRect(0, 0, 1, 1);
+      }
+      const provider = new Cesium.SingleTileImageryProvider({
+        url: canvas.toDataURL(),
+      });
+      attachTileErrorListener(provider, 'offlineNE');
+      return provider;
+    }
   }
 }
 
@@ -206,16 +278,17 @@ export function createLabelOverlayProvider(): Cesium.ImageryProvider | null {
     `&LAYER=cva&TILEMATRIXSET=w&FORMAT=tiles` +
     `&TILECOL={x}&TILEROW={y}&TILEMATRIX={z}&tk=${TIANDITU_TOKEN}`;
 
-  return new Cesium.WebMapTileServiceImageryProvider({
+  const provider = new Cesium.WebMapTileServiceImageryProvider({
     url,
     layer: 'cva',
     style: 'default',
     format: 'tiles',
     tileMatrixSetID: 'w',
-    // Q8: 18→19
     maximumLevel: 19,
     credit: '天地图标注',
   });
+  attachTileErrorListener(provider, 'tianditu');
+  return provider;
 }
 
 // ============ AWS Terrarium 地形 Provider ============
@@ -321,23 +394,22 @@ export function hasAmapKey(): boolean {
  * maximumLevel=20 支持街景级（19 = 约 0.3m / px，满足放大到街景）
  * keySuf 为 &key=xxx 后缀（可空，提升配额/防止 403）
  */
-function createAmapProvider(style: 6 | 7 | 8, keySuf = ''): Cesium.ImageryProvider {
-  // 高德 style=7 用 webrd 服务器；其余用 webst
+function createAmapProvider(style: 6 | 7 | 8, keySuf = '', kind: 'amapSat' | 'amapRoad' | 'amapLabel' = 'amapRoad'): Cesium.ImageryProvider {
   const hostPrefix = style === 7 ? 'webrd0' : 'webst0';
   const subdomains = ['1', '2', '3', '4'];
   const url =
     `https://${hostPrefix}{s}.is.autonavi.com/appmaptile` +
     `?lang=zh_cn&size=1&scale=1&style=${style}&x={x}&y={y}&z={z}${keySuf}`;
-  return new Cesium.UrlTemplateImageryProvider({
+  const provider = new Cesium.UrlTemplateImageryProvider({
     url,
     subdomains,
-    // Q8: maximumLevel=20，支持深度放大到街景级
     maximumLevel: 20,
     minimumLevel: 0,
-    // 高德 Web 默认为 Web Mercator，与 Cesium 默认一致
     tilingScheme: new Cesium.WebMercatorTilingScheme(),
     credit: '© 高德地图 AutoNavi',
   });
+  attachTileErrorListener(provider, kind);
+  return provider;
 }
 
 /**
@@ -345,4 +417,45 @@ function createAmapProvider(style: 6 | 7 | 8, keySuf = ''): Cesium.ImageryProvid
  */
 export function hasIonToken(): boolean {
   return !!ION_TOKEN;
+}
+
+export async function createIonWorldTerrainProvider(): Promise<Cesium.TerrainProvider> {
+  try {
+    Cesium.Ion.defaultAccessToken = ION_TOKEN!;
+    return await Cesium.createWorldTerrainAsync();
+  } catch (err: any) {
+    throw new Error('CesiumIonAuthFailed: ' + (err?.message || String(err)));
+  }
+}
+
+export function createEllipsoidTerrainProvider(): Promise<Cesium.TerrainProvider> {
+  return Promise.resolve(new Cesium.EllipsoidTerrainProvider());
+}
+
+export async function createBestTerrainProvider(): Promise<{
+  provider: Cesium.TerrainProvider;
+  source: 'ion' | 'terrarium' | 'ellipsoid';
+  warning?: string;
+}> {
+  if (ION_TOKEN) {
+    try {
+      const provider = await createIonWorldTerrainProvider();
+      return { provider, source: 'ion' };
+    } catch (err: any) {
+      try {
+        const provider = await createTerrariumTerrainProvider();
+        return { provider, source: 'terrarium', warning: `Cesium ion failed: ${err?.message || String(err)}` };
+      } catch (err2: any) {
+        const provider = await createEllipsoidTerrainProvider();
+        return { provider, source: 'ellipsoid', warning: `Cesium ion & Terrarium failed: ${err2?.message || String(err2)}` };
+      }
+    }
+  }
+  try {
+    const provider = await createTerrariumTerrainProvider();
+    return { provider, source: 'terrarium' };
+  } catch (err: any) {
+    const provider = await createEllipsoidTerrainProvider();
+    return { provider, source: 'ellipsoid', warning: `Terrarium failed: ${err?.message || String(err)}` };
+  }
 }
