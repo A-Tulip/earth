@@ -296,35 +296,66 @@ export function createLabelOverlayProvider(): Cesium.ImageryProvider | null {
   return provider;
 }
 
-// ============ AWS Terrarium 地形 Provider ============
+// ============ AWS Terrarium Terrain Provider ============
 
 /**
  * AWS Terrarium Terrain Tiles（CC0 Public Domain）
  *
  * URL: https://elevation-tiles-prod.s3.amazonaws.com/terrarium/{z}/{x}/{y}.png
  * 编码: height = r * 256 + g + b / 256 - 32768
- * 覆盖: 全球，z ≤ 15（约 1km 网格）
+ * 覆盖: 全球，z ≤ 15（约 1km 网格），但高 zoom 可以取 z=15 级别的 tile
  *
  * 使用 CustomHeightmapTerrainProvider（Cesium 1.107+）解码 Terrarium PNG 为高度图。
  * 无需 AWS 账户，匿名 GET，中国大陆访问稳定（S3 公开桶）。
  */
 export async function createTerrariumTerrainProvider(): Promise<Cesium.TerrainProvider> {
-  // CustomHeightmapTerrainProvider 需要 width/height 和 geometry 回调
-  // 这里用 64x64 高度图（每个 terrain tile 切分为 64x64 采样点）
+  return createCustomTerrainProvider(
+    'https://elevation-tiles-prod.s3.amazonaws.com/terrarium',
+    15,
+  );
+}
+
+// ============ MapLibre DEM30 Terrain Provider ============
+
+/**
+ * MapLibre DEM30 —— 高清全球地形（CC0 Public Domain）
+ *
+ * URL: https://dem.maplibre.com/data/dem-30/{z}/{x}/{y}.png
+ * 编码: height = r * 256 + g + b / 256 - 32768（与 Terrarium 相同）
+ * 覆盖: 全球，30m 分辨率（z≈20），提供街景级地形细节
+ *
+ * MapLibre DEM30 基于 Copernicus GLO-90、SRTM、ALOS 等多个公开 DEM 源融合，
+ * 是目前公开可用的最高精度全球地形之一。
+ */
+export async function createMapLibreTerrainProvider(): Promise<Cesium.TerrainProvider> {
+  return createCustomTerrainProvider(
+    'https://dem.maplibre.com/data/dem-30',
+    20,
+  );
+}
+
+/**
+ * 通用 CustomHeightmapTerrainProvider 工厂
+ * 解码 Terrarium/MapLibre 编码格式的 PNG 高度图
+ */
+async function createCustomTerrainProvider(
+  urlTemplate: string,
+  maxLevel: number,
+): Promise<Cesium.TerrainProvider> {
   const width = 64;
   const height = 64;
 
-  const provider = new Cesium.CustomHeightmapTerrainProvider({
+  return new Cesium.CustomHeightmapTerrainProvider({
     width,
     height,
     tilingScheme: new Cesium.WebMercatorTilingScheme(),
     callback: async (x: number, y: number, level: number) => {
-      // Terrarium tiles 最高 z=15，超出时降级到 z=15
-      const terrariumLevel = Math.min(level, 15);
-      const terrariumX = x >> (level - terrariumLevel > 0 ? level - terrariumLevel : 0);
-      const terrariumY = y >> (level - terrariumLevel > 0 ? level - terrariumLevel : 0);
+      const effectiveLevel = Math.min(level, maxLevel);
+      const scale = Math.pow(2, level - effectiveLevel);
+      const scaledX = Math.floor(x / scale);
+      const scaledY = Math.floor(y / scale);
 
-      const url = `https://elevation-tiles-prod.s3.amazonaws.com/terrarium/${terrariumLevel}/${terrariumX}/${terrariumY}.png`;
+      const url = `${urlTemplate}/${effectiveLevel}/${scaledX}/${scaledY}.png`;
 
       try {
         const response = await fetch(url);
@@ -332,17 +363,16 @@ export async function createTerrariumTerrainProvider(): Promise<Cesium.TerrainPr
         const blob = await response.blob();
         const bitmap = await createImageBitmap(blob);
 
-        // 创建 canvas 采样像素
         const canvas = document.createElement('canvas');
         canvas.width = width;
         canvas.height = height;
         const ctx = canvas.getContext('2d');
-        if (!ctx) throw new Error('Canvas 2D context 不可用');
+        if (!ctx) throw new Error('Canvas 2D context unavailable');
 
         ctx.drawImage(bitmap, 0, 0, width, height);
         const imageData = ctx.getImageData(0, 0, width, height);
 
-        // 解码 Terrarium: height = r * 256 + g + b / 256 - 32768
+        // Terrarium/MapLibre encoding: height = r * 256 + g + b / 256 - 32768
         const heights = new Float32Array(width * height);
         for (let i = 0; i < width * height; i++) {
           const r = imageData.data[i * 4];
@@ -354,13 +384,10 @@ export async function createTerrariumTerrainProvider(): Promise<Cesium.TerrainPr
         bitmap.close();
         return heights;
       } catch {
-        // 网络失败：返回全 0 高度（海平面），terrain.available 已为 false
         return new Float32Array(width * height);
       }
     },
   });
-
-  return provider;
 }
 
 // ============ 工具函数 ============
@@ -439,7 +466,7 @@ export function createEllipsoidTerrainProvider(): Promise<Cesium.TerrainProvider
 
 export async function createBestTerrainProvider(): Promise<{
   provider: Cesium.TerrainProvider;
-  source: 'ion' | 'terrarium' | 'ellipsoid';
+  source: 'ion' | 'maplibre' | 'terrarium' | 'ellipsoid';
   warning?: string;
 }> {
   if (ION_TOKEN) {
@@ -447,20 +474,22 @@ export async function createBestTerrainProvider(): Promise<{
       const provider = await createIonWorldTerrainProvider();
       return { provider, source: 'ion' };
     } catch (err: any) {
-      try {
-        const provider = await createTerrariumTerrainProvider();
-        return { provider, source: 'terrarium', warning: `Cesium ion failed: ${err?.message || String(err)}` };
-      } catch (err2: any) {
-        const provider = await createEllipsoidTerrainProvider();
-        return { provider, source: 'ellipsoid', warning: `Cesium ion & Terrarium failed: ${err2?.message || String(err2)}` };
-      }
+      // fall through to MapLibre
     }
   }
+  // 优先尝试 MapLibre DEM30（30m 高清地形，远优于 Terrarium 的 1km 分辨率）
+  try {
+    const provider = await createMapLibreTerrainProvider();
+    return { provider, source: 'maplibre' };
+  } catch (err: any) {
+    // fall through to Terrarium
+  }
+  // 回退到 AWS Terrarium（1km 地形）
   try {
     const provider = await createTerrariumTerrainProvider();
     return { provider, source: 'terrarium' };
   } catch (err: any) {
     const provider = await createEllipsoidTerrainProvider();
-    return { provider, source: 'ellipsoid', warning: `Terrarium failed: ${err?.message || String(err)}` };
+    return { provider, source: 'ellipsoid', warning: 'All terrain sources failed' };
   }
 }

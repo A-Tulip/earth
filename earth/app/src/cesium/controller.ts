@@ -25,7 +25,7 @@ export class CesiumController {
   }
 
   /**
-   * 启动时渲染调优：解决"飞往北京"后的马赛克问题。
+   * 启动时渲染调优：保证启动就有高画质。
    * 关键思路：增大瓦片缓存、收紧街景级 SSE、对数深度缓冲、
    *          保证 LOD 选择器在拉近视角时愿意拿更精细的瓦片。
    */
@@ -38,12 +38,12 @@ export class CesiumController {
         tileCacheSize?: number;
         tileLoadProgressEvent?: Cesium.Event<(numberOfPendingRequests: number, numberOfTilesProcessing: number) => void>;
       };
-      // (1) 瓦片缓存：默认 ~300，启动至少提到 900，高 tier 叠加 PerformanceMonitor 的更多
+      // (1) 瓦片缓存：默认 ~300，启动提到 1500，高 tier 叠加 PerformanceMonitor 更多
       const curCache = typeof globe.tileCacheSize === 'number' ? globe.tileCacheSize : 300;
-      globe.tileCacheSize = Math.max(curCache, 900);
-      // (2) maximumScreenSpaceError：Cesium 默认 2，启动就收紧到 1.3，后续再按 tier 动态调整
+      globe.tileCacheSize = Math.max(curCache, 1500);
+      // (2) maximumScreenSpaceError：Cesium 默认 2，启动就收紧到 0.8，后续再按 tier 动态调整
       const curSSE = typeof globe.maximumScreenSpaceError === 'number' ? globe.maximumScreenSpaceError : 2;
-      if (curSSE > 1.3) globe.maximumScreenSpaceError = 1.3;
+      if (curSSE > 0.8) globe.maximumScreenSpaceError = 0.8;
       // (3) 强制渲染一次，避免首帧停留在低 LOD
       viewer.scene.requestRender();
     } catch { /* 任何调优失败不影响主流程 */ }
@@ -51,8 +51,8 @@ export class CesiumController {
 
   /**
    * 飞行/镜头切换后强制刷新：
-   * - 3 秒内 45+ 帧 requestRender（保证 Cesium 选择器多次迭代取到高 LOD 瓦片）
-   * - 前 2.4s 临时把 maximumScreenSpaceError 压到 0.95（tier0）/ 1.3（tier1）/ 2.0（tier2）
+   * - 更密集 requestRender（保证 Cesium 选择器多次迭代取到高 LOD 瓦片）
+   * - 临时把 maximumScreenSpaceError 压到 0.6-1.2（tier0/tier1/tier2）
    * - 完成后回退到 tier 默认值
    */
   private postFlightRefresh(scope: 'flyTo' | 'zoom' | 'pitch'): void {
@@ -66,10 +66,11 @@ export class CesiumController {
       const tier = (() => {
         try { return getGlobalDegrader().tier as number; } catch { return 1; }
       })();
-      const tightSSE = tier <= 0 ? 0.95 : tier <= 1 ? 1.25 : tier <= 2 ? 1.9 : 2.6;
+      // 飞行期间把 SSE 压到极紧，强制 Cesium 拉最高 LOD
+      const tightSSE = tier <= 0 ? 0.6 : tier <= 1 ? 1.0 : tier <= 2 ? 1.5 : 2.2;
       if (typeof globe.maximumScreenSpaceError === 'number') globe.maximumScreenSpaceError = tightSSE;
       const startedAt = performance.now();
-      const REFRESH_MS = scope === 'flyTo' ? 3000 : 1800;
+      const REFRESH_MS = scope === 'flyTo' ? 3500 : 2200;
       const step = () => {
         const elapsed = performance.now() - startedAt;
         viewer.scene.requestRender();
@@ -78,10 +79,10 @@ export class CesiumController {
         } else {
           // 回到初始化设定的 SSE（让 PerformanceMonitor 再按 tier 接管）
           try {
-            if (typeof globe.maximumScreenSpaceError === 'number') globe.maximumScreenSpaceError = Math.min(originalSSE, 1.4);
+            if (typeof globe.maximumScreenSpaceError === 'number') globe.maximumScreenSpaceError = Math.min(originalSSE, 1.0);
           } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:82', (e as any)?.message ?? e); }
-          // 再给 10 帧缓冲，避免刚恢复 SSE 立即降级
-          let extra = 10;
+          // 再给 12 帧缓冲，避免刚恢复 SSE 立即降级
+          let extra = 12;
           const tail = () => {
             viewer.scene.requestRender();
             extra -= 1;
@@ -330,14 +331,14 @@ export class CesiumController {
           // Q1b 2D：reapply Degrade，走 applyDegrade 中 2D 专用分支（SSE 更紧/ FXAA 强制开/ cache×1.5）
           try { getGlobalDegrader().reapply(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:331', (e as any)?.message ?? e); }
         } else if (mode === '3d') {
-          viewer.scene.globe.enableLighting = false; // 默认仍关光照（避免夜半球过黑）
+          viewer.scene.globe.enableLighting = true; // 3D 视图启用地形光照，让地表有立体感
           // 退出 2D → 让 applyDegrade 恢复 tier<=1 的大气/雾化/后处理
           try { getGlobalDegrader().reapply(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:335', (e as any)?.message ?? e); }
           // 3D：按 store 重新应用地形材质（2D 期间被清空，切回 3D 需恢复等高线/分层/坡度/坡向）
           await this.restoreTerrainMaterialFromStore();
         } else {
-          // 哥伦布视图：允许 tier<=1 大气，其他与 3D 一致
-          viewer.scene.globe.enableLighting = false;
+          // 哥伦布视图：启用地形光照 + 大气
+          viewer.scene.globe.enableLighting = true;
           try { getGlobalDegrader().reapply(); } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:341', (e as any)?.message ?? e); }
           await this.restoreTerrainMaterialFromStore();
         }

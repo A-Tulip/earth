@@ -10,7 +10,7 @@ import * as Cesium from 'cesium';
 import { CesiumController } from './controller';
 import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
-import { createBasemapProvider, createTerrariumTerrainProvider } from './terrainProviders';
+import { createBasemapProvider, createBestTerrainProvider, createTerrariumTerrainProvider, createMapLibreTerrainProvider } from './terrainProviders';
 import { createTickThrottle, FpsCounter, getGlobalDegrader, type DegradeConfig, DEGRADE_TIERS } from '../state/PerformanceMonitor';
 import { LayerLifeCycleManager, setLayerManagerSingleton } from './LayerLifeCycleManager';
 
@@ -291,11 +291,11 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     viewer.scene.screenSpaceCameraController.enableCollisionDetection = false;
     // Q8: 重置相机 lookAt 绑定，避免锁定目标导致自由旋转受限（API: camera.lookAtTransform）
     viewer.camera.lookAtTransform(Cesium.Matrix4.IDENTITY);
-    // (2) 屏幕空间误差 SSE 更紧：默认 Cesium=2，此处 1.4（越紧纹理越清晰，街景瓦片越愿意拿高 LOD）
+    // (2) 屏幕空间误差 SSE 更紧：默认 Cesium=2，此处 0.8（越紧纹理越清晰，街景瓦片越愿意拿高 LOD）
     try {
       const globeAny = viewer.scene.globe as unknown as { maximumScreenSpaceError?: number };
       if (typeof globeAny.maximumScreenSpaceError === 'number') {
-        globeAny.maximumScreenSpaceError = 1.4;
+        globeAny.maximumScreenSpaceError = 0.8;
       }
     } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:300', (e as any)?.message ?? e); }
     // (3) Globe 光照细节：normal-based shading（让地形在任何底图下都更有"皮纹"质感）
@@ -317,17 +317,31 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     // 椭球地形会导致等高线/高程分层/坡度/地形夸张全部失效
     // Q2：terrain 切换全部走 layerMgr.schedule('terrain')，触发 LoadingOverlay 防止蓝色裸露
     if (!ionToken) {
-      // 先用椭球启动（保证地球立即显示），异步替换为 Terrarium 地形
+      // 先用椭球启动（保证地球立即显示），异步替换为高清地形
       viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
       useGeographyStore.getState().setTerrain({ available: false });
       void layerMgr.schedule('terrain', async () => {
+        if (cancelled) return;
+        // 优先尝试 MapLibre DEM30（30m 高清地形），失败回退到 Terrarium（1km）
+        let terrainOk = false;
         try {
-          const terrariumProvider = await createTerrariumTerrainProvider();
+          const mapLibreProvider = await createMapLibreTerrainProvider();
           if (cancelled) return;
-          viewer.terrainProvider = terrariumProvider;
+          viewer.terrainProvider = mapLibreProvider;
           useGeographyStore.getState().setTerrain({ available: true });
+          terrainOk = true;
         } catch {
-          // 保持椭球地形，terrain.available 已为 false
+          // MapLibre 失败，尝试 Terrarium
+        }
+        if (!terrainOk) {
+          try {
+            const terrariumProvider = await createTerrariumTerrainProvider();
+            if (cancelled) return;
+            viewer.terrainProvider = terrariumProvider;
+            useGeographyStore.getState().setTerrain({ available: true });
+          } catch {
+            // 全部失败，保持椭球地形
+          }
         }
       });
     } else {
@@ -347,15 +361,34 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       });
     }
 
-    // 光照默认关闭（避免夜半球全黑影响地面显示），晨昏线图层开启时再启用
-    viewer.scene.globe.enableLighting = false;
-    // 默认使用 SunLight（无方向阴影），twilight 开启时切换为 DirectionalLight
-    viewer.scene.light = new Cesium.SunLight();
+    // 光照：启用地形光照（让山脉/峡谷有立体感，是清晰地表的关键）
+    // 默认 DirectionalLight 太阳方向光 + enableLighting=true
+    viewer.scene.globe.enableLighting = true;
+    // 计算太阳方向：基于当前 UTC 时间的直射点
+    try {
+      const now = new Date();
+      const utcHours = now.getUTCHours() + now.getUTCMinutes() / 60 + now.getUTCSeconds() / 3600;
+      const sunLon = -(utcHours - 12) * 15;
+      const dayOfYear = Math.floor((now.getTime() - Date.UTC(now.getUTCFullYear(), 0, 0)) / 86400000);
+      const rad = (2 * Math.PI * (dayOfYear - 81)) / 365;
+      const sunLat = 23.44 * Math.sin(rad);
+      const sunPos = Cesium.Cartesian3.fromDegrees(sunLon, sunLat, 1e10);
+      const sunDir = Cesium.Cartesian3.normalize(
+        Cesium.Cartesian3.negate(sunPos, new Cesium.Cartesian3()),
+        new Cesium.Cartesian3(),
+      );
+      viewer.scene.light = new Cesium.DirectionalLight({
+        direction: sunDir,
+        intensity: 1.4,
+      });
+    } catch {
+      viewer.scene.light = new Cesium.SunLight();
+    }
 
-    // 雾化配置：低 tier 时关闭（T2/T3），其他档保持低密度自然过渡
+    // 雾化配置：低雾密度让远处地形更清晰可见
     if (viewer.scene.fog) {
       viewer.scene.fog.enabled = true;
-      viewer.scene.fog.density = 0.0001;
+      viewer.scene.fog.density = 0.00005;
     }
 
     // 初始视角：中国上空（和 controller.resetToChina 的 RESET_CAMERA 保持一致）
@@ -437,12 +470,12 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
         };
         const curModeIs2D = viewer.scene.mode === Cesium.SceneMode.SCENE2D;
         if (typeof globe.maximumScreenSpaceError === 'number') {
-          // SSE 越大 = 细节越低，渲染越便宜
-          // Q1b 2D 模式：平面瓦片开销低 → 全 tier 收紧 SSE（更清晰，2D 街景级细节更好）
+          // SSE 越紧 = 细节越清晰（代价是更多瓦片请求）
+          // 高清档：0.8-1.2，平衡档：1.2-1.8，性能档：1.8-2.8，应急档：2.8-3.5
           if (curModeIs2D) {
-            globe.maximumScreenSpaceError = Math.max(0.8, 1.0 + cfg.tier * 0.8); // tier0: 1.0, 1: 1.8, 2: 2.6, 3: 3.4
+            globe.maximumScreenSpaceError = Math.max(0.6, 0.8 + cfg.tier * 0.6); // tier0: 0.8, 1: 1.4, 2: 2.0, 3: 2.6
           } else {
-            globe.maximumScreenSpaceError = 2 + cfg.tier * 2; // tier0: 2, 1:4, 2:6, 3:8
+            globe.maximumScreenSpaceError = 0.8 + cfg.tier * 0.9; // tier0: 0.8, 1: 1.7, 2: 2.6, 3: 3.5
           }
         }
         try {

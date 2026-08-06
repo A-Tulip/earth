@@ -127,61 +127,61 @@ export interface DegradeConfig {
 }
 
 export const DEGRADE_TIERS: Record<DegradeTier, DegradeConfig> = {
-  /** Tier 0 —— 高性能设备默认档（高刷） */
+  /** Tier 0 —— 高清档（桌面 / 高刷新率设备） */
   0: {
     tier: 0,
     cesiumPixelRatio: 1.0,
     solarPixelRatioClamp: 1.25,
     disableGroundShadows: false,
     terrainExaggeration: 2.2,
-    globeTileCacheSize: 1000,
+    globeTileCacheSize: 1500,
     labelLODFactor: 1.0,
-    fogDensity: 0.0001,
+    fogDensity: 0.00008,
     msaaSamples: 4,
     starfieldAnimated: true,
     bloomEnabled: false,
     fxaaEnabled: true,
   },
-  /** Tier 1 —— 平衡档（笔记本/手机中高端） */
+  /** Tier 1 —— 平衡档（笔记本/平板中高端） */
   1: {
     tier: 1,
-    cesiumPixelRatio: 0.75,
-    solarPixelRatioClamp: 1.0,
+    cesiumPixelRatio: 0.9,
+    solarPixelRatioClamp: 1.1,
     disableGroundShadows: false,
     terrainExaggeration: 1.8,
-    globeTileCacheSize: 700,
-    labelLODFactor: 0.8,
-    fogDensity: 0.00012,
+    globeTileCacheSize: 1000,
+    labelLODFactor: 0.9,
+    fogDensity: 0.0001,
     msaaSamples: 2,
     starfieldAnimated: true,
     bloomEnabled: false,
     fxaaEnabled: true,
   },
-  /** Tier 2 —— 性能优先（集显/旧平板） */
+  /** Tier 2 —— 性能档（集显/旧设备） */
   2: {
     tier: 2,
-    cesiumPixelRatio: 0.6,
-    solarPixelRatioClamp: 0.85,
+    cesiumPixelRatio: 0.75,
+    solarPixelRatioClamp: 0.9,
     disableGroundShadows: true,
     terrainExaggeration: 1.5,
-    globeTileCacheSize: 450,
-    labelLODFactor: 0.6,
-    fogDensity: 0.00018,
+    globeTileCacheSize: 600,
+    labelLODFactor: 0.7,
+    fogDensity: 0.00015,
     msaaSamples: 1,
     starfieldAnimated: false,
     bloomEnabled: false,
     fxaaEnabled: false,
   },
-  /** Tier 3 —— 应急保命档（低端机/后台） */
+  /** Tier 3 —— 应急档（低端机/后台） */
   3: {
     tier: 3,
-    cesiumPixelRatio: 0.5,
-    solarPixelRatioClamp: 0.7,
+    cesiumPixelRatio: 0.65,
+    solarPixelRatioClamp: 0.75,
     disableGroundShadows: true,
     terrainExaggeration: 1.2,
-    globeTileCacheSize: 300,
-    labelLODFactor: 0.45,
-    fogDensity: 0.00025,
+    globeTileCacheSize: 350,
+    labelLODFactor: 0.5,
+    fogDensity: 0.00022,
     msaaSamples: 1,
     starfieldAnimated: false,
     bloomEnabled: false,
@@ -274,25 +274,25 @@ export class AdaptiveDegrader {
     const prev = this._tier;
     const { lastAvg: avg, lastMin: min } = this;
 
-    // 降级：触发宽松（持续差就降）
+    // 降级：触发更宽松（持续严重卡顿才降级）
     if (now >= this.nextChangeAt) {
       const shouldDegrade =
-        (avg < 25) ||            // 均值持续 <25 —— 卡顿
-        (min < 12 && avg < 40);  // 尖刺严重 + 均值不高 → 降级
+        (avg < 20) ||            // 均值持续 <20 —— 严重卡顿
+        (min < 10 && avg < 35);  // 尖刺严重 + 均值低 → 降级
       if (shouldDegrade && prev < 3) {
         this._tier = (prev + 1) as DegradeTier;
-        this.nextChangeAt = now + 8000; // 降级后 8 秒不升
+        this.nextChangeAt = now + 10000; // 降级后 10 秒不升
         this.emit({ prev, next: this._tier, avgFps: avg, minFps: min });
         return;
       }
     }
 
-    // 升级：触发严格（均值≥55 & min≥45 → 真有余量）
+    // 升级：触发更严格（均值≥58 & min≥50 真有余量才升级）
     if (now >= this.nextChangeAt && prev > 0) {
-      const shouldUpgrade = avg >= 55 && min >= 45;
+      const shouldUpgrade = avg >= 58 && min >= 50;
       if (shouldUpgrade) {
         this._tier = (prev - 1) as DegradeTier;
-        this.nextChangeAt = now + 6000; // 升级后 6 秒不降
+        this.nextChangeAt = now + 8000; // 升级后 8 秒不降
         this.emit({ prev, next: this._tier, avgFps: avg, minFps: min });
         return;
       }
