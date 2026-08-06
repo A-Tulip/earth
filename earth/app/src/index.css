@@ -1,0 +1,104 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  /* §2.9 Q5 深空背景：更温暖的银河深色调（冷蓝 + 琥珀 + 尘紫 + 桃粉调），避免纯黑 */
+  --bg-space-0: #05060c;
+  --bg-space-1: #0a0d1b;
+  --bg-space-2: #131831;
+  --bg-space-3: #1a1f42;
+  /* 暖色调色：琥珀辉光（地平线） + 尘紫（银河中心） + 桃粉（星云） */
+  --bg-glow-amber: rgba(255, 160, 70, 0.10);
+  --bg-glow-violet: rgba(140, 90, 210, 0.08);
+  --bg-glow-peach: rgba(255, 140, 140, 0.05);
+  --bg-glow-geo: rgba(90, 140, 255, 0.10);
+  --bg-star-twinkle: 0.45;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  font-family: 'Noto Sans SC', system-ui, sans-serif;
+  color: #e5e7eb;
+  /* 从顶向下：冷深空 → 中下部暖色银河 → 底部偏尘紫 */
+  background:
+    /* 顶部：偏冷的深空渐变 */
+    radial-gradient(ellipse 90% 40% at 50% -5%, rgba(90, 140, 255, 0.22), transparent 60%),
+    /* 左上：桃粉色星云 */
+    radial-gradient(ellipse 60% 55% at 18% 22%, rgba(255, 150, 170, 0.10), transparent 60%),
+    /* 右上：尘紫星云 */
+    radial-gradient(ellipse 60% 55% at 80% 20%, rgba(150, 100, 220, 0.10), transparent 60%),
+    /* 中下：琥珀暖条（银河地平） */
+    radial-gradient(ellipse 110% 30% at 50% 85%, var(--bg-glow-amber), transparent 62%),
+    /* 底部：尘紫 */
+    radial-gradient(ellipse 100% 40% at 50% 115%, var(--bg-glow-violet), transparent 65%),
+    /* 主深空渐变 */
+    radial-gradient(ellipse 140% 95% at 50% 50%, var(--bg-space-2), var(--bg-space-0) 74%),
+    linear-gradient(180deg, var(--bg-space-1) 0%, var(--bg-space-0) 100%);
+  overflow: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  position: relative;
+}
+
+/* 背景层 —— 对角银河条带 + 柔和星云叠色（body::before 负责非 Canvas 叠加层，效率高） */
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background:
+    /* 对角：淡桃粉色星云条 */
+    radial-gradient(ellipse 120% 35% at 30% 40%, rgba(255, 170, 170, 0.055), transparent 60%),
+    /* 对角：尘紫条带（从左上 15% 延伸到右下 85%，形成银河斜条） */
+    radial-gradient(ellipse 140% 28% at 55% 48%, rgba(170, 130, 230, 0.045), transparent 62%),
+    /* 下地平线：琥珀辉光（让地球下半部分边缘衔接更暖） */
+    radial-gradient(ellipse 100% 14% at 50% 100%, rgba(255, 170, 90, 0.07), transparent 70%),
+    /* 主地球周围淡蓝辉光（和 Cesium globe 衔接） */
+    radial-gradient(circle at 50% 50%, var(--bg-glow-geo), transparent 72%);
+  mix-blend-mode: screen;
+  z-index: 0;
+}
+
+/* Cesium 容器：全部透传背景到最底层 Starfield（body::before + Starfield canvas） */
+.cesium-viewer,
+.cesium-widget,
+.cesium-widget canvas,
+.cesium-container,
+#cesiumCanvas {
+  background: transparent !important;
+}
+
+.cesium-viewer-bottom {
+  display: none !important;
+}
+
+/* 滚动条 */
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
+
+/* 触摸优化 */
+@media (max-width: 768px) {
+  button {
+    -webkit-tap-highlight-color: transparent;
+  }
+}

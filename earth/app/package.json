@@ -1,0 +1,49 @@
+{
+  "name": "earth-explorer-ai-canvas",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "description": "AI 地理画布 - 无登录、打开即用、AI 语音驱动的初高中地理互动教学平台",
+  "scripts": {
+    "dev": "vite",
+    "build": "tsc --noEmit && vite build",
+    "preview": "vite preview",
+    "typecheck": "tsc --noEmit",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "test:e2e": "playwright test",
+    "validate:content": "tsx src/lessons/validate.ts",
+    "download:textures": "bash scripts/download-textures.sh",
+    "voice:proxy": "tsx server/index.ts",
+    "api:dev": "cd ../api && uvicorn main:app --host 0.0.0.0 --port 8787 --reload",
+    "api:start": "cd ../api && uvicorn main:app --host 0.0.0.0 --port 8787"
+  },
+  "dependencies": {
+    "cesium": "^1.143.0",
+    "dompurify": "^3.4.12",
+    "marked": "^18.0.7",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "three": "^0.160.1",
+    "zustand": "^4.5.5"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.48.0",
+    "@types/react": "^18.3.12",
+    "@types/react-dom": "^18.3.1",
+    "@types/three": "^0.160.0",
+    "@types/ws": "^8.18.1",
+    "@vitejs/plugin-react": "^4.3.3",
+    "autoprefixer": "^10.4.20",
+    "jsdom": "^25.0.1",
+    "postcss": "^8.4.49",
+    "tailwindcss": "^3.4.15",
+    "tsx": "^4.19.2",
+    "typescript": "^5.6.3",
+    "vite": "^5.4.11",
+    "vite-plugin-static-copy": "^1.0.6",
+    "vitest": "^2.1.8",
+    "ws": "^8.21.1"
+  }
+}

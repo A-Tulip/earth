@@ -1,0 +1,76 @@
+# ============================================================
+# Earth Explorer AI - Git Ignore
+# ============================================================
+
+# ---------- Node.js / 前端 ----------
+earth/app/node_modules/
+earth/app/npm-debug.log*
+earth/app/dist/
+earth/app/.vite/
+earth/app/test-results/
+earth/app/playwright-report/
+earth/app/coverage/
+
+# ---------- Python / 后端 ----------
+earth/api/.venv/
+earth/api/__pycache__/
+earth/api/*.pyc
+earth/api/*.pyo
+earth/api/.pytest_cache/
+earth/api/.mypy_cache/
+earth/api/.ruff_cache/
+earth/api/.eggs/
+
+# ---------- 环境变量（真实密钥绝不提交）----------
+.env
+.env.local
+.env.*.local
+!.env.example
+earth/api/.env
+earth/app/.env.local
+
+# ---------- 日志 ----------
+*.log
+logs/
+npm-debug.log*
+
+# ---------- 系统文件 ----------
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
+
+# ---------- IDE / 编辑器 ----------
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+.history/
+
+# ---------- 临时文件 ----------
+*.tmp
+*.temp
+.cache/
+*.pid
+
+# ---------- 测试产物 ----------
+verify-shot.png
+verify-requirements.mjs
+
+# ---------- 调研/本地数据（不提交）----------
+research/
+data/
+earth/assets/
+
+# ---------- Trae / AI 工具 ----------
+.trae/
+
+# ---------- 构建产物 ----------
+build/
+out/
+*.tsbuildinfo
+
+# ---------- Docker ----------
+earth/api/Dockerfile*

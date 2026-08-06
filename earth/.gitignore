@@ -1,0 +1,61 @@
+# Node.js
+node_modules/
+npm-debug.log*
+
+# 日志文件
+*.log
+logs/
+
+# 环境变量（真实密钥不提交）
+.env
+.env.local
+.env.*.local
+!.env.example
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+
+# 系统文件
+.DS_Store
+Thumbs.db
+desktop.ini
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+*~
+
+# 临时文件
+*.tmp
+*.temp
+.cache/
+
+# OS 生成的文件
+ehthumbs.db
+ehthumbs_vista.db
+
+# Trae 相关
+.trae/
+
+# 本地临时服务器（运行时生成的）
+*.pid
+
+# 测试产物
+test-results/
+playwright-report/
+coverage/
+verify-shot.png
+verify-requirements.mjs
+
+# Python 生成物
+__pycache__/
+*.pyc
+
+# 调研报告不提交到仓库（本地工作文件）
+research/
+docs
+ADR
