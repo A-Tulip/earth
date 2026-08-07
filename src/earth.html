@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -1297,6 +1297,73 @@
     .climate-item {
       display: flex; align-items: center; gap: 8px; margin-bottom: 6px;
       font-size: 10px; color: #cbd5e1;
+    }
+
+    /* 评委快速体验工具栏 */
+    #demo-toolbar {
+      position: fixed;
+      top: 16px;
+      left: 50%;
+      transform: translateX(-50%);
+      display: flex;
+      gap: 8px;
+      padding: 8px 12px;
+      background: linear-gradient(135deg, rgba(15,23,42,0.96), rgba(30,41,59,0.92));
+      backdrop-filter: blur(16px);
+      border: 1px solid var(--theme-border-active);
+      border-radius: 14px;
+      z-index: 5000;
+      box-shadow: 0 10px 40px rgba(0,0,0,0.4), 0 0 20px rgba(0,245,255,0.1);
+      flex-wrap: wrap;
+      max-width: 92vw;
+    }
+    #demo-toolbar-label {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 10px;
+      color: var(--theme-accent);
+      font-weight: 700;
+      font-size: 13px;
+      white-space: nowrap;
+    }
+    .demo-btn {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12.5px;
+      color: var(--theme-text);
+      background: rgba(255,255,255,0.04);
+      border: 1px solid var(--theme-border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s ease;
+      white-space: nowrap;
+      font-weight: 500;
+    }
+    .demo-btn:hover {
+      background: rgba(0,245,255,0.12);
+      border-color: var(--theme-border-active);
+      color: var(--theme-accent);
+      transform: translateY(-1px);
+    }
+    .demo-btn:active { transform: translateY(0); }
+    .demo-btn.hot {
+      background: linear-gradient(135deg, rgba(0,245,255,0.18), rgba(124,58,237,0.18));
+      border-color: var(--theme-border-active);
+      color: #fff;
+    }
+
+    @media screen and (max-width: 768px) {
+      #demo-toolbar {
+        top: auto;
+        bottom: 16px;
+        left: 16px;
+        right: 16px;
+        transform: none;
+        justify-content: center;
+      }
     }
     .climate-color { width: 12px; height: 12px; border-radius: 2px; }
 
@@ -2694,12 +2761,356 @@
       }
     }
 
-    /* 小屏手机（≤480px） */
+    /* ============ 课程播放系统 ============ */
+    .course-list {
+      max-height: 0;
+      overflow: hidden;
+      transition: max-height 0.3s ease;
+    }
+    .course-list.open {
+      max-height: 500px;
+      overflow-y: auto;
+    }
+    .course-list::-webkit-scrollbar { width: 4px; }
+    .course-list::-webkit-scrollbar-track { background: transparent; }
+    .course-list::-webkit-scrollbar-thumb { background: rgba(0,245,255,0.3); border-radius: 2px; }
+    
+    .course-item {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      padding: 10px 12px;
+      margin-bottom: 6px;
+      background: rgba(30,41,59,0.6);
+      border: 1px solid var(--theme-border);
+      border-radius: 10px;
+      cursor: pointer;
+      transition: all 0.2s;
+      position: relative;
+      overflow: hidden;
+    }
+    .course-item:hover {
+      background: rgba(0,245,255,0.1);
+      border-color: var(--theme-border-active);
+      transform: translateX(4px);
+    }
+    .course-item.playing {
+      background: linear-gradient(135deg, rgba(0,245,255,0.2), rgba(124,58,237,0.15));
+      border-color: var(--theme-accent);
+      box-shadow: 0 0 15px rgba(0,245,255,0.2);
+    }
+    .course-item-icon {
+      width: 36px;
+      height: 36px;
+      border-radius: 8px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      flex-shrink: 0;
+      background: linear-gradient(135deg, rgba(0,245,255,0.2), rgba(124,58,237,0.2));
+    }
+    .course-item-info {
+      flex: 1;
+      min-width: 0;
+    }
+    .course-item-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--theme-text);
+      margin-bottom: 3px;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+    .course-item-meta {
+      font-size: 11px;
+      color: var(--theme-text-muted);
+      display: flex;
+      gap: 6px;
+      align-items: center;
+    }
+    .course-level-badge {
+      padding: 1px 6px;
+      border-radius: 4px;
+      font-size: 10px;
+      font-weight: 600;
+    }
+    .course-level-badge.junior { background: rgba(16,185,129,0.2); color: #10b981; }
+    .course-level-badge.senior { background: rgba(139,92,246,0.2); color: #8b5cf6; }
+    
+    .course-item-play {
+      width: 28px;
+      height: 28px;
+      border-radius: 50%;
+      background: linear-gradient(135deg, #00f5ff, #7c3aed);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      color: white;
+      font-size: 12px;
+      flex-shrink: 0;
+      transition: all 0.2s;
+    }
+    .course-item:hover .course-item-play {
+      transform: scale(1.1);
+    }
+    
+    /* 课程播放器底部条 */
+    #course-player-bar {
+      position: fixed;
+      bottom: -400px;
+      left: 50%;
+      transform: translateX(-50%);
+      width: 90%;
+      max-width: 600px;
+      background: linear-gradient(135deg, rgba(15,23,42,0.98), rgba(30,41,59,0.95));
+      border: 1px solid var(--theme-border-active);
+      border-radius: 16px;
+      padding: 14px 20px;
+      z-index: 2000;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 10px 40px rgba(0,0,0,0.5), 0 0 30px rgba(0,245,255,0.15);
+      transition: bottom 0.4s cubic-bezier(0.4,0,0.2,1);
+    }
+    #course-player-bar.show {
+      bottom: 70px;
+    }
+    .course-player-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+    .course-player-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--theme-accent);
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .course-player-close {
+      width: 28px;
+      height: 28px;
+      border: none;
+      background: rgba(255,255,255,0.1);
+      border-radius: 50%;
+      color: var(--theme-text-muted);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      transition: all 0.2s;
+    }
+    .course-player-close:hover { background: rgba(239,68,68,0.2); color: var(--theme-error); }
+    
+    .course-step-info {
+      background: rgba(0,0,0,0.3);
+      border-radius: 8px;
+      padding: 10px 14px;
+      margin-bottom: 10px;
+      border-left: 3px solid var(--theme-accent);
+    }
+    .course-step-title {
+      font-size: 13px;
+      font-weight: 600;
+      color: var(--theme-text);
+      margin-bottom: 4px;
+    }
+    .course-step-narration {
+      font-size: 12px;
+      color: var(--theme-text-secondary);
+      line-height: 1.5;
+      max-height: 60px;
+      overflow-y: auto;
+    }
+    
+    .course-progress-bar {
+      height: 4px;
+      background: rgba(255,255,255,0.1);
+      border-radius: 2px;
+      margin-bottom: 10px;
+      overflow: hidden;
+    }
+    .course-progress-fill {
+      height: 100%;
+      background: linear-gradient(90deg, #00f5ff, #7c3aed);
+      border-radius: 2px;
+      transition: width 0.3s ease;
+    }
+    
+    .course-player-controls {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+    }
+    .course-ctrl-btn {
+      width: 36px;
+      height: 36px;
+      border-radius: 50%;
+      border: 1px solid var(--theme-border);
+      background: rgba(255,255,255,0.05);
+      color: var(--theme-text);
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 14px;
+      transition: all 0.2s;
+    }
+    .course-ctrl-btn:hover { background: rgba(0,245,255,0.15); border-color: var(--theme-accent); }
+    .course-ctrl-btn.primary {
+      width: 44px;
+      height: 44px;
+      background: linear-gradient(135deg, #00f5ff, #7c3aed);
+      border: none;
+      color: white;
+      font-size: 16px;
+    }
+    .course-ctrl-btn:disabled { opacity: 0.3; cursor: not-allowed; }
+    .course-step-indicator {
+      font-size: 12px;
+      color: var(--theme-text-muted);
+      min-width: 50px;
+      text-align: center;
+    }
+    
+    /* 知识点面板 */
+    #course-knowledge-panel {
+      position: fixed;
+      top: 50%;
+      right: 20px;
+      transform: translateY(-50%) translateX(400px);
+      width: 340px;
+      max-height: 500px;
+      background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(30,41,59,0.95));
+      border: 1px solid var(--theme-border-active);
+      border-radius: 16px;
+      padding: 20px;
+      z-index: 1500;
+      backdrop-filter: blur(20px);
+      box-shadow: 0 15px 50px rgba(0,0,0,0.5);
+      transition: transform 0.4s cubic-bezier(0.4,0,0.2,1);
+      overflow-y: auto;
+    }
+    #course-knowledge-panel.show {
+      transform: translateY(-50%) translateX(0);
+    }
+    .knowledge-title {
+      font-size: 16px;
+      font-weight: 700;
+      color: var(--theme-accent);
+      margin-bottom: 12px;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+    }
+    .knowledge-point {
+      padding: 10px 12px;
+      margin-bottom: 8px;
+      background: rgba(255,255,255,0.03);
+      border-radius: 8px;
+      border-left: 3px solid var(--theme-accent);
+      font-size: 13px;
+      color: var(--theme-text);
+      line-height: 1.6;
+    }
+    .knowledge-point strong { color: var(--theme-accent); }
+    
+    /* 课程问答 */
+    #course-quiz-modal {
+      position: fixed;
+      top: 0; left: 0; right: 0; bottom: 0;
+      background: rgba(0,0,0,0.7);
+      display: none;
+      align-items: center;
+      justify-content: center;
+      z-index: 3000;
+      backdrop-filter: blur(5px);
+    }
+    #course-quiz-modal.show { display: flex; }
+    .quiz-card {
+      width: 90%;
+      max-width: 480px;
+      background: linear-gradient(180deg, rgba(15,23,42,0.98), rgba(30,41,59,0.98));
+      border: 1px solid var(--theme-border-active);
+      border-radius: 20px;
+      padding: 28px;
+      box-shadow: 0 20px 60px rgba(0,0,0,0.6);
+    }
+    .quiz-title {
+      font-size: 18px;
+      font-weight: 700;
+      color: var(--theme-accent);
+      margin-bottom: 16px;
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .quiz-option {
+      display: block;
+      width: 100%;
+      padding: 12px 16px;
+      margin-bottom: 10px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid var(--theme-border);
+      border-radius: 10px;
+      color: var(--theme-text);
+      font-size: 14px;
+      text-align: left;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .quiz-option:hover { background: rgba(0,245,255,0.1); border-color: var(--theme-accent); }
+    .quiz-option.correct { background: rgba(16,185,129,0.2); border-color: #10b981; color: #10b981; }
+    .quiz-option.wrong { background: rgba(239,68,68,0.2); border-color: #ef4444; color: #ef4444; }
+    .quiz-explanation {
+      margin-top: 12px;
+      padding: 12px;
+      background: rgba(0,245,255,0.08);
+      border-radius: 8px;
+      font-size: 13px;
+      color: var(--theme-text-secondary);
+      line-height: 1.6;
+      display: none;
+    }
+    .quiz-explanation.show { display: block; }
+    .quiz-close {
+      margin-top: 16px;
+      width: 100%;
+      padding: 10px;
+      background: linear-gradient(135deg, #00f5ff, #7c3aed);
+      border: none;
+      border-radius: 10px;
+      color: white;
+      font-weight: 600;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .quiz-close:hover { transform: translateY(-2px); }
+    
+    .course-toggle-btn {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      width: 100%;
+      padding: 6px 0;
+      cursor: pointer;
+      user-select: none;
+    }
+    .course-toggle-btn .arrow {
+      transition: transform 0.3s;
+      font-size: 10px;
+      color: var(--theme-text-muted);
+    }
+    .course-toggle-btn.open .arrow { transform: rotate(90deg); }
+    
+    /* 小屏手机课程适配 */
     @media screen and (max-width: 480px) {
-      .status-item .status-label { display: none; }
-      .continent-stats { grid-template-columns: repeat(2, 1fr); }
-      .city-info-grid { grid-template-columns: 1fr; }
-      .city-info-card.weather { grid-column: span 1; }
+      #course-player-bar.show { bottom: 60px; padding: 10px 14px; }
+      #course-knowledge-panel { width: calc(100% - 40px); right: 20px; }
     }
    </style>
 </head>
@@ -2707,6 +3118,21 @@
   <!-- 动态星空背景 -->
   <div id="starfield"></div>
   
+  <!-- 评委快速体验工具栏 -->
+  <div id="demo-toolbar">
+    <div id="demo-toolbar-label">🎯 评委体验</div>
+    <button class="demo-btn hot" onclick="demoPlayCourse('contour-lines')">🎓 播放课程</button>
+    <button class="demo-btn" onclick="demoFlyToCity('beijing')">📍 飞到北京</button>
+    <button class="demo-btn" onclick="demoToggleWeather()">🌦️ 天气图层</button>
+    <button class="demo-btn" onclick="demoToggleClimate()">🌡️ 气候带</button>
+    <button class="demo-btn" onclick="demoOpenGallery()">🖼️ 地理图集</button>
+    <button class="demo-btn" onclick="demoToggleMeasure()">📏 距离测量</button>
+    <button class="demo-btn" onclick="demoToggleRotation()">🔄 地球自转</button>
+    <button class="demo-btn" onclick="demoSwitchView('2d')">🗺️ 二维地图</button>
+    <button class="demo-btn" onclick="demoOpenQuiz()">🧠 互动问答</button>
+    <button class="demo-btn" onclick="demoReset()">🔄 重置</button>
+  </div>
+
   <div id="loading">
     <div class="loading-spinner"></div>
     <span>正在初始化地球探索者...</span>
@@ -2785,6 +3211,103 @@
         <button class="gallery-btn" id="open-gallery-btn">
           <span>📷</span> 打开图集
         </button>
+      </div>
+
+      <div class="section">
+        <div class="course-toggle-btn" id="course-toggle">
+          <div class="section-title" style="margin-bottom:0;">🎓 课程播放</div>
+          <span class="arrow">▶</span>
+        </div>
+        <div class="course-list" id="course-list">
+          <div class="course-item" data-course="contour-lines">
+            <div class="course-item-icon">🗺️</div>
+            <div class="course-item-info">
+              <div class="course-item-title">等高线与地形判读</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge junior">初中</span>
+                <span>7 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+          <div class="course-item" data-course="china-terrain">
+            <div class="course-item-icon">🏔️</div>
+            <div class="course-item-info">
+              <div class="course-item-title">中国地势三级阶梯</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge junior">初中</span>
+                <span>6 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+          <div class="course-item" data-course="earth-rotation">
+            <div class="course-item-icon">🌍</div>
+            <div class="course-item-info">
+              <div class="course-item-title">地球自转与昼夜</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge junior">初中</span>
+                <span>6 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+          <div class="course-item" data-course="plate-tectonics">
+            <div class="course-item-icon">🌋</div>
+            <div class="course-item-info">
+              <div class="course-item-title">板块运动与地震带</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge junior">初中</span>
+                <span>6 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+          <div class="course-item" data-course="earth-revolution">
+            <div class="course-item-icon">☀️</div>
+            <div class="course-item-info">
+              <div class="course-item-title">地球公转与四季</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge senior">高中</span>
+                <span>6 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+          <div class="course-item" data-course="cold-front">
+            <div class="course-item-icon">🌨️</div>
+            <div class="course-item-info">
+              <div class="course-item-title">冷锋与暖锋</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge senior">高中</span>
+                <span>5 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+          <div class="course-item" data-course="monsoon">
+            <div class="course-item-icon">💨</div>
+            <div class="course-item-info">
+              <div class="course-item-title">季风与气候</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge senior">高中</span>
+                <span>5 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+          <div class="course-item" data-course="ocean-currents">
+            <div class="course-item-icon">🌊</div>
+            <div class="course-item-info">
+              <div class="course-item-title">世界洋流</div>
+              <div class="course-item-meta">
+                <span class="course-level-badge senior">高中</span>
+                <span>5 步</span>
+              </div>
+            </div>
+            <div class="course-item-play">▶</div>
+          </div>
+        </div>
       </div>
 
       <div class="section">
@@ -9054,8 +9577,13 @@
       }
     }
 
+    // ===== AI 代理地址配置 =====
+    // 部署 Cloudflare Worker 后，把下面的 URL 改成你的 Worker 地址
+    // 例如: https://ai-proxy.xxx.workers.dev
+    const AI_PROXY_BASE = 'https://earth-ai-proxy.a-tulip.workers.dev';
+
     async function callVolcanoEngineAPI(prompt, systemPrompt, apiKey, endpointId) {
-      const proxyUrl = 'http://localhost:3001/api/doubao/v1/chat/completions';
+      const proxyUrl = AI_PROXY_BASE + '/api/doubao/v1/chat/completions';
       
       // 模型映射：用户选择的模型 -> 豆包模型ID
       const modelMapping = {
@@ -10895,7 +11423,1433 @@
       });
     }
 
+    // ============ 课程播放系统 ============
+    const courseData = {
+      'contour-lines': {
+        title: '等高线与地形判读',
+        icon: '🗺️',
+        level: 'junior',
+        levelLabel: '初中',
+        steps: [
+          {
+            title: '什么是等高线？',
+            narration: '等高线是地图上高程相等的各点所连成的闭合曲线。它能帮助我们在平面地图上看懂立体地形。',
+            actions: [
+              { type: 'flyTo', lon: 110, lat: 30, zoom: 2.5 },
+              { type: 'toggle', key: 'grid', value: true },
+              { type: 'toggle', key: 'axis', value: false }
+            ],
+            knowledge: {
+              title: '等高线基本概念',
+              points: [
+                '<strong>等高线：</strong>地图上高程相等的点连成的闭合曲线',
+                '<strong>等高距：</strong>相邻两条等高线的高度差',
+                '<strong>等高线疏密：</strong>等高线越密集，坡度越陡；越稀疏，坡度越缓'
+              ]
+            }
+          },
+          {
+            title: '等高线与坡度',
+            narration: '等高线的疏密反映坡度陡缓。密集的地方坡度陡，稀疏的地方坡度缓。就像楼梯，台阶越密越陡。',
+            actions: [
+              { type: 'toggle', key: 'grid', value: true },
+              { type: 'toggle', key: 'cities', value: true }
+            ],
+            knowledge: {
+              title: '判读坡度',
+              points: [
+                '<strong>密集 = 陡坡：</strong>等高线间距小，坡度大',
+                '<strong>稀疏 = 缓坡：</strong>等高线间距大，坡度小',
+                '<strong>均匀 = 均匀坡：</strong>等高线间距相等'
+              ]
+            }
+          },
+          {
+            title: '识别地形部位',
+            narration: '不同的地形部位在等高线图上有不同的形态。山顶是等高线闭合且数值中间高四周低；鞍部是两个山顶之间的低地；山谷是等高线向高处凸出；山脊是等高线向低处凸出。',
+            actions: [
+              { type: 'toggle', key: 'cities', value: false }
+            ],
+            knowledge: {
+              title: '地形部位判读',
+              points: [
+                '<strong>山顶：</strong>等高线闭合，中高周低',
+                '<strong>鞍部：</strong>两山顶间的低谷',
+                '<strong>山谷：</strong>等高线向高处凸（V字形）',
+                '<strong>山脊：</strong>等高线向低处凸',
+                '<strong>陡崖：</strong>等高线重叠处'
+              ]
+            }
+          },
+          {
+            title: '中国地形示例',
+            narration: '让我们飞到中国西南地区，这里有世界上最丰富的地形类型。从青藏高原到四川盆地，再到长江中下游平原，等高线的变化讲述了地球的故事。',
+            actions: [
+              { type: 'flyTo', lon: 100, lat: 28, zoom: 2.2 },
+              { type: 'toggle', key: 'grid', value: true },
+              { type: 'toggle', key: 'cities', value: true }
+            ],
+            knowledge: {
+              title: '中国主要地形',
+              points: [
+                '<strong>青藏高原：</strong>平均海拔4000米以上，等高线密集',
+                '<strong>四川盆地：</strong>内部等高线稀疏，四周密集',
+                '<strong>长江中下游平原：</strong>等高线极少，地势低平'
+              ]
+            }
+          },
+          {
+            title: '分层设色地形图',
+            narration: '在等高线地形图上，按照不同的高度和深度，着上不同的颜色，叫做分层设色地形图。绿色表示平原，黄色表示高原，蓝色表示海洋。',
+            actions: [
+              { type: 'toggle', key: 'climate', value: true },
+              { type: 'flyTo', lon: 105, lat: 35, zoom: 2.0 }
+            ],
+            knowledge: {
+              title: '分层设色',
+              points: [
+                '<strong>绿色：</strong>平原和低地（<200m）',
+                '<strong>黄色：</strong>高原和盆地（200-500m）',
+                '<strong>棕色：</strong>山地（>500m）',
+                '<strong>蓝色：</strong>海洋，颜色越深表示深度越大'
+              ]
+            }
+          },
+          {
+            title: '互动练习',
+            narration: '现在你已经学会了等高线的判读方法。记住：看疏密知陡缓，看弯曲识山谷山脊，看闭合辨山顶盆地。',
+            actions: [
+              { type: 'toggle', key: 'grid', value: true },
+              { type: 'flyTo', lon: 116, lat: 39, zoom: 2.5 }
+            ],
+            knowledge: {
+              title: '本节小结',
+              points: [
+                '✅ 等高线 = 高程相等点的连线',
+                '✅ 疏密定陡缓：密陡疏缓',
+                '✅ 弯曲识部位：凸高为谷，凸低为脊',
+                '✅ 闭合辨地形：中高为山，中低为盆'
+              ]
+            },
+            quiz: {
+              question: '等高线密集的地方表示？',
+              options: ['坡度陡峭', '坡度平缓', '海拔很高', '海拔很低'],
+              answer: 0,
+              explanation: '等高线越密集，表示单位水平距离内的高程变化越大，坡度越陡峭。这是等高线地形图判读的基本原则。'
+            }
+          },
+          {
+            title: '课程总结',
+            narration: '等高线地形图是地理学习的重要工具。通过等高线的疏密、弯曲和闭合形态，我们可以判读地形的陡缓、识别山谷山脊、判断山顶和盆地。多练习，你就能轻松读懂地图上的地形故事。',
+            actions: [
+              { type: 'flyTo', lon: 108, lat: 34, zoom: 1.8 },
+              { type: 'toggle', key: 'grid', value: false },
+              { type: 'toggle', key: 'cities', value: false },
+              { type: 'toggle', key: 'climate', value: false }
+            ],
+            knowledge: {
+              title: '🎓 等高线课程要点',
+              points: [
+                '📐 等高线是高程相等点的闭合曲线',
+                '📈 疏密定陡缓，闭合辨地形',
+                '⛰️ 凸高为谷，凸低为脊',
+                '🗺️ 分层设色让地形更直观'
+              ]
+            }
+          }
+        ]
+      },
+      'china-terrain': {
+        title: '中国地势三级阶梯',
+        icon: '🏔️',
+        level: 'junior',
+        levelLabel: '初中',
+        steps: [
+          {
+            title: '西高东低的地势',
+            narration: '中国地势西高东低，呈三级阶梯状分布。这种地势特点对中国的气候、河流流向和人口分布都有深刻影响。',
+            actions: [
+              { type: 'flyTo', lon: 105, lat: 35, zoom: 2.0 },
+              { type: 'toggle', key: 'grid', value: true },
+              { type: 'toggle', key: 'cities', value: true }
+            ],
+            knowledge: {
+              title: '地势特征',
+              points: [
+                '🏔️ <strong>西高东低：</strong>海拔从西向东逐级下降',
+                '🪜 <strong>三级阶梯：</strong>青藏高原、大兴安岭-太行山-巫山-雪峰山、东部平原丘陵',
+                '🌊 <strong>大河东流：</strong>长江、黄河等自西向东流入海洋'
+              ]
+            }
+          },
+          {
+            title: '第一级阶梯：青藏高原',
+            narration: '第一级阶梯是青藏高原，平均海拔4000米以上，有"世界屋脊"之称。这里有世界最高峰珠穆朗玛峰，海拔8848.86米。',
+            actions: [
+              { type: 'flyTo', lon: 88, lat: 30, zoom: 2.0 }
+            ],
+            knowledge: {
+              title: '第一级阶梯',
+              points: [
+                '<strong>范围：</strong>青藏高原、柴达木盆地',
+                '<strong>平均海拔：</strong>4000米以上',
+                '<strong>主要地形：</strong>高原、盆地',
+                '<strong>分界山脉：</strong>昆仑山-祁连山-横断山脉'
+              ]
+            }
+          },
+          {
+            title: '第二级阶梯：高原与盆地',
+            narration: '第二级阶梯在青藏高原以东，主要包括内蒙古高原、黄土高原、云贵高原和塔里木盆地、准噶尔盆地、四川盆地。海拔在1000到2000米之间。',
+            actions: [
+              { type: 'flyTo', lon: 105, lat: 35, zoom: 1.8 }
+            ],
+            knowledge: {
+              title: '第二级阶梯',
+              points: [
+                '<strong>范围：</strong>大兴安岭-太行山-巫山-雪峰山以西',
+                '<strong>海拔：</strong>1000-2000米',
+                '<strong>四大高原：</strong>内蒙古、黄土、云贵、青藏',
+                '<strong>四大盆地：</strong>塔里木、准噶尔、柴达木、四川'
+              ]
+            }
+          },
+          {
+            title: '第三级阶梯：平原与丘陵',
+            narration: '第三级阶梯在东部，主要包括东北平原、华北平原、长江中下游平原和东南丘陵。海拔多在500米以下，是中国人口最密集、经济最发达的地区。',
+            actions: [
+              { type: 'flyTo', lon: 118, lat: 32, zoom: 1.6 }
+            ],
+            knowledge: {
+              title: '第三级阶梯',
+              points: [
+                '<strong>范围：</strong>大兴安岭-太行山-巫山-雪峰山以东',
+                '<strong>海拔：</strong>500米以下',
+                '<strong>三大平原：</strong>东北、华北、长江中下游',
+                '<strong>主要丘陵：</strong>东南丘陵、山东丘陵'
+              ]
+            }
+          },
+          {
+            title: '地势的影响',
+            narration: '西高东低的地势使我国许多大河自西向东流，沟通了东西交通。同时，这种地势也有利于海洋上的湿润气流深入内陆，形成丰富的降水。',
+            actions: [
+              { type: 'toggle', key: 'currents', value: true },
+              { type: 'toggle', key: 'cities', value: true }
+            ],
+            knowledge: {
+              title: '地势的影响',
+              points: [
+                '🌊 <strong>河流流向：</strong>自西向东流',
+                '🚢 <strong>交通：</strong>沟通东西航运',
+                '🌧️ <strong>气候：</strong>利于海洋水汽深入',
+                '⚡ <strong>水能：</strong>阶梯交界处水能丰富'
+              ]
+            },
+            quiz: {
+              question: '中国地势的主要特征是？',
+              options: ['东高西低', '西高东低', '南高北低', '北高南低'],
+              answer: 1,
+              explanation: '中国地势西高东低，呈三级阶梯状分布。这种地势使大部分河流自西向东流入海洋。'
+            }
+          },
+          {
+            title: '课程总结',
+            narration: '中国地势三级阶梯是理解中国地理的基础。记住：第一级青藏高原，第二级高原盆地，第三级平原丘陵。西高东低，大河东流。',
+            actions: [
+              { type: 'flyTo', lon: 105, lat: 35, zoom: 1.5 },
+              { type: 'toggle', key: 'grid', value: false },
+              { type: 'toggle', key: 'currents', value: false },
+              { type: 'toggle', key: 'cities', value: false }
+            ],
+            knowledge: {
+              title: '🎓 本节要点',
+              points: [
+                '🏔️ 西高东低，三级阶梯',
+                '📏 一级>4000m，二级1000-2000m，三级<500m',
+                '🌊 地势影响河流流向、气候和交通',
+                '⚡ 阶梯交界处水能资源丰富'
+              ]
+            }
+          }
+        ]
+      },
+      'earth-rotation': {
+        title: '地球自转与昼夜',
+        icon: '🌍',
+        level: 'junior',
+        levelLabel: '初中',
+        steps: [
+          {
+            title: '地球在自转',
+            narration: '地球不停地自西向东自转，这就是我们看到太阳从东方升起、西方落下的原因。地球自转一周约24小时，也就是一天。',
+            actions: [
+              { type: 'toggle', key: 'rotation', value: true },
+              { type: 'toggle', key: 'daymode', value: true },
+              { type: 'flyTo', lon: 0, lat: 0, zoom: 3.0 }
+            ],
+            knowledge: {
+              title: '自转基本特征',
+              points: [
+                '🔄 <strong>方向：</strong>自西向东',
+                '⏱️ <strong>周期：</strong>约24小时（1恒星日23小时56分）',
+                '🌍 <strong>绕转轴：</strong>地轴（倾斜23.5°）',
+                '📍 <strong>极点：</strong>地轴北端指向北极星附近'
+              ]
+            }
+          },
+          {
+            title: '昼夜交替',
+            narration: '地球是一个不发光不透明的球体，同一时刻太阳只能照亮地球的一半。被照亮的一半是白昼，另一半是黑夜。地球自转产生了昼夜交替现象。',
+            actions: [
+              { type: 'toggle', key: 'twilight', value: true },
+              { type: 'toggle', key: 'daymode', value: false },
+              { type: 'flyTo', lon: 116, lat: 39, zoom: 2.5 }
+            ],
+            knowledge: {
+              title: '昼夜交替',
+              points: [
+                '☀️ <strong>昼半球：</strong>面向太阳的一面',
+                '🌑 <strong>夜半球：</strong>背向太阳的一面',
+                '🌙 <strong>晨昏线：</strong>昼夜半球的分界线',
+                '⏰ <strong>周期：</strong>一个太阳日（24小时）'
+              ]
+            }
+          },
+          {
+            title: '晨昏线的移动',
+            narration: '晨昏线是昼夜半球的分界线，它随着地球的自转不断移动。在晨昏线上，太阳正好位于地平线，此时是日出或日落时刻。',
+            actions: [
+              { type: 'toggle', key: 'twilight', value: true },
+              { type: 'flyTo', lon: 90, lat: 0, zoom: 2.8 }
+            ],
+            knowledge: {
+              title: '晨昏线特点',
+              points: [
+                '📐 <strong>与太阳光线垂直：</strong>晨昏线始终与太阳光线垂直',
+                '🌐 <strong>是大圆：</strong>晨昏线是地球的一个大圆',
+                '🌅 <strong>日出日落：</strong>晨昏线上的地点正经历日出或日落'
+              ]
+            }
+          },
+          {
+            title: '时间差异',
+            narration: '由于地球自西向东自转，东边的地点比西边的地点先看到日出。这就造成了不同经度地点的时间差异。经度每隔15度，时间相差1小时。',
+            actions: [
+              { type: 'toggle', key: 'grid', value: true },
+              { type: 'flyTo', lon: 120, lat: 30, zoom: 2.2 }
+            ],
+            knowledge: {
+              title: '时间计算',
+              points: [
+                '🕐 <strong>东早西晚：</strong>东边时间比西边早',
+                '📏 <strong>经度与时间：</strong>15° = 1小时',
+                '🌍 <strong>时区：</strong>全球分24个时区',
+                '📍 <strong>北京时间：</strong>东八区（东经120°）'
+              ]
+            }
+          },
+          {
+            title: '生活中的自转',
+            narration: '地球自转不仅产生了昼夜交替和时间差异，还影响着我们的生活。惯性使得我们感觉不到地球在转动，但可以通过观察日月星辰的东升西落来证明。',
+            actions: [
+              { type: 'flyTo', lon: 116, lat: 39, zoom: 2.5 },
+              { type: 'toggle', key: 'grid', value: false },
+              { type: 'toggle', key: 'cities', value: true }
+            ],
+            knowledge: {
+              title: '自转的影响',
+              points: [
+                '🌅 <strong>日月升落：</strong>太阳月亮的东升西落',
+                '🌬️ <strong>风向偏转：</strong>地转偏向力影响风向',
+                '🌊 <strong>洋流偏转：</strong>影响全球洋流方向',
+                '⏰ <strong>生物钟：</strong>生物昼夜节律'
+              ]
+            },
+            quiz: {
+              question: '地球自转一周的时间大约是？',
+              options: ['12小时', '24小时', '48小时', '一年'],
+              answer: 1,
+              explanation: '地球自转一周约为24小时，这就是我们日常所说的一天。精确地说，一个恒星日是23小时56分4秒。'
+            }
+          },
+          {
+            title: '课程总结',
+            narration: '地球自转是产生昼夜交替、时间差异的根本原因。记住：自西向东，周期一天，东早西晚，经度15度差一小时。',
+            actions: [
+              { type: 'toggle', key: 'rotation', value: true },
+              { type: 'toggle', key: 'cities', value: false },
+              { type: 'flyTo', lon: 105, lat: 20, zoom: 1.5 }
+            ],
+            knowledge: {
+              title: '🎓 自转要点',
+              points: [
+                '🔄 方向：自西向东',
+                '⏱️ 周期：24小时（一天）',
+                '🌗 产生现象：昼夜交替、时间差异',
+                '📍 经度每15°差1小时'
+              ]
+            }
+          }
+        ]
+      },
+      'plate-tectonics': {
+        title: '板块运动与地震带',
+        icon: '🌋',
+        level: 'junior',
+        levelLabel: '初中',
+        steps: [
+          {
+            title: '地球的岩石圈',
+            narration: '地球的岩石圈并不是一整块，而是由六大板块组成的。这些板块漂浮在软流层之上，不断地缓慢运动。',
+            actions: [
+              { type: 'flyTo', lon: 105, lat: 30, zoom: 2.0 },
+              { type: 'toggle', key: 'continents', value: true },
+              { type: 'toggle', key: 'grid', value: true }
+            ],
+            knowledge: {
+              title: '岩石圈构造',
+              points: [
+                '🌍 <strong>岩石圈：</strong>地壳+上地幔顶部',
+                '🔥 <strong>软流层：</strong>岩石圈下方的可塑性物质',
+                '🧩 <strong>六大板块：</strong>亚欧、太平洋、美洲、非洲、印度洋、南极洲',
+                '📏 <strong>运动速度：</strong>每年约1-10厘米'
+              ]
+            }
+          },
+          {
+            title: '六大板块',
+            narration: '六大板块分别是亚欧板块、太平洋板块、美洲板块、非洲板块、印度洋板块和南极洲板块。其中太平洋板块几乎全是海洋。',
+            actions: [
+              { type: 'flyTo', lon: 0, lat: 10, zoom: 1.5 }
+            ],
+            knowledge: {
+              title: '六大板块',
+              points: [
+                '🌏 <strong>亚欧板块：</strong>最大，含欧亚大陆',
+                '🌊 <strong>太平洋板块：</strong>几乎全为海洋',
+                '🏔️ <strong>印度洋板块：</strong>印度+澳大利亚',
+                '🌎 <strong>美洲板块：</strong>南北美洲',
+                '🌍 <strong>非洲板块：</strong>非洲大陆',
+                '❄️ <strong>南极洲板块：</strong>南极大陆'
+              ]
+            }
+          },
+          {
+            title: '板块的运动方式',
+            narration: '板块之间有两种主要运动方式：相互碰撞挤压形成山脉和高原，如喜马拉雅山；相互张裂拉伸形成裂谷和海洋，如东非大裂谷和大西洋。',
+            actions: [
+              { type: 'flyTo', lon: 78, lat: 28, zoom: 2.5 }
+            ],
+            knowledge: {
+              title: '板块运动',
+              points: [
+                '💥 <strong>碰撞挤压：</strong>形成山脉（喜马拉雅山）',
+                '🔙 <strong>张裂拉伸：</strong>形成裂谷（东非大裂谷）',
+                '🌊 <strong>海洋生成：</strong>大西洋在扩大',
+                '🌋 <strong>火山地震：</strong>板块交界处多火山地震'
+              ]
+            }
+          },
+          {
+            title: '两大地震带',
+            narration: '世界上有两大主要地震带：环太平洋地震带和地中海-喜马拉雅地震带。绝大多数地震和火山都集中在这两条带上。',
+            actions: [
+              { type: 'flyTo', lon: 130, lat: 0, zoom: 1.8 }
+            ],
+            knowledge: {
+              title: '地震带分布',
+              points: [
+                '🌏 <strong>环太平洋地震带：</strong>环绕太平洋，最活跃',
+                '🏔️ <strong>地中海-喜马拉雅地震带：</strong>横贯欧亚',
+                '📊 <strong>地震比例：</strong>全球90%以上地震在这两带',
+                '🗺️ <strong>规律：</strong>板块交界处是地震多发区'
+              ]
+            }
+          },
+          {
+            title: '中国地震分布',
+            narration: '中国位于两大地震带之间，是地震多发国家。主要受印度洋板块和太平洋板块的挤压影响。台湾、云南、四川、新疆等地地震较为频繁。',
+            actions: [
+              { type: 'flyTo', lon: 102, lat: 30, zoom: 2.2 }
+            ],
+            knowledge: {
+              title: '中国地震',
+              points: [
+                '📍 <strong>主要区域：</strong>台湾、西南、西北',
+                '🌏 <strong>原因：</strong>印度洋板块北推',
+                '📉 <strong>规律：</strong>西南多、东南少',
+                '⚠️ <strong>预防：</strong>建筑抗震、地震预警'
+              ]
+            },
+            quiz: {
+              question: '世界两大地震带是？',
+              options: ['环太平洋和地中海-喜马拉雅', '大西洋和印度洋', '环大西洋和北冰洋', '地中海和大西洋'],
+              answer: 0,
+              explanation: '世界两大主要地震带是环太平洋地震带和地中海-喜马拉雅地震带，全球90%以上的地震都集中在这两个区域。'
+            }
+          },
+          {
+            title: '课程总结',
+            narration: '板块运动学说解释了地震和火山的分布规律。记住：六大板块漂浮运动，交界处多火山地震，两大地震带贯穿全球。',
+            actions: [
+              { type: 'toggle', key: 'continents', value: false },
+              { type: 'toggle', key: 'grid', value: false },
+              { type: 'flyTo', lon: 105, lat: 30, zoom: 1.5 }
+            ],
+            knowledge: {
+              title: '🎓 本节要点',
+              points: [
+                '🧩 六大板块漂浮在软流层上',
+                '💥 碰撞成山，张裂成谷',
+                '🌏 两大地震带：环太平洋、地中海-喜马拉雅',
+                '📍 中国地震受印度洋板块影响'
+              ]
+            }
+          }
+        ]
+      },
+      'earth-revolution': {
+        title: '地球公转与四季',
+        icon: '☀️',
+        level: 'senior',
+        levelLabel: '高中',
+        steps: [
+          {
+            title: '地球在公转',
+            narration: '地球在自转的同时，还绕着太阳公转。公转轨道是一个近似正圆的椭圆，太阳位于椭圆的一个焦点上。公转一周约365.25天，即一年。',
+            actions: [
+              { type: 'toggle', key: 'revolution', value: true },
+              { type: 'toggle', key: 'rotation', value: false },
+              { type: 'flyTo', lon: 0, lat: 0, zoom: 4.0 }
+            ],
+            knowledge: {
+              title: '公转基本特征',
+              points: [
+                '🌞 <strong>中心：</strong>太阳',
+                '🔄 <strong>方向：</strong>自西向东',
+                '⏰ <strong>周期：</strong>365.25天（1回归年）',
+                '⭕ <strong>轨道：</strong>近似正圆的椭圆'
+              ]
+            }
+          },
+          {
+            title: '黄赤交角',
+            narration: '地球自转的赤道面和公转的黄道面之间有一个23.5度的夹角，叫做黄赤交角。正是这个角度的存在，使得太阳直射点在南北回归线之间移动，产生了四季变化。',
+            actions: [
+              { type: 'flyTo', lon: 90, lat: 10, zoom: 3.0 }
+            ],
+            knowledge: {
+              title: '黄赤交角',
+              points: [
+                '📐 <strong>大小：</strong>23.5°（23°26′）',
+                '🌐 <strong>影响：</strong>太阳直射点南北移动',
+                '☀️ <strong>直射范围：</strong>南北回归线之间',
+                '🍂 <strong>四季成因：</strong>黄赤交角的存在'
+              ]
+            }
+          },
+          {
+            title: '太阳直射点的移动',
+            narration: '春分日，太阳直射赤道；夏至日，太阳直射北回归线；秋分日，再次直射赤道；冬至日，直射南回归线。太阳直射点的南北移动导致了四季的更替。',
+            actions: [
+              { type: 'flyTo', lon: 110, lat: 23.5, zoom: 2.5 },
+              { type: 'toggle', key: 'daymode', value: true }
+            ],
+            knowledge: {
+              title: '太阳直射点',
+              points: [
+                '🌱 <strong>春分（3.21）：</strong>直射赤道',
+                '☀️ <strong>夏至（6.22）：</strong>直射北回归线(23.5°N)',
+                '🍂 <strong>秋分（9.23）：</strong>直射赤道',
+                '❄️ <strong>冬至（12.22）：</strong>直射南回归线(23.5°S)'
+              ]
+            }
+          },
+          {
+            title: '四季的形成',
+            narration: '太阳直射点的移动引起正午太阳高度和昼夜长短的变化，进而形成四季。北半球夏季时，太阳直射北半球，昼长夜短，获得热量多；冬季则相反。',
+            actions: [
+              { type: 'flyTo', lon: 116, lat: 39, zoom: 2.5 },
+              { type: 'toggle', key: 'daymode', value: true }
+            ],
+            knowledge: {
+              title: '四季成因',
+              points: [
+                '☀️ <strong>太阳高度：</strong>高度大→辐射强→温暖',
+                '⏰ <strong>昼夜长短：</strong>昼长→日照多→温暖',
+                '🌡️ <strong>夏季：</strong>高温、昼长夜短',
+                '🌨️ <strong>冬季：</strong>低温、昼短夜长'
+              ]
+            }
+          },
+          {
+            title: '五带的划分',
+            narration: '根据太阳直射点的范围和极昼极夜现象，地球可划分为五个温度带：热带、北温带、南温带、北寒带、南寒带。',
+            actions: [
+              { type: 'toggle', key: 'climate', value: true },
+              { type: 'flyTo', lon: 105, lat: 20, zoom: 1.5 }
+            ],
+            knowledge: {
+              title: '五带划分',
+              points: [
+                '🌴 <strong>热带：</strong>南北回归线之间，有阳光直射',
+                '🌾 <strong>北温带：</strong>北回归线~北极圈',
+                '🌾 <strong>南温带：</strong>南回归线~南极圈',
+                '❄️ <strong>北寒带：</strong>北极圈以北，有极昼极夜',
+                '❄️ <strong>南寒带：</strong>南极圈以南，有极昼极夜'
+              ]
+            },
+            quiz: {
+              question: '四季变化的根本原因是？',
+              options: ['地球自转', '黄赤交角的存在', '地球大小', '距太阳远近'],
+              answer: 1,
+              explanation: '黄赤交角（23.5°）的存在使得太阳直射点在南北回归线之间移动，造成正午太阳高度和昼夜长短的变化，从而形成四季。'
+            }
+          },
+          {
+            title: '课程总结',
+            narration: '地球公转加自转产生了四季和五带。记住：黄赤交角23.5度，直射点南北移动，四季更替，五带分明。',
+            actions: [
+              { type: 'toggle', key: 'revolution', value: false },
+              { type: 'toggle', key: 'climate', value: false },
+              { type: 'toggle', key: 'daymode', value: false },
+              { type: 'flyTo', lon: 105, lat: 30, zoom: 1.5 }
+            ],
+            knowledge: {
+              title: '🎓 公转要点',
+              points: [
+                '🌞 地球绕太阳公转，周期一年',
+                '📐 黄赤交角23.5°是四季成因',
+                '☀️ 直射点在南北回归线间移动',
+                '🌴 五带：热带、南北温带、南北寒带'
+              ]
+            }
+          }
+        ]
+      },
+      'cold-front': {
+        title: '冷锋与暖锋',
+        icon: '🌨️',
+        level: 'senior',
+        levelLabel: '高中',
+        steps: [
+          {
+            title: '什么是锋？',
+            narration: '锋是冷暖气团的交界面。冷气团主动向暖气团移动形成冷锋；暖气团主动向冷气团移动形成暖锋。锋面附近天气变化剧烈。',
+            actions: [
+              { type: 'flyTo', lon: 110, lat: 35, zoom: 2.0 },
+              { type: 'toggle', key: 'grid', value: true }
+            ],
+            knowledge: {
+              title: '锋的基本概念',
+              points: [
+                '💨 <strong>气团：</strong>温度、湿度等物理性质均一的空气团',
+                '🔀 <strong>锋面：</strong>冷暖气团的交界面',
+                '🌡️ <strong>冷气团：</strong>比所经地区冷，密度大',
+                '🔥 <strong>暖气团：</strong>比所经地区暖，密度小'
+              ]
+            }
+          },
+          {
+            title: '冷锋',
+            narration: '冷锋是冷气团主动向暖气团移动形成的锋。冷气团密度大，在锋面下方；暖气团被抬升。冷锋过境时常带来大风、降温、雨雪天气。',
+            actions: [
+              { type: 'flyTo', lon: 115, lat: 40, zoom: 2.2 }
+            ],
+            knowledge: {
+              title: '冷锋特征',
+              points: [
+                '❄️ <strong>移动：</strong>冷气团主动推进',
+                '📍 <strong>锋面坡度：</strong>较大（陡峭）',
+                '☁️ <strong>天气：</strong>大风、降温、雨雪',
+                '⏰ <strong>过境后：</strong>气温降低，气压升高'
+              ]
+            }
+          },
+          {
+            title: '暖锋',
+            narration: '暖锋是暖气团主动向冷气团移动形成的锋。暖气团密度小，沿冷气团上方慢慢爬升。暖锋过境时常带来连续性降水，气温升高。',
+            actions: [
+              { type: 'flyTo', lon: 120, lat: 32, zoom: 2.2 }
+            ],
+            knowledge: {
+              title: '暖锋特征',
+              points: [
+                '🔥 <strong>移动：</strong>暖气团主动推进',
+                '📍 <strong>锋面坡度：</strong>较小（平缓）',
+                '☁️ <strong>天气：</strong>连续性降水或雾',
+                '⏰ <strong>过境后：</strong>气温升高，气压降低'
+              ]
+            }
+          },
+          {
+            title: '锋面雨的形成',
+            narration: '无论是冷锋还是暖锋，暖气团沿锋面上升，温度下降，水汽凝结成云致雨。冷锋降雨时间短但强度大，暖锋降雨时间长且连续性好。',
+            actions: [
+              { type: 'flyTo', lon: 108, lat: 34, zoom: 2.0 }
+            ],
+            knowledge: {
+              title: '锋面雨',
+              points: [
+                '💧 <strong>成因：</strong>暖气团上升→降温→凝结→成云致雨',
+                '⚡ <strong>冷锋雨：</strong>历时短、强度大、范围小',
+                '🌧️ <strong>暖锋雨：</strong>历时长、强度小、范围大',
+                '📍 <strong>雨区：</strong>冷锋在锋后，暖锋在锋前'
+              ]
+            }
+          },
+          {
+            title: '影响中国的锋面',
+            narration: '冬半年，冷锋频繁南下，给中国北方带来寒潮、沙尘暴；夏半年，暖锋北上，带来丰沛降水。江淮地区的梅雨就是准静止锋造成的。',
+            actions: [
+              { type: 'flyTo', lon: 118, lat: 30, zoom: 2.0 },
+              { type: 'toggle', key: 'grid', value: false }
+            ],
+            knowledge: {
+              title: '中国的锋面',
+              points: [
+                '❄️ <strong>冬季：</strong>冷锋南下→寒潮、沙尘暴',
+                '🌧️ <strong>夏季：</strong>暖锋北上→梅雨、汛期',
+                '📍 <strong>准静止锋：</strong>江淮梅雨、华南静止锋',
+                '⚠️ <strong>灾害：</strong>寒潮、暴雨、台风'
+              ]
+            },
+            quiz: {
+              question: '冷锋过境时通常会带来什么天气？',
+              options: ['连续性小雨', '大风降温和雨雪', '晴朗高温', '大雾'],
+              answer: 1,
+              explanation: '冷锋过境时，冷气团快速推进，暖气团被强烈抬升，常带来大风、降温、雨雪等剧烈天气。'
+            }
+          }
+        ]
+      },
+      'monsoon': {
+        title: '季风与气候',
+        icon: '💨',
+        level: 'senior',
+        levelLabel: '高中',
+        steps: [
+          {
+            title: '什么是季风？',
+            narration: '季风是指一年内盛行风向随季节有显著变化的风。主要由海陆热力性质差异和气压带风带的季节移动引起。',
+            actions: [
+              { type: 'flyTo', lon: 105, lat: 30, zoom: 1.8 },
+              { type: 'toggle', key: 'monsoon', value: true },
+              { type: 'toggle', key: 'grid', value: true }
+            ],
+            knowledge: {
+              title: '季风概念',
+              points: [
+                '💨 <strong>定义：</strong>风向随季节显著变化的风',
+                '🌡️ <strong>成因1：</strong>海陆热力性质差异',
+                '🌀 <strong>成因2：</strong>气压带风带季节移动',
+                '🌏 <strong>分布：</strong>亚洲、非洲、澳大利亚北部'
+              ]
+            }
+          },
+          {
+            title: '东亚季风',
+            narration: '东亚是世界上最典型的季风区。冬季受蒙古高压影响，盛行西北风，寒冷干燥；夏季受夏威夷高压影响，盛行东南风，温暖湿润。',
+            actions: [
+              { type: 'flyTo', lon: 115, lat: 35, zoom: 2.0 }
+            ],
+            knowledge: {
+              title: '东亚季风',
+              points: [
+                '❄️ <strong>冬季风：</strong>西北风，寒冷干燥',
+                '☀️ <strong>夏季风：</strong>东南风，温暖湿润',
+                '📍 <strong>影响范围：</strong>中国东部、朝鲜半岛、日本',
+                '🌧️ <strong>影响：</strong>雨热同期，利于农业'
+              ]
+            }
+          },
+          {
+            title: '南亚季风',
+            narration: '南亚季风主要受气压带风带移动影响。冬季盛行东北风，干燥少雨；夏季盛行西南风，带来丰沛降水，是印度农业的主要水源。',
+            actions: [
+              { type: 'flyTo', lon: 78, lat: 22, zoom: 2.2 }
+            ],
+            knowledge: {
+              title: '南亚季风',
+              points: [
+                '❄️ <strong>冬季：</strong>东北风，干燥少雨',
+                '🌧️ <strong>夏季：</strong>西南风（从非洲吹来），丰沛降水',
+                '📍 <strong>影响：</strong>印度、巴基斯坦、孟加拉',
+                '⚠️ <strong>灾害：</strong>季风不稳定→旱涝灾害'
+              ]
+            }
+          },
+          {
+            title: '季风与中国气候',
+            narration: '中国气候深受季风影响。大兴安岭-阴山-贺兰山以东为季风区，以西为非季风区。季风带来的降水是中国主要的水资源来源。',
+            actions: [
+              { type: 'flyTo', lon: 105, lat: 38, zoom: 1.8 }
+            ],
+            knowledge: {
+              title: '中国季风气候',
+              points: [
+                '🌏 <strong>分界线：</strong>大兴安岭-阴山-贺兰山',
+                '🌧️ <strong>季风区：</strong>东南湿润，雨热同期',
+                '🏜️ <strong>非季风区：</strong>西北干旱，降水少',
+                '📊 <strong>降水：</strong>从东南向西北递减'
+              ]
+            }
+          },
+          {
+            title: '季风与农业',
+            narration: '季风气候雨热同期，有利于水稻等农作物生长。但季风的不稳定性也常造成旱涝灾害，需要修建水利工程来调节。',
+            actions: [
+              { type: 'toggle', key: 'monsoon', value: false },
+              { type: 'toggle', key: 'grid', value: false },
+              { type: 'flyTo', lon: 112, lat: 30, zoom: 1.5 }
+            ],
+            knowledge: {
+              title: '季风的影响',
+              points: [
+                '🌾 <strong>有利：</strong>雨热同期→利于农业',
+                '⚠️ <strong>不利：</strong>不稳定→旱涝灾害',
+                '🏗️ <strong>应对：</strong>修建水库、水利工程',
+                '📍 <strong>代表：</strong>长江流域的水利建设'
+              ]
+            },
+            quiz: {
+              question: '东亚季风的主要成因是？',
+              options: ['地形影响', '海陆热力性质差异', '地球自转', '太阳辐射'],
+              answer: 1,
+              explanation: '东亚季风主要由海陆热力性质差异引起。冬季大陆冷形成高压，夏季海洋冷形成高压，导致冬夏盛行风向相反。'
+            }
+          }
+        ]
+      },
+      'ocean-currents': {
+        title: '世界洋流',
+        icon: '🌊',
+        level: 'senior',
+        levelLabel: '高中',
+        steps: [
+          {
+            title: '什么是洋流？',
+            narration: '洋流是海洋中大规模的海水运动，按成因可分为风海流、密度流和补偿流。洋流对全球气候和航海有重要影响。',
+            actions: [
+              { type: 'flyTo', lon: 0, lat: 10, zoom: 1.3 },
+              { type: 'toggle', key: 'currents', value: true },
+              { type: 'toggle', key: 'grid', value: true }
+            ],
+            knowledge: {
+              title: '洋流基础',
+              points: [
+                '🌊 <strong>定义：</strong>大规模海水定向流动',
+                '💨 <strong>风海流：</strong>由风（主要是盛行风）驱动',
+                '🔥 <strong>密度流：</strong>由海水密度差异引起',
+                '🔄 <strong>补偿流：</strong>由其他洋流引起的补偿运动'
+              ]
+            }
+          },
+          {
+            title: '全球洋流分布',
+            narration: '受盛行风和地转偏向力影响，全球形成了以副热带为中心的大洋环流（顺时针）和以副极地为中心的大洋环流（逆时针）。',
+            actions: [
+              { type: 'flyTo', lon: -30, lat: 10, zoom: 1.2 }
+            ],
+            knowledge: {
+              title: '洋流模式',
+              points: [
+                '🌏 <strong>低纬环流：</strong>0°-30°，顺时针（北半球）',
+                '🌏 <strong>中纬环流：</strong>30°-60°，逆时针（北半球）',
+                '🌏 <strong>高纬环流：</strong>60°-极地',
+                '📍 <strong>特点：</strong>南半球环流方向相反'
+              ]
+            }
+          },
+          {
+            title: '主要洋流',
+            narration: '重要的洋流包括：北赤道暖流、日本暖流、北太平洋暖流、加利福尼亚寒流、北大西洋暖流、墨西哥湾暖流等。',
+            actions: [
+              { type: 'flyTo', lon: -40, lat: 35, zoom: 2.0 }
+            ],
+            knowledge: {
+              title: '主要洋流',
+              points: [
+                '🔥 <strong>日本暖流：</strong>影响中国沿海气候',
+                '🔥 <strong>墨西哥湾暖流：</strong>欧洲冬季温暖',
+                '❄️ <strong>加利福尼亚寒流：</strong>美国西部干旱',
+                '❄️ <strong>秘鲁寒流：</strong>南美西部干旱'
+              ]
+            }
+          },
+          {
+            title: '洋流对气候的影响',
+            narration: '暖流对沿岸气候有增温增湿作用，寒流有降温减湿作用。北大西洋暖流使得欧洲西部比同纬度亚洲温暖10°C以上。',
+            actions: [
+              { type: 'flyTo', lon: -5, lat: 50, zoom: 2.5 }
+            ],
+            knowledge: {
+              title: '洋流与气候',
+              points: [
+                '🔥 <strong>暖流：</strong>增温增湿（西欧温暖）',
+                '❄️ <strong>寒流：</strong>降温减湿（阿塔卡马沙漠）',
+                '🌧️ <strong>交汇处：</strong>多雾、渔场',
+                '🌊 <strong>全球热量：</strong>洋流调节全球热量平衡'
+              ]
+            }
+          },
+          {
+            title: '洋流与渔场',
+            narration: '洋流交汇处往往形成大渔场，如北海道渔场、纽芬兰渔场、北海渔场、秘鲁渔场等。这些地方营养物质丰富，浮游生物多，吸引大量鱼群。',
+            actions: [
+              { type: 'flyTo', lon: 140, lat: 40, zoom: 2.5 },
+              { type: 'toggle', key: 'currents', value: false },
+              { type: 'toggle', key: 'grid', value: false }
+            ],
+            knowledge: {
+              title: '著名渔场',
+              points: [
+                '🐟 <strong>北海道渔场：</strong>日本暖流+千岛寒流',
+                '🐟 <strong>纽芬兰渔场：</strong>墨西哥湾暖流+拉布拉多寒流',
+                '🐟 <strong>北海渔场：</strong>北大西洋暖流+东格陵兰寒流',
+                '🐟 <strong>秘鲁渔场：</strong>上升补偿流'
+              ]
+            },
+            quiz: {
+              question: '暖流对沿岸气候的影响是？',
+              options: ['降温减湿', '增温增湿', '降温增湿', '增温减湿'],
+              answer: 1,
+              explanation: '暖流经过时，海水温度较高，蒸发增强，对沿岸气候起到增温增湿的作用。例如北大西洋暖流使欧洲西部气候温和湿润。'
+            }
+          }
+        ]
+      }
+    };
+
+    // ============ 课程播放器 ============
+    const coursePlayer = {
+      currentCourse: null,
+      currentStep: 0,
+      isPlaying: false,
+      isPaused: false,
+      autoPlayTimer: null,
+      narrEndTimer: null,
+      stepDuration: 0,
+
+      init() {
+        // 绑定课程列表展开/收起
+        const toggle = document.getElementById('course-toggle');
+        const list = document.getElementById('course-list');
+        if (toggle && list) {
+          toggle.addEventListener('click', () => {
+            toggle.classList.toggle('open');
+            list.classList.toggle('open');
+          });
+          // 默认展开
+          toggle.classList.add('open');
+          list.classList.add('open');
+        }
+
+        // 绑定课程项点击
+        document.querySelectorAll('.course-item').forEach(item => {
+          item.addEventListener('click', () => {
+            const courseId = item.dataset.course;
+            this.playCourse(courseId);
+          });
+        });
+
+        // 绑定播放器控件
+        document.getElementById('cp-close').addEventListener('click', () => this.stop());
+        document.getElementById('cp-prev').addEventListener('click', () => this.prevStep());
+        document.getElementById('cp-next').addEventListener('click', () => this.nextStep());
+        document.getElementById('cp-knowledge').addEventListener('click', () => this.toggleKnowledge());
+        document.getElementById('cp-quiz').addEventListener('click', () => this.showCurrentQuiz());
+        document.getElementById('quiz-close').addEventListener('click', () => {
+          document.getElementById('course-quiz-modal').classList.remove('show');
+        });
+      },
+
+      playCourse(courseId) {
+        const course = courseData[courseId];
+        if (!course) return;
+        this.stop();
+        this.currentCourse = course;
+        this.currentCourseId = courseId;
+        this.currentStep = 0;
+        this.isPlaying = true;
+
+        // 设置播放按钮为默认状态
+        const playBtn = document.getElementById('cp-play');
+        playBtn.onclick = () => this.togglePlay();
+        playBtn.textContent = '⏸';
+
+        // 更新UI
+        document.getElementById('cp-title').textContent = `${course.icon} ${course.title}`;
+        document.getElementById('course-player-bar').classList.add('show');
+
+        // 高亮当前课程
+        document.querySelectorAll('.course-item').forEach(el => {
+          el.classList.toggle('playing', el.dataset.course === courseId);
+        });
+
+        this.updateUI();
+        this.executeStep();
+      },
+
+      stop() {
+        this.isPlaying = false;
+        this.isPaused = false;
+        if (this.autoPlayTimer) { clearTimeout(this.autoPlayTimer); this.autoPlayTimer = null; }
+        if (this.narrEndTimer) { clearTimeout(this.narrEndTimer); this.narrEndTimer = null; }
+        stopSpeak();
+        document.getElementById('course-player-bar').classList.remove('show');
+        document.getElementById('course-knowledge-panel').classList.remove('show');
+        document.getElementById('course-quiz-modal').classList.remove('show');
+        document.querySelectorAll('.course-item').forEach(el => el.classList.remove('playing'));
+        this.currentCourse = null;
+        this.currentCourseId = null;
+        this.currentStep = 0;
+
+        // 重置播放按钮
+        const playBtn = document.getElementById('cp-play');
+        playBtn.onclick = null;
+        playBtn.textContent = '▶';
+        document.getElementById('cp-step-title').textContent = '选择一门课程开始学习';
+        document.getElementById('cp-step-narration').textContent = '点击左侧课程列表中的任意课程即可开始播放';
+        document.getElementById('cp-indicator').textContent = '0 / 0';
+        document.getElementById('cp-progress').style.width = '0%';
+        document.getElementById('cp-prev').disabled = true;
+        document.getElementById('cp-next').disabled = true;
+      },
+
+      togglePlay() {
+        if (!this.currentCourse) return;
+        if (this.isPaused) {
+          this.isPaused = false;
+          this.isPlaying = true;
+          this.executeStep();
+          document.getElementById('cp-play').textContent = '⏸';
+        } else {
+          this.isPaused = true;
+          this.isPlaying = false;
+          if (this.narrEndTimer) { clearTimeout(this.narrEndTimer); this.narrEndTimer = null; }
+          if (this.autoPlayTimer) { clearTimeout(this.autoPlayTimer); this.autoPlayTimer = null; }
+          stopSpeak();
+          document.getElementById('cp-play').textContent = '▶';
+        }
+      },
+
+      nextStep() {
+        if (!this.currentCourse) return;
+        if (this.currentStep < this.currentCourse.steps.length - 1) {
+          this.currentStep++;
+          this.isPaused = false;
+          this.isPlaying = true;
+          this.updateUI();
+          this.executeStep();
+        } else {
+          this.finishCourse();
+        }
+      },
+
+      prevStep() {
+        if (!this.currentCourse) return;
+        if (this.currentStep > 0) {
+          this.currentStep--;
+          this.isPaused = false;
+          this.isPlaying = true;
+          this.updateUI();
+          this.executeStep();
+        }
+      },
+
+      updateUI() {
+        if (!this.currentCourse) return;
+        const step = this.currentCourse.steps[this.currentStep];
+        const total = this.currentCourse.steps.length;
+
+        document.getElementById('cp-step-title').textContent = step.title;
+        document.getElementById('cp-step-narration').textContent = step.narration;
+        document.getElementById('cp-indicator').textContent = `${this.currentStep + 1} / ${total}`;
+        document.getElementById('cp-progress').style.width = `${((this.currentStep + 1) / total) * 100}%`;
+        document.getElementById('cp-prev').disabled = this.currentStep === 0;
+        document.getElementById('cp-next').disabled = this.currentStep >= total - 1;
+        document.getElementById('cp-play').textContent = this.isPlaying ? '⏸' : '▶';
+
+        // 更新知识点面板
+        if (step.knowledge) {
+          this.showKnowledge(step.knowledge);
+        }
+      },
+
+      executeStep() {
+        if (!this.currentCourse || !this.isPlaying) return;
+        const step = this.currentCourse.steps[this.currentStep];
+
+        // 执行动作
+        if (step.actions) {
+          step.actions.forEach(action => this.executeAction(action));
+        }
+
+        // 播放旁白
+        if (step.narration) {
+          this.scheduleNarration(step.narration);
+        }
+
+        // 显示知识点
+        this.updateUI();
+
+        // 自动进入下一步
+        const narrationLength = step.narration ? step.narration.length * 0.15 : 3;
+        const stepDuration = Math.max(narrationLength, 4) * 1000;
+
+        this.autoPlayTimer = setTimeout(() => {
+          if (this.isPlaying && this.currentCourse && this.currentStep < this.currentCourse.steps.length - 1) {
+            this.currentStep++;
+            this.updateUI();
+            this.executeStep();
+          } else if (this.currentStep >= this.currentCourse.steps.length - 1) {
+            this.finishCourse();
+          }
+        }, stepDuration);
+      },
+
+      executeAction(action) {
+        switch (action.type) {
+          case 'flyTo':
+            this.flyToLocation(action.lon, action.lat, action.zoom);
+            break;
+          case 'toggle':
+            this.setOption(action.key, action.value);
+            break;
+          case 'setSunHeight':
+            sunHeight = action.value;
+            document.getElementById('sun-height').value = sunHeight;
+            document.getElementById('sun-val').textContent = sunHeight + '°';
+            updateSunPosition();
+            updateDirectPoint();
+            updateTwilightDirection();
+            updateInfo();
+            break;
+          case 'setTilt':
+            axisTilt = action.value;
+            document.getElementById('axis-tilt').value = axisTilt;
+            document.getElementById('tilt-val').textContent = axisTilt.toFixed(1) + '°';
+            earthGroup.rotation.z = axisTilt * Math.PI / 180;
+            if (twilightMesh) twilightMesh.rotation.z = axisTilt * Math.PI / 180;
+            updateInfo();
+            break;
+          case 'rotation':
+            options.rotation = action.value;
+            document.querySelector('.toggle-item[data-key="rotation"]').classList.toggle('active', action.value);
+            document.querySelector('.toggle-item[data-key="rotation"]').querySelector('.toggle-switch').classList.toggle('active', action.value);
+            break;
+          case 'revolution':
+            options.revolution = action.value;
+            document.querySelector('.toggle-item[data-key="revolution"]').classList.toggle('active', action.value);
+            document.querySelector('.toggle-item[data-key="revolution"]').querySelector('.toggle-switch').classList.toggle('active', action.value);
+            break;
+        }
+      },
+
+      flyToLocation(lon, lat, zoom) {
+        const localTarget = lonLatToVector3(lon, lat, earthRadius + 0.01);
+        const target = earthGroup.localToWorld(localTarget.clone());
+        isFlying = true;
+
+        const startPos = camera.position.clone();
+        const startTime = Date.now();
+        const duration = 1500;
+        const distance = zoom || 2.5;
+
+        function animateFly() {
+          const elapsed = Date.now() - startTime;
+          const progress = Math.min(elapsed / duration, 1);
+          const easeProgress = 1 - Math.pow(1 - progress, 3);
+
+          const endPos = new THREE.Vector3(target.x * distance, target.y * distance, target.z * distance);
+          camera.position.lerpVectors(startPos, endPos, easeProgress);
+          camera.lookAt(target);
+
+          if (progress < 1) requestAnimationFrame(animateFly);
+          else isFlying = false;
+        }
+        animateFly();
+      },
+
+      setOption(key, value) {
+        options[key] = value;
+        const toggle = document.querySelector(`.toggle-item[data-key="${key}"]`);
+        if (toggle) {
+          if (value) {
+            toggle.classList.add('active');
+            toggle.querySelector('.toggle-switch').classList.add('active');
+          } else {
+            toggle.classList.remove('active');
+            toggle.querySelector('.toggle-switch').classList.remove('active');
+          }
+        }
+
+        // 同步更新图层可见性
+        if (key === 'grid' && gridGroup) gridGroup.visible = value;
+        if (key === 'axis' && axisGroup) axisGroup.visible = value;
+        if (key === 'direct' && directPoint) directPoint.visible = value;
+        if (key === 'twilight' && twilightMesh) twilightMesh.visible = value;
+        if (key === 'dateline' && datelineMesh) datelineMesh.visible = value;
+        if (key === 'cities' && cityGroup) cityGroup.visible = value;
+        if (key === 'continents' && continentGroup) continentGroup.visible = value;
+        if (key === 'currents' && currentsGroup) currentsGroup.visible = value;
+        if (key === 'weather' && weatherGroup) weatherGroup.visible = value;
+        if (key === 'gdp' && gdpGroup) gdpGroup.visible = value;
+        if (key === 'monsoon' && monsoonGroup) monsoonGroup.visible = value;
+        if (key === 'climate' && climateGroup) {
+          climateGroup.visible = value;
+          climateGroup.children.forEach(c => c.visible = value);
+        }
+        if (key === 'daymode' && twilightMesh && earthMesh) {
+          if (twilightMesh.material.uniforms) {
+            twilightMesh.material.uniforms.darkness.value = value ? 0.02 : 1.0;
+          }
+          if (earthMesh.material) {
+            earthMesh.material.emissive.setHex(value ? 0x303040 : 0x000000);
+            earthMesh.material.emissiveIntensity = value ? 0.5 : 0;
+            earthMesh.material.shininess = value ? 30 : 8;
+          }
+          if (ambientLight) ambientLight.intensity = value ? 1.5 : 0.6;
+          if (fillLight) fillLight.intensity = value ? 0.8 : 0.3;
+        }
+      },
+
+      scheduleNarration(text) {
+        if (!window.speechSynthesis) return;
+        window.speechSynthesis.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.lang = 'zh-CN';
+        utterance.rate = 1.0;
+        utterance.pitch = 1.0;
+        window.speechSynthesis.speak(utterance);
+      },
+
+      showKnowledge(knowledge) {
+        const panel = document.getElementById('course-knowledge-panel');
+        const content = document.getElementById('knowledge-content');
+        if (knowledge.points && knowledge.points.length > 0) {
+          content.innerHTML = `<div class="knowledge-title">📖 ${knowledge.title}</div>` +
+            knowledge.points.map(p => `<div class="knowledge-point">${p}</div>`).join('');
+        }
+        panel.classList.add('show');
+      },
+
+      toggleKnowledge() {
+        const panel = document.getElementById('course-knowledge-panel');
+        if (panel.classList.contains('show')) {
+          panel.classList.remove('show');
+        } else {
+          if (this.currentCourse) {
+            const step = this.currentCourse.steps[this.currentStep];
+            if (step.knowledge) this.showKnowledge(step.knowledge);
+          }
+        }
+      },
+
+      showCurrentQuiz() {
+        if (!this.currentCourse) return;
+        const step = this.currentCourse.steps[this.currentStep];
+        if (!step.quiz) {
+          alert('当前步骤没有练习题，请在有 📖 标记的步骤点击此按钮。');
+          return;
+        }
+        this.showQuiz(step.quiz);
+      },
+
+      showQuiz(quiz) {
+        const modal = document.getElementById('course-quiz-modal');
+        const content = document.getElementById('quiz-content');
+        content.innerHTML = `
+          <div style="margin-bottom:18px; font-size:15px; color:var(--theme-text); line-height:1.6;">${quiz.question}</div>
+          ${quiz.options.map((opt, i) => `<button class="quiz-option" data-idx="${i}">${String.fromCharCode(65+i)}. ${opt}</button>`).join('')}
+          <div class="quiz-explanation" id="quiz-explanation"></div>
+        `;
+        modal.classList.add('show');
+
+        content.querySelectorAll('.quiz-option').forEach(btn => {
+          btn.addEventListener('click', () => {
+            const idx = parseInt(btn.dataset.idx);
+            const buttons = content.querySelectorAll('.quiz-option');
+            buttons.forEach(b => { b.disabled = true; b.style.cursor = 'default'; });
+            if (idx === quiz.answer) {
+              btn.classList.add('correct');
+            } else {
+              btn.classList.add('wrong');
+              buttons[quiz.answer].classList.add('correct');
+            }
+            document.getElementById('quiz-explanation').textContent = '💡 ' + quiz.explanation;
+            document.getElementById('quiz-explanation').classList.add('show');
+          });
+        });
+      },
+
+      finishCourse() {
+        this.isPlaying = false;
+        this.isPaused = false;
+        if (this.autoPlayTimer) { clearTimeout(this.autoPlayTimer); this.autoPlayTimer = null; }
+        if (this.narrEndTimer) { clearTimeout(this.narrEndTimer); this.narrEndTimer = null; }
+        stopSpeak();
+
+        const lastStep = this.currentCourse ? this.currentCourse.steps[this.currentCourse.steps.length - 1] : null;
+        if (lastStep && lastStep.quiz) {
+          this.showQuiz(lastStep.quiz);
+        }
+
+        const playBtn = document.getElementById('cp-play');
+        playBtn.textContent = '🔄';
+        document.getElementById('cp-step-title').textContent = '✅ 课程完成！';
+        document.getElementById('cp-step-narration').textContent = '恭喜完成本课！点击重播按钮重新学习，或选择其他课程。';
+        const courseId = this.currentCourseId;
+        playBtn.onclick = () => {
+          if (courseId) this.playCourse(courseId);
+        };
+      }
+    };
+
+    // 初始化课程播放器
+    try { coursePlayer.init(); } catch(e) { console.warn('课程播放器初始化失败:', e); }
+
+    // ============ 课程播放系统结束 ============
+
+    // ============ 评委快速体验工具函数 ============
+    function demoPlayCourse(id) {
+      const item = document.querySelector(`.course-item[data-course="${id}"]`);
+      if (item) {
+        const panel = document.getElementById('left-panel');
+        if (panel) {
+          const rect = item.getBoundingClientRect();
+          if (rect.top < 0 || rect.bottom > (window.innerHeight - 50)) {
+            panel.scrollTop += rect.top - 150;
+          }
+        }
+        item.click();
+      }
+    }
+
+    function demoFlyToCity(cityKey) {
+      if (typeof flyToCity === 'function') flyToCity(cityKey);
+    }
+
+    function demoToggleWeather() {
+      if (typeof options !== 'undefined') {
+        options.weather = !options.weather;
+        if (typeof updateToggleUI === 'function') updateToggleUI('weather', options.weather);
+        if (typeof weatherGroup !== 'undefined' && weatherGroup) weatherGroup.visible = options.weather;
+      }
+    }
+
+    function demoToggleClimate() {
+      if (typeof options !== 'undefined') {
+        options.climate = !options.climate;
+        if (typeof updateToggleUI === 'function') updateToggleUI('climate', options.climate);
+        if (typeof climateGroup !== 'undefined' && climateGroup) {
+          climateGroup.visible = options.climate;
+          climateGroup.children.forEach(c => c.visible = options.climate);
+        }
+      }
+    }
+
+    function demoOpenGallery() {
+      if (typeof openGalleryModal === 'function') openGalleryModal();
+    }
+
+    function demoToggleMeasure() {
+      const btn = document.querySelector('[data-measure="distance"]') || document.querySelector('.measure-distance-btn');
+      if (btn) btn.click();
+    }
+
+    function demoToggleRotation() {
+      if (typeof options !== 'undefined') {
+        options.rotation = !options.rotation;
+        if (typeof updateToggleUI === 'function') updateToggleUI('rotation', options.rotation);
+      }
+    }
+
+    function demoSwitchView(mode) {
+      const btn = document.getElementById('view-2d-btn');
+      if (btn) btn.click();
+    }
+
+    function demoOpenQuiz() {
+      const btn = document.getElementById('ai-assistant-btn');
+      if (btn) btn.click();
+    }
+
+    function demoReset() {
+      // 重置到初始视角
+      if (typeof camera !== 'undefined') {
+        camera.position.set(0, 0, 3);
+        if (typeof earthGroup !== 'undefined') {
+          const origin = earthGroup.localToWorld(new THREE.Vector3(0, 0, 0));
+          camera.lookAt(origin);
+        }
+      }
+      // 停止课程
+      if (typeof coursePlayer !== 'undefined') {
+        try { coursePlayer.stop(); } catch(e) {}
+      }
+      // 关闭所有模态
+      document.querySelectorAll('.modal.show, .modal.open').forEach(m => m.classList.remove('show', 'open'));
+      // 重置图层开关
+      if (typeof options !== 'undefined') {
+        options.weather = false;
+        options.climate = false;
+        if (typeof updateToggleUI === 'function') {
+          updateToggleUI('weather', false);
+          updateToggleUI('climate', false);
+        }
+        if (typeof weatherGroup !== 'undefined' && weatherGroup) weatherGroup.visible = false;
+        if (typeof climateGroup !== 'undefined' && climateGroup) {
+          climateGroup.visible = false;
+          climateGroup.children.forEach(c => c.visible = false);
+        }
+      }
+    }
+
     init();
   </script>
+
+  <!-- 课程播放器底部条 -->
+  <div id="course-player-bar">
+    <div class="course-player-header">
+      <div class="course-player-title" id="cp-title">🎓 课程播放</div>
+      <button class="course-player-close" id="cp-close">✕</button>
+    </div>
+    <div class="course-step-info">
+      <div class="course-step-title" id="cp-step-title">选择一门课程开始学习</div>
+      <div class="course-step-narration" id="cp-step-narration">点击左侧课程列表中的任意课程即可开始播放</div>
+    </div>
+    <div class="course-progress-bar">
+      <div class="course-progress-fill" id="cp-progress" style="width:0%"></div>
+    </div>
+    <div class="course-player-controls">
+      <button class="course-ctrl-btn" id="cp-prev" title="上一步" disabled>⏮</button>
+      <button class="course-ctrl-btn primary" id="cp-play" title="播放/暂停">▶</button>
+      <button class="course-ctrl-btn" id="cp-next" title="下一步" disabled>⏭</button>
+      <span class="course-step-indicator" id="cp-indicator">0 / 0</span>
+      <button class="course-ctrl-btn" id="cp-knowledge" title="知识点">📖</button>
+      <button class="course-ctrl-btn" id="cp-quiz" title="练习题">❓</button>
+    </div>
+  </div>
+
+  <!-- 知识点面板 -->
+  <div id="course-knowledge-panel">
+    <div class="knowledge-title">📖 课程知识点</div>
+    <div id="knowledge-content">
+      <p style="color:var(--theme-text-muted); font-size:13px;">播放课程时，知识点会在此显示。</p>
+    </div>
+  </div>
+
+  <!-- 课程问答模态框 -->
+  <div id="course-quiz-modal">
+    <div class="quiz-card">
+      <div class="quiz-title">❓ 课堂小测</div>
+      <div id="quiz-content"></div>
+      <button class="quiz-close" id="quiz-close">关闭</button>
+    </div>
+  </div>
+
 </body>
 </html>
