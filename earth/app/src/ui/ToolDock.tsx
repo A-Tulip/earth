@@ -23,7 +23,6 @@ export function ToolDock() {
   const [activePanel, setActivePanel] = useState<DockPanel>(null);
   const store = useGeographyStore();
   const state = store;
-  const { busy: anyBusy } = useLayerBusy('all');
   const { busy: sceneBusy } = useLayerBusy('sceneMode');
   const { busy: basemapBusy } = useLayerBusy('basemap', 'globeMaterial');
 
@@ -78,7 +77,7 @@ export function ToolDock() {
   ];
 
   return (
-    <div data-tool-dock className={`fixed bottom-6 left-6 z-30 flex flex-col gap-2 ${dockDisabledClass(anyBusy)}`}>
+    <div data-tool-dock className="fixed bottom-6 left-6 z-30 flex flex-col gap-2">
       {/* 展开的面板 */}
       {activePanel && (
         <div className="mb-2 max-h-[60vh] w-64 overflow-y-auto rounded-xl bg-ink-800/90 p-3 text-sm text-white backdrop-blur-md ring-1 ring-geo-500/20 animate-slide-up">
@@ -91,7 +90,7 @@ export function ToolDock() {
       )}
 
       {/* 工具入口按钮组 */}
-      <div className="flex items-center gap-1 rounded-full bg-ink-800/80 p-1.5 backdrop-blur-sm ring-1 ring-geo-500/20">
+      <div className={`flex items-center gap-1 rounded-full bg-ink-800/80 p-1.5 backdrop-blur-sm ring-1 ring-geo-500/20 ${dockDisabledClass(sceneBusy || basemapBusy)}`}>
         {tools.map((t) => (
           <button
             key={t.id}
@@ -231,13 +230,18 @@ function ViewPanel({
 
       <div className="my-2 h-px bg-white/10" />
       <div className="mb-2 text-xs font-medium text-geo-300">地形分析</div>
+      {!state.terrain.available && (
+        <div className="mb-2 rounded-md bg-amber-500/10 px-2 py-1.5 text-[10px] text-amber-300">
+          当前为椭球回退模式，等高线/坡度/坡向等地形分析功能不可用
+        </div>
+      )}
       <div className={basemapBusy ? dockDisabledClass(true) : ''}>
         <PanelRow label="等高线">
           <Toggle
             id="terrain.contour"
             checked={state.terrain.contour}
-            disabled={state.viewMode !== '3d'}
-            title={state.viewMode !== '3d' ? '等高线仅在 3D 地球模式下可用' : undefined}
+            disabled={state.viewMode !== '3d' || !state.terrain.available}
+            title={!state.terrain.available ? '需要配置地形数据（VITE_CESIUM_ION_TOKEN）' : state.viewMode !== '3d' ? '等高线仅在 3D 地球模式下可用' : undefined}
             onChange={() =>
               state.terrain.contour
                 ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
@@ -245,12 +249,23 @@ function ViewPanel({
             }
           />
         </PanelRow>
+        <div className="flex items-center gap-2 py-1 text-xs">
+          <span className="text-white/60 w-14 shrink-0">间距</span>
+          <input
+            type="range" min={50} max={2000} step={50}
+            value={state.terrain.contourSpacing}
+            disabled={state.viewMode !== '3d' || !state.terrain.available}
+            onChange={(e) => commandBus.execute({ name: 'terrain.setContourSpacing', args: { spacing: parseInt(e.target.value, 10) } })}
+            className={`flex-1 accent-geo-500 ${state.viewMode !== '3d' || !state.terrain.available ? 'opacity-40 cursor-not-allowed' : ''}`}
+          />
+          <span className="text-white/80 w-12 text-right">{state.terrain.contourSpacing}m</span>
+        </div>
         <PanelRow label="高程分层">
           <Toggle
             id="terrain.elevationRamp"
             checked={state.terrain.elevationRamp}
-            disabled={state.viewMode !== '3d'}
-            title={state.viewMode !== '3d' ? '高程分层仅在 3D 地球模式下可用' : undefined}
+            disabled={state.viewMode !== '3d' || !state.terrain.available}
+            title={!state.terrain.available ? '需要配置地形数据（VITE_CESIUM_ION_TOKEN）' : state.viewMode !== '3d' ? '高程分层仅在 3D 地球模式下可用' : undefined}
             onChange={() =>
               state.terrain.elevationRamp
                 ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
@@ -262,8 +277,8 @@ function ViewPanel({
           <Toggle
             id="terrain.slope"
             checked={state.terrain.slope}
-            disabled={state.viewMode !== '3d'}
-            title={state.viewMode !== '3d' ? '坡度分析仅在 3D 地球模式下可用' : undefined}
+            disabled={state.viewMode !== '3d' || !state.terrain.available}
+            title={!state.terrain.available ? '需要配置地形数据（VITE_CESIUM_ION_TOKEN）' : state.viewMode !== '3d' ? '坡度分析仅在 3D 地球模式下可用' : undefined}
             onChange={() =>
               state.terrain.slope
                 ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })
@@ -275,8 +290,8 @@ function ViewPanel({
           <Toggle
             id="terrain.aspect"
             checked={state.terrain.aspect}
-            disabled={state.viewMode !== '3d'}
-            title={state.viewMode !== '3d' ? '坡向分析仅在 3D 地球模式下可用' : undefined}
+            disabled={state.viewMode !== '3d' || !state.terrain.available}
+            title={!state.terrain.available ? '需要配置地形数据（VITE_CESIUM_ION_TOKEN）' : state.viewMode !== '3d' ? '坡向分析仅在 3D 地球模式下可用' : undefined}
             onChange={() =>
               state.terrain.aspect
                 ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })

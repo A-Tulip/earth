@@ -597,7 +597,7 @@ export class KeywordIntentLLM implements LLMAdapter, IntentChatLLM {
     // ===== 地形分析（等高线、高程分层、坡度、坡向）=====
     if (/等高线|地形图/.test(text)) {
       const spacingMatch = text.match(/(?:等高线|间距).{0,4}?(\d+(?:\.\d+)?)\s*米/);
-      const spacing = spacingMatch ? parseFloat(spacingMatch[1]) : 200;
+      const spacing = spacingMatch ? parseFloat(spacingMatch[1]) : 500;
       calls.push({ name: 'layer.showContour', args: { spacing } });
     }
     if (/高程|分层|分层设色|地势分带|海拔分色|高程分带/.test(text)) {

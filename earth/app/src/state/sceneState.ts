@@ -282,7 +282,7 @@ export const initialSceneState: GeographySceneState = {
   solarSystemActive: false,
 
   annotations: {
-    graticule: true,
+    graticule: false,
     cities: false,
     labels: true,
     climateZones: false,
@@ -318,7 +318,7 @@ export const initialSceneState: GeographySceneState = {
 
   terrain: {
     contour: false,
-    contourSpacing: 200,
+    contourSpacing: 500,
     elevationRamp: false,
     slope: false,
     aspect: false,

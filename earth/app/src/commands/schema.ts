@@ -43,6 +43,7 @@ export const TOOL_NAMES = [
   'layer.showRegion',     // 区域叠加（三级阶梯/板块/气候带教学高亮）
   'layer.clearRegion',    // 清除区域叠加
   'terrain.setExaggeration',
+  'terrain.setContourSpacing',
   'terrain.profile',      // 沿路径生成剖面
   'terrain.setLandformStyle', // 地貌风格快捷：natural | relief | landform | contour | plain
 
@@ -243,6 +244,9 @@ export const TOOL_SCHEMAS: Record<ToolName, Record<string, ParamSchema>> = {
   'layer.showAspect': {},
   'terrain.setExaggeration': {
     value: { type: 'number', required: true, min: 0.5, max: 10, description: '地形夸张倍数' },
+  },
+  'terrain.setContourSpacing': {
+    spacing: { type: 'number', required: true, min: 10, max: 5000, description: '等高线间距（米）' },
   },
   'terrain.setLandformStyle': {
     style: {
@@ -516,6 +520,7 @@ export const TOOL_DESCRIPTIONS: Partial<Record<ToolName, string>> = {
   'layer.showRegion': '在地球上高亮绘制一个或多个半透明区域多边形（三级阶梯/板块/气候带教学用）',
   'layer.clearRegion': '清除当前区域叠加高亮',
   'terrain.setExaggeration': '设置地形夸张倍数（0.5~10）',
+  'terrain.setContourSpacing': '设置等高线间距（10~5000 米），若等高线已开启则立即重新渲染',
   'terrain.setLandformStyle': '快捷切换地貌风格（自然/灰度浮雕/分层设色/等高线/平坦）',
   'terrain.profile': '沿给定路径点生成地形剖面',
   'measure.start': '开始测量（距离/面积/角度/高度/剖面）',

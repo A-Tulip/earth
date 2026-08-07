@@ -10,7 +10,7 @@ import * as Cesium from 'cesium';
 import { CesiumController } from './controller';
 import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
-import { createBasemapProvider, createBestTerrainProvider, createTerrariumTerrainProvider, createMapLibreTerrainProvider } from './terrainProviders';
+import { createBasemapProvider, createBestTerrainProvider, createTerrariumTerrainProvider, createMapLibreTerrainProvider, testTerrainTileAccess } from './terrainProviders';
 import { createTickThrottle, FpsCounter, getGlobalDegrader, type DegradeConfig, DEGRADE_TIERS } from '../state/PerformanceMonitor';
 import { LayerLifeCycleManager, setLayerManagerSingleton } from './LayerLifeCycleManager';
 
@@ -323,24 +323,51 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       void layerMgr.schedule('terrain', async () => {
         if (cancelled) return;
         // 优先尝试 MapLibre DEM30（30m 高清地形），失败回退到 Terrarium（1km）
+        // 连通性检测已放宽（仅警告不阻断），但需通过实际瓦片请求验证可用性
         let terrainOk = false;
         try {
           const mapLibreProvider = await createMapLibreTerrainProvider();
           if (cancelled) return;
-          viewer.terrainProvider = mapLibreProvider;
-          useGeographyStore.getState().setTerrain({ available: true });
-          terrainOk = true;
+          // 用实际瓦片请求验证 MapLibre 是否可用（HEAD 不可靠，GET 才能确认）
+          const mapLibreWorks = await testTerrainTileAccess('https://dem.maplibre.com/data/dem-30');
+          if (mapLibreWorks) {
+            viewer.terrainProvider = mapLibreProvider;
+            useGeographyStore.getState().setTerrain({ available: true });
+            terrainOk = true;
+          } else {
+            console.warn('[Terrain] MapLibre 瓦片不可访问，尝试 Terrarium...');
+          }
         } catch {
-          // MapLibre 失败，尝试 Terrarium
+          // MapLibre 创建失败，直接尝试 Terrarium
         }
         if (!terrainOk) {
           try {
             const terrariumProvider = await createTerrariumTerrainProvider();
             if (cancelled) return;
-            viewer.terrainProvider = terrariumProvider;
-            useGeographyStore.getState().setTerrain({ available: true });
+            // 同样验证 Terrarium 瓦片
+            const terrariumWorks = await testTerrainTileAccess('https://elevation-tiles-prod.s3.amazonaws.com/terrarium');
+            if (terrariumWorks) {
+              viewer.terrainProvider = terrariumProvider;
+              useGeographyStore.getState().setTerrain({ available: true });
+              terrainOk = true;
+            } else {
+              console.warn('[Terrain] Terrarium 瓦片也不可访问，尝试 Cesium World Terrain（默认 token）...');
+            }
           } catch {
-            // 全部失败，保持椭球地形
+            // Terrarium 创建失败，尝试 Cesium World Terrain
+          }
+        }
+        // 最终回退：Cesium World Terrain（使用 Cesium 内置默认 token，无需额外配置）
+        if (!terrainOk) {
+          try {
+            const worldTerrain = await Cesium.createWorldTerrainAsync();
+            if (cancelled) return;
+            viewer.terrainProvider = worldTerrain;
+            useGeographyStore.getState().setTerrain({ available: true });
+            terrainOk = true;
+            console.info('[Terrain] 使用 Cesium World Terrain（默认 token）');
+          } catch {
+            console.warn('[Terrain] Cesium World Terrain 也不可用，保持椭球地形');
           }
         }
       });
@@ -377,18 +404,19 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
         Cesium.Cartesian3.negate(sunPos, new Cesium.Cartesian3()),
         new Cesium.Cartesian3(),
       );
+      // 方案 D：增强光照强度，提高地形立体感
       viewer.scene.light = new Cesium.DirectionalLight({
         direction: sunDir,
-        intensity: 1.4,
+        intensity: 1.6, // 从 1.4 提高到 1.6，增强地形阴影对比
       });
     } catch {
       viewer.scene.light = new Cesium.SunLight();
     }
 
-    // 雾化配置：低雾密度让远处地形更清晰可见
+    // 雾化配置：极低雾密度让远处地形更清晰可见（方案 D）
     if (viewer.scene.fog) {
       viewer.scene.fog.enabled = true;
-      viewer.scene.fog.density = 0.00005;
+      viewer.scene.fog.density = 0.00002; // 从 0.00005 降低，让远处地形更清晰
     }
 
     // 初始视角：中国上空（和 controller.resetToChina 的 RESET_CAMERA 保持一致）

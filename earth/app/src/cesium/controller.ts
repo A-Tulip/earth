@@ -597,25 +597,50 @@ export class CesiumController {
 
       // §1.2 Basemap → globe.material 映射（地貌查看功能）
       //  - contour:   政区底图 + 等高线线条
-      //  - relief:    卫星底图 + 灰度分层阴影 + 地形夸张 2.0x（立体晕渲感）
-      //  - landform:  政区底图 + 彩色高程分层（绿-黄-棕-白）+ 地形夸张 2.5x
+      //  - relief:    地形晕渲底图 + 灰度分层阴影 + 地形夸张 2.0x（立体晕渲感）
+      //  - landform:  地形晕渲底图 + 彩色高程分层（绿-黄-棕-白）+ 地形夸张 2.5x
       //  - 其它:       无 globe.material（纯底图瓦片）
+      //
+      // ⚠️ 椭球地形回退时（terrain.available=false）：
+      //   - 跳过 globe.material 应用（ElevationRamp/ElevationContour 需要真实高程数据）
+      //   - 直接使用底图瓦片本身的地形渲染（如 Esri World Topo Map 自带地形晕渲）
+      //   - 不设置地形夸张（椭球下夸张无效）
       {
         const tStore = useGeographyStore.getState();
+        const terrainAvailable = tStore.terrain.available;
         const exaggerationByKind: Partial<Record<string, number>> = {
           contour: 1.5,
           relief: 2.0,
           landform: 2.5,
         };
         const exaggeration = exaggerationByKind[bm];
-        // 切换地形夸张：relief/landform/contour 教学推荐倍率，其他恢复 store 中用户自定义值（无则 1.0）
-        if (typeof exaggeration === 'number') {
-          await this.setTerrainExaggeration(exaggeration);
-        } else if (tStore.terrain && !tStore.terrain.exaggeration) {
+
+        if (terrainAvailable) {
+          // 真实地形可用：设置地形夸张倍率
+          if (typeof exaggeration === 'number') {
+            await this.setTerrainExaggeration(exaggeration);
+          } else if (tStore.terrain && !tStore.terrain.exaggeration) {
+            await this.setTerrainExaggeration(1.0);
+          }
+        } else {
+          // 椭球地形：重置夸张为 1.0（无地形时夸张无效）
           await this.setTerrainExaggeration(1.0);
         }
-        if (bm === 'contour') {
-          const spacing = tStore.terrain.contourSpacing || 100;
+
+        if (!terrainAvailable && (bm === 'relief' || bm === 'landform' || bm === 'contour')) {
+          // 椭球回退模式：不应用需要高程数据的 globe.material
+          // relief 底图（Esri World Topo Map / 天地图 ter_w）本身自带地形晕渲效果
+          // landform 底图（USGS ShadedReliefOnly / 天地图 ter_w）本身带阴影
+          // contour 底图（政区底图）作为替代展示
+          await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
+            viewer.scene.globe.material = undefined;
+            try {
+              const main = getMainBasemapLayer();
+              if (main) main.alpha = 1;
+            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:630', (e as any)?.message ?? e); }
+          });
+        } else if (bm === 'contour') {
+          const spacing = tStore.terrain.contourSpacing || 500;
           // ⚠️ 参数必须与 showContour() 内完全一致：否则"先开等高线再切到 contour 底图风格"会出现两次
           //    等高线颜色/粗细突变，老师讲课时会以为图层状态错了。
           await this.applyGlobeMaterial('contour' as OpKind, () => {
@@ -627,33 +652,35 @@ export class CesiumController {
           });
         } else if (bm === 'relief') {
           await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
-            // 灰度浮雕：用高程渐变 + 暗色调，呈现"晕渲图"效果
+            // 综合渲染：灰度浮雕 + 保留地形光照阴影
             const globe = viewer.scene.globe;
             globe.material = Cesium.Material.fromType('ElevationRamp', {
               image: this.createReliefRampImage(),
               minimumHeight: -6000,
               maximumHeight: 8850,
             });
-            // relief: 把主底图图层 alpha 降低，让灰度浮雕透出（兜底海洋层不算主底图）
+            // 方案 D：主底图 alpha 提高到 0.70，保留更多地形光照阴影
             try {
               const main = getMainBasemapLayer();
-              if (main) main.alpha = 0.62;
-            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:640', (e as any)?.message ?? e); }
+              if (main) main.alpha = 0.70;
+            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:650', (e as any)?.message ?? e); }
           });
         } else if (bm === 'landform') {
           await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
-            // 彩色分层设色：教学标准色（低地绿→丘陵黄→山地棕→极高山白）
+            // 综合渲染：彩色分层设色 + 保留地形光照阴影
+            // 教学标准色（低地绿→丘陵黄→山地棕→极高山白）
             const globe = viewer.scene.globe;
             globe.material = Cesium.Material.fromType('ElevationRamp', {
               image: this.createLandformRampImage(),
               minimumHeight: -8000,
               maximumHeight: 9000,
             });
-            // landform: 主底图降 alpha 到 0.35，让彩色分层设色更主导
+            // 方案 D：主底图 alpha 提高到 0.55，保留更多地形光照阴影
+            // 综合渲染效果 = 彩色分层 + 立体感阴影
             try {
               const main = getMainBasemapLayer();
-              if (main) main.alpha = 0.35;
-            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:655', (e as any)?.message ?? e); }
+              if (main) main.alpha = 0.55;
+            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:665', (e as any)?.message ?? e); }
           });
         } else {
           await this.applyGlobeMaterial('globeMaterial' as OpKind, () => {
@@ -662,7 +689,7 @@ export class CesiumController {
             try {
               const main = getMainBasemapLayer();
               if (main) main.alpha = 1;
-            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:664', (e as any)?.message ?? e); }
+            } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts:674', (e as any)?.message ?? e); }
           });
         }
       }
@@ -729,8 +756,22 @@ export class CesiumController {
     });
   }
 
+  /** 检查地形是否可用（非椭球回退），返回 false 时地形分析功能不可用 */
+  private isTerrainAvailable(): boolean {
+    return useGeographyStore.getState().terrain.available;
+  }
+
   async showContour(spacing: number): Promise<void> {
     if (!this.viewer?.scene?.globe) return;
+    if (!this.isTerrainAvailable()) {
+      // 椭球回退：清除可能残留的材质，保持底图清晰
+      console.warn('[Terrain] 等高线需要真实地形数据，当前为椭球回退，已跳过');
+      await this.applyGlobeMaterial('globeMaterial', () => {
+        this.viewer.scene.globe.material = undefined;
+      });
+      this.viewer.scene.requestRender();
+      return;
+    }
     await this.applyGlobeMaterial('globeMaterial', () => {
       this.viewer.scene.globe.material = Cesium.Material.fromType('ElevationContour', {
         // 颜色：暖棕 #6b4a2e（东亚地形图等高线常用色），替代纯黑 #1a1a1a
@@ -742,10 +783,20 @@ export class CesiumController {
         width: 2.0,
       });
     });
+    this.viewer.scene.requestRender();
   }
 
   async showElevationRamp(): Promise<void> {
     if (!this.viewer?.scene?.globe) return;
+    if (!this.isTerrainAvailable()) {
+      // 椭球回退：清除可能残留的材质，保持底图清晰
+      console.warn('[Terrain] 高程分层需要真实地形数据，当前为椭球回退，已跳过');
+      await this.applyGlobeMaterial('globeMaterial', () => {
+        this.viewer.scene.globe.material = undefined;
+      });
+      this.viewer.scene.requestRender();
+      return;
+    }
     await this.applyGlobeMaterial('globeMaterial', () => {
       const globe = this.viewer.scene.globe;
       globe.material = Cesium.Material.fromType('ElevationRamp', {
@@ -754,20 +805,38 @@ export class CesiumController {
         maximumHeight: 9000,
       });
     });
+    this.viewer.scene.requestRender();
   }
 
   async showSlope(): Promise<void> {
     if (!this.viewer?.scene?.globe) return;
+    if (!this.isTerrainAvailable()) {
+      console.warn('[Terrain] 坡度分析需要真实地形数据，当前为椭球回退，已跳过');
+      await this.applyGlobeMaterial('globeMaterial', () => {
+        this.viewer.scene.globe.material = undefined;
+      });
+      this.viewer.scene.requestRender();
+      return;
+    }
     await this.applyGlobeMaterial('globeMaterial', () => {
       const globe = this.viewer.scene.globe;
       globe.material = Cesium.Material.fromType('SlopeRamp', {
         image: this.createSlopeRampImage(),
       });
     });
+    this.viewer.scene.requestRender();
   }
 
   async showAspect(): Promise<void> {
     if (!this.viewer?.scene?.globe) return;
+    if (!this.isTerrainAvailable()) {
+      console.warn('[Terrain] 坡向分析需要真实地形数据，当前为椭球回退，已跳过');
+      await this.applyGlobeMaterial('globeMaterial', () => {
+        this.viewer.scene.globe.material = undefined;
+      });
+      this.viewer.scene.requestRender();
+      return;
+    }
     // Cesium 无内置 AspectRamp 材质，使用自定义 Fabric GLSL shader
     // 通过地形法线计算坡向（方位角），映射到 8 方向色环
     await this.applyGlobeMaterial('globeMaterial', () => {
@@ -792,6 +861,7 @@ export class CesiumController {
         },
       });
     });
+    this.viewer.scene.requestRender();
   }
 
   /** 清除地形材质（globeMaterial kind，显式 destroy 纹理） */
@@ -800,6 +870,7 @@ export class CesiumController {
     // Fire-and-forget; tsc will complain without await; wrap:
     void this.applyGlobeMaterial('globeMaterial', () => {
       this.viewer.scene.globe.material = undefined;
+      this.viewer.scene.requestRender();
     });
   }
 

@@ -43,6 +43,76 @@ export function CesiumLayerSync() {
     const getController = () => commandBus.getContext().cesium;
     const entities = entitiesRef.current;
 
+    // ============ 标注层延迟重试机制 ============
+    // 当 Cesium viewer 尚未就绪时，ensureLayer/clearLayer 会静默退出
+    // 这里记录需要重试的图层 key，待 viewer ready 后立即重绘
+    const pendingAnnotations = new Set<string>();
+    let retryTimer: ReturnType<typeof setInterval> | null = null;
+    const MAX_RETRY_MS = 15000; // 最长等待 15 秒
+    let elapsedRetry = 0;
+
+    const flushPending = () => {
+      if (pendingAnnotations.size === 0) return;
+      const ctrl = getController();
+      if (!ctrl) return;
+      const state = useGeographyStore.getState();
+      // 遍历待重试的 key，根据当前 store 状态重新触发 subscription
+      const keysToProcess = Array.from(pendingAnnotations);
+      pendingAnnotations.clear(); // 先清空，后续如果 viewer 仍未就绪会再次加入
+      console.info('[CesiumLayerSync] flushPending retry for:', keysToProcess.join(', '));
+      for (const key of keysToProcess) {
+        const visible = key in state.annotations
+          ? state.annotations[key as keyof typeof state.annotations]
+          : false;
+        if (visible) {
+          // 强制切换一次：先关再开，触发 subscription 重新执行 ensureLayer
+          useGeographyStore.setState((s) => ({
+            annotations: { ...s.annotations, [key]: false },
+          }));
+          // 用 setTimeout 让 React 先处理一次渲染
+          setTimeout(() => {
+            useGeographyStore.setState((s) => ({
+              annotations: { ...s.annotations, [key]: true },
+            }));
+          }, 50);
+        } else {
+          // 应当隐藏：强制触发一次 clearLayer
+          useGeographyStore.setState((s) => ({
+            annotations: { ...s.annotations, [key]: true },
+          }));
+          setTimeout(() => {
+            useGeographyStore.setState((s) => ({
+              annotations: { ...s.annotations, [key]: false },
+            }));
+          }, 50);
+        }
+      }
+    };
+
+    const startRetryPolling = () => {
+      if (retryTimer) return;
+      retryTimer = setInterval(() => {
+        elapsedRetry += 200;
+        const ctrl = getController();
+        if (ctrl) {
+          flushPending();
+          // 即使没有 pending，只要 viewer ready 就停止轮询
+          if (retryTimer) {
+            clearInterval(retryTimer);
+            retryTimer = null;
+          }
+        } else if (elapsedRetry >= MAX_RETRY_MS) {
+          if (retryTimer) {
+            clearInterval(retryTimer);
+            retryTimer = null;
+          }
+          console.warn('[CesiumLayerSync] viewer not ready after 15s, giving up on retry');
+        }
+      }, 200);
+    };
+    // 启动轮询（等待 viewer ready）
+    startRetryPolling();
+
     // ================ Q11 防崩溃：所有实体操作统一走 LayerLifeCycleManager.schedule ================
     // 判断图层 key 是标注类还是数据类（dataLayer）——用前缀匹配
     const ANNOT_PREFIXES = new Set([
@@ -60,75 +130,105 @@ export function CesiumLayerSync() {
       return k.startsWith('weather') || k.startsWith('earthquake') || k.startsWith('gdp') || k.startsWith('pop') || k.startsWith('temp') || k.startsWith('precip') ? 'dataLayer' : 'annotations';
     };
     // 清理 / 添加实体：保证与 basemap/sceneMode/globeMaterial 互斥，防止场景过渡时期 Cesium 内部 null-deref
-    /** 清空某图层的所有实体（调度进 annotations/dataLayer 队列） */
+    /** 清空某图层的所有实体——标注图层走快速路径 */
     const clearLayer = (key: string) => {
       try {
         const ctrl = getController();
-        if (!ctrl) return;
+        if (!ctrl) {
+          pendingAnnotations.add(key);
+          return;
+        }
         const list = entities[key];
         if (!list || list.length === 0) return;
         const kind = kindForKey(key);
-        const mgr = getLayerManager();
+        const isAnnot = kind === 'annotations';
         const run = (): void => {
           const viewer = ctrl.getViewer();
-          if (!viewer || !viewer.scene || !viewer.entities) return;
-          // Q2：按 id 精确 remove，避免 Cesium 内部同 id 实体残留导致后续 add 时被"复位"到旧位置
+          if (!viewer || !viewer.scene || !viewer.entities) {
+            pendingAnnotations.add(key);
+            return;
+          }
+          // 快速批量 remove：直接遍历 list 中的实体，先构建 id 集合再统一 remove
+          const idsToRemove = new Set<string>();
           for (const e of list) {
+            if (e?.id != null) idsToRemove.add(String(e.id));
+          }
+          idsToRemove.forEach((id) => {
             try {
-              if (e?.id != null) {
-                const existing = viewer.entities.getById(String(e.id));
-                if (existing) viewer.entities.remove(existing);
-              } else {
-                viewer.entities.remove(e);
-              }
+              const existing = viewer.entities.getById(id);
+              if (existing) viewer.entities.remove(existing);
             } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:84', (e as any)?.message ?? e); }
+          });
+          // 移除无 id 的实体
+          for (const e of list) {
+            if (e?.id == null) {
+              try { viewer.entities.remove(e); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:84b', (e as any)?.message ?? e); }
+            }
           }
           entities[key] = [];
           try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:87', (e as any)?.message ?? e); }
         };
+        if (isAnnot) {
+          run();
+          return;
+        }
+        const mgr = getLayerManager();
         if (mgr) void mgr.schedule(kind, async () => run());
         else run();
       } catch (e) {
-        // Q11：clearLayer 永远不向外抛错：避免 Zustand subscribe 异常冒泡到全局
         console.warn('[CesiumLayerSync] clearLayer fail', key, e);
       }
     };
 
-    /** 添加某图层的实体（调度进 annotations/dataLayer 队列）—— 按 entity.id merge：已存在同 id 的只更新引用，不再重复 add（避免视觉"闪一下/回到原点"） */
+    /** 添加某图层的实体——标注图层(annotations)走快速路径（仅操作 viewer.entities，不与 basemap/sceneMode 冲突） */
     const ensureLayer = (key: string, build: (viewer: Cesium.Viewer) => Cesium.Entity[]) => {
       try {
         const ctrl = getController();
-        if (!ctrl) return;
+        if (!ctrl) {
+          console.info('[CesiumLayerSync] ensureLayer deferred (no controller):', key);
+          pendingAnnotations.add(key);
+          return;
+        }
         const kind = kindForKey(key);
-        const mgr = getLayerManager();
+        const isAnnot = kind === 'annotations';
         const run = (): void => {
           try {
             const viewer = ctrl.getViewer();
-            if (!viewer || !viewer.scene || !viewer.entities) return;
+            if (!viewer || !viewer.scene || !viewer.entities) {
+              console.info('[CesiumLayerSync] ensureLayer deferred (no viewer scene):', key);
+              pendingAnnotations.add(key);
+              return;
+            }
             const existing = entities[key] ?? [];
-            // Q2：按 entity.id 建索引，避免每次 subscribe 触发时"remove 全部 + add 全部"造成的视觉闪烁
+            const builtRaw = build(viewer);
+            // 快速路径：首次添加（existing 为空）或标注图层直接用构建结果，跳过 merge 去重
+            if (existing.length === 0) {
+              entities[key] = builtRaw;
+              backfillLabelMeta(builtRaw);
+              console.info('[CesiumLayerSync] ensureLayer fast-add:', key, 'entities:', builtRaw.length);
+              try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:139', (e as any)?.message ?? e); }
+              try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:140', (e as any)?.message ?? e); }
+              return;
+            }
+            // 非首次：按 entity.id merge 去重
             const idx = new Map<string, Cesium.Entity>();
             for (const e of existing) if (e?.id != null) idx.set(String(e.id), e);
-            // build 时不直接用返回数组，而是逐个检查：
-            //   - 同 id 已在 viewer.entities 且未被销毁 → 复用，不重复 add
-            //   - 同 id 已不在 viewer.entities → add
-            const builtRaw = build(viewer);
             const merged: Cesium.Entity[] = [];
             for (const cand of builtRaw) {
               if (cand?.id == null) { merged.push(cand); continue; }
               const idStr = String(cand.id);
               const alreadyInViewer = viewer.entities.getById(idStr);
               if (alreadyInViewer) {
-                // 真正存在的实体：
-                //  - 如果 idx 中也有（我们之前的引用）→ 直接复用（位置/状态不会被重新创建）
-                //  - idx 中没有（可能其他代码加过）→ 复用 viewer 中的，同时把 build 返回的 cand 立即移除（避免双重）
                 if (idx.has(idStr)) {
                   merged.push(idx.get(idStr)!);
-                  // build 过程已经 add 了 cand（因为 build 内部是 viewer.entities.add），移除它避免重复
-                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:128', (e as any)?.message ?? e); }
+                  if (cand !== alreadyInViewer) {
+                    try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:128', (e as any)?.message ?? e); }
+                  }
                 } else {
                   merged.push(alreadyInViewer);
-                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:131', (e as any)?.message ?? e); }
+                  if (cand !== alreadyInViewer) {
+                    try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:131', (e as any)?.message ?? e); }
+                  }
                 }
               } else {
                 merged.push(cand);
@@ -136,16 +236,23 @@ export function CesiumLayerSync() {
             }
             entities[key] = merged;
             backfillLabelMeta(merged);
+            console.info('[CesiumLayerSync] ensureLayer merge:', key, 'entities:', merged.length);
             try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:139', (e as any)?.message ?? e); }
             try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:140', (e as any)?.message ?? e); }
           } catch (e) {
             console.warn('[CesiumLayerSync] ensureLayer build fail', key, e);
           }
         };
+        // 标注图层走快速路径：不经过 LayerLifeCycleManager 调度（不与 basemap/sceneMode 冲突）
+        if (isAnnot) {
+          run();
+          return;
+        }
+        // 数据图层（weather/earthquake 等）仍走调度，避免与地形/底图操作并发
+        const mgr = getLayerManager();
         if (mgr) void mgr.schedule(kind, async () => run());
         else run();
       } catch (e) {
-        // Q11：ensureLayer 永远不向外抛错：避免订阅者 subscribe 回调里的异常冒泡到全局
         console.warn('[CesiumLayerSync] ensureLayer fail', key, e);
       }
     };
@@ -157,13 +264,21 @@ export function CesiumLayerSync() {
     ): Promise<void> => {
       try {
         const ctrl = getController();
-        if (!ctrl) return;
+        if (!ctrl) {
+          // viewer 尚未就绪，加入待重试队列
+          pendingAnnotations.add(key);
+          return;
+        }
         const kind = kindForKey(key);
         const mgr = getLayerManager();
         const run = async (): Promise<void> => {
           try {
             const viewer = ctrl.getViewer();
-            if (!viewer || !viewer.scene || !viewer.entities) return;
+            if (!viewer || !viewer.scene || !viewer.entities) {
+              // viewer 尚未就绪，加入待重试队列
+              pendingAnnotations.add(key);
+              return;
+            }
             const built = await buildAsync(viewer);
             if (!built) return;
             // 合并：如果 entities[key] 已经有实体（可能是异步期间另一次触发），按 id 合并
@@ -318,10 +433,11 @@ export function CesiumLayerSync() {
         if (visible) {
           ensureLayer('graticule', (viewer) => {
             const lines: Cesium.Entity[] = [];
-            // 经线：每 30 度，范围 ±89.5°（避免 ±90° 极点处的几何退化导致的渲染空洞/抖动）
+            const graticuleColor = Cesium.Color.fromBytes(186, 230, 253, 160);
+            // 经线：每 30° 一条，范围 ±89.5°，采样间隔 5°（平衡精度与性能）
             for (let lon = -180; lon <= 180; lon += 30) {
               const positions: number[] = [];
-              for (let lat = -89.5; lat <= 89.5; lat += 3) {
+              for (let lat = -89.5; lat <= 89.5; lat += 5) {
                 positions.push(lon, lat);
               }
               lines.push(
@@ -329,18 +445,17 @@ export function CesiumLayerSync() {
                   id: `grat-lon-${lon}`,
                   polyline: {
                     positions: Cesium.Cartesian3.fromDegreesArray(positions),
-                    width: 1,
-                    material: Cesium.Color.fromBytes(125, 211, 252, 50),
+                    width: 2,
+                    material: graticuleColor,
                     clampToGround: true,
                   },
                 }),
               );
             }
-            // 纬线：每 30 度，范围 ±60°（±85°以上接近极点，贴地退化；只画教学常用带 ±70°/60°/...）
+            // 纬线：每 30° 一条，范围 ±60°，采样间隔 10°
             for (let lat = -60; lat <= 60; lat += 30) {
               const positions: number[] = [];
-              // 用 < 180 避免首尾重合（-180° 与 180° 是同一条经线，重合会触发 EllipsoidGeodesic 错误）
-              for (let lon = -180; lon < 180; lon += 5) {
+              for (let lon = -180; lon < 180; lon += 10) {
                 positions.push(lon, lat);
               }
               lines.push(
@@ -348,24 +463,24 @@ export function CesiumLayerSync() {
                   id: `grat-lat-${lat}`,
                   polyline: {
                     positions: Cesium.Cartesian3.fromDegreesArray(positions),
-                    width: 1,
-                    material: Cesium.Color.fromBytes(125, 211, 252, 50),
+                    width: 2,
+                    material: graticuleColor,
                     clampToGround: true,
                   },
                 }),
               );
             }
-            // 额外 ±60/±80°高纬度圈（教学常用），±85°+ 省略避免极点贴地退化
+            // ±80°高纬度圈（教学常用），采样间隔 10°
             for (const highLat of [-80, 80]) {
               const positions: number[] = [];
-              for (let lon = -180; lon < 180; lon += 5) positions.push(lon, highLat);
+              for (let lon = -180; lon < 180; lon += 10) positions.push(lon, highLat);
               lines.push(
                 viewer.entities.add({
                   id: `grat-lat-${highLat}`,
                   polyline: {
                     positions: Cesium.Cartesian3.fromDegreesArray(positions),
-                    width: 1,
-                    material: Cesium.Color.fromBytes(125, 211, 252, 38),
+                    width: 2,
+                    material: Cesium.Color.fromBytes(186, 230, 253, 130),
                     clampToGround: true,
                   },
                 }),
@@ -381,33 +496,58 @@ export function CesiumLayerSync() {
     );
 
     // ============ 日界线 ============
+    // 注：单段 180° 经线（从+80°到-80°）在 Cesium clampToGround 下会触发
+    // "normalized result is not a number" 渲染错误（大跨度贴地退化）。
+    // 改为按纬度分段构建多段 polyline + 中间点插值，每段跨度控制在 30° 以内，
+    // 与经纬线 graticule 的处理方式保持一致。
     const unsubDateLine = useGeographyStore.subscribe(
       (s) => s.annotations.dateLine,
       (visible) => {
         if (visible) {
-          ensureLayer('dateLine', (viewer) => [
-            viewer.entities.add({
-              id: 'date-line-180',
-              polyline: {
-                positions: Cesium.Cartesian3.fromDegreesArray([
-                  180, 80, 180, -80,
-                ]),
-                width: 2,
-                material: Cesium.Color.fromBytes(251, 191, 36, 180),
-                clampToGround: true,
-              },
-              label: {
-                text: '日界线',
-                font: '12px Noto Sans SC',
-                fillColor: Cesium.Color.fromBytes(251, 191, 36, 255),
-                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-                outlineWidth: 2,
-                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                pixelOffset: new Cesium.Cartesian2(20, 0),
-                disableDepthTestDistance: Number.POSITIVE_INFINITY,
-              },
-            }),
-          ]);
+          ensureLayer('dateLine', (viewer) => {
+            const color = Cesium.Color.fromBytes(251, 191, 36, 230);
+            // 按 20° 一段切分，每段 2° 插值（更多分段确保视觉连续性）
+            const SEG_STEP = 20;
+            const SAMPLE = 2;
+            const ents: Cesium.Entity[] = [];
+            for (let lat = 80; lat > -80; lat -= SEG_STEP) {
+              const endLat = Math.max(-80, lat - SEG_STEP);
+              const positions: number[] = [];
+              for (let s = lat; s >= endLat; s -= SAMPLE) {
+                positions.push(180, s);
+              }
+              if (positions[positions.length - 1] !== endLat) positions.push(180, endLat);
+              ents.push(
+                viewer.entities.add({
+                  id: `date-line-180-seg-${lat}-${endLat}`,
+                  polyline: {
+                    positions: Cesium.Cartesian3.fromDegreesArray(positions),
+                    width: 3,
+                    material: color,
+                    clampToGround: true,
+                  },
+                }),
+              );
+            }
+            // 在中间点（纬度 0°）添加标签
+            ents.push(
+              viewer.entities.add({
+                id: 'date-line-180-label',
+                position: Cesium.Cartesian3.fromDegrees(180, 0),
+                label: {
+                  text: '日界线',
+                  font: '13px Noto Sans SC',
+                  fillColor: Cesium.Color.fromBytes(251, 191, 36, 255),
+                  outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                  outlineWidth: 2,
+                  style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                  pixelOffset: new Cesium.Cartesian2(20, 0),
+                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
+                },
+              }),
+            );
+            return ents;
+          });
         } else {
           clearLayer('dateLine');
         }
@@ -1088,6 +1228,13 @@ export function CesiumLayerSync() {
     });
 
     return () => {
+      // 清理重试定时器
+      if (retryTimer) {
+        clearInterval(retryTimer);
+        retryTimer = null;
+      }
+      pendingAnnotations.clear();
+
       unsubCities();
       unsubRivers();
       unsubPlates();

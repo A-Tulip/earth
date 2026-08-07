@@ -406,6 +406,19 @@ export function registerCommandHandlers() {
     return { ok: true, message: `地形夸张设为 ${value} 倍` };
   });
 
+  commandBus.register('terrain.setContourSpacing', async (call) => {
+    const { spacing } = call.args as { spacing: number };
+    store.getState().setTerrain({ contourSpacing: spacing });
+    // 若等高线已开启，立即用新间距重新渲染
+    if (store.getState().terrain.contour) {
+      const ready = getCesiumOrError();
+      if (ready.ok) {
+        await ready.ctrl.showContour(spacing);
+      }
+    }
+    return { ok: true, message: `等高线间距设为 ${spacing} 米` };
+  });
+
   // 地貌风格快捷：natural | relief | landform | contour | plain
   // 对应不同的底图 + 地形夸张组合
   commandBus.register('terrain.setLandformStyle', async (call) => {

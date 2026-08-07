@@ -309,6 +309,22 @@ export function createLabelOverlayProvider(): Cesium.ImageryProvider | null {
  * 无需 AWS 账户，匿名 GET，中国大陆访问稳定（S3 公开桶）。
  */
 export async function createTerrariumTerrainProvider(): Promise<Cesium.TerrainProvider> {
+  // 先检测连通性（超时 3 秒）
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const testRes = await fetch('https://elevation-tiles-prod.s3.amazonaws.com/terrarium/0/0/0.png', {
+      signal: controller.signal,
+      method: 'HEAD',
+    });
+    clearTimeout(timeoutId);
+    if (!testRes.ok && testRes.status !== 200 && testRes.status !== 206) {
+      console.warn('[Terrarium] 连通性检测返回非预期状态:', testRes.status, '仍尝试创建 provider...');
+    }
+  } catch (e) {
+    console.warn('[Terrarium] 连通性检测失败:', (e as Error).message, '仍尝试创建 provider...');
+  }
+
   return createCustomTerrainProvider(
     'https://elevation-tiles-prod.s3.amazonaws.com/terrarium',
     15,
@@ -326,8 +342,29 @@ export async function createTerrariumTerrainProvider(): Promise<Cesium.TerrainPr
  *
  * MapLibre DEM30 基于 Copernicus GLO-90、SRTM、ALOS 等多个公开 DEM 源融合，
  * 是目前公开可用的最高精度全球地形之一。
+ *
+ * 包含连通性检测：如果网络无法访问 dem.maplibre.com 则抛出错误，
+ * 让上层可以快速回退到 Terrarium。
  */
 export async function createMapLibreTerrainProvider(): Promise<Cesium.TerrainProvider> {
+  // 连通性检测（超时 3 秒）——失败仅警告，不阻断创建
+  // 原因：Cesium CustomHeightmapTerrainProvider 的 callback 已处理瓦片加载失败（返回零高度），
+  // 连通性检测仅用于提前发现问题并记录日志，不应阻止 provider 创建
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const testRes = await fetch('https://dem.maplibre.com/data/dem-30/0/0/0.png', {
+      signal: controller.signal,
+      method: 'HEAD',
+    });
+    clearTimeout(timeoutId);
+    if (!testRes.ok && testRes.status !== 200 && testRes.status !== 206) {
+      console.warn('[MapLibre] 连通性检测返回非预期状态:', testRes.status, '仍尝试创建 provider...');
+    }
+  } catch (e) {
+    console.warn('[MapLibre] 连通性检测失败:', (e as Error).message, '仍尝试创建 provider...');
+  }
+
   return createCustomTerrainProvider(
     'https://dem.maplibre.com/data/dem-30',
     20,
@@ -397,6 +434,27 @@ async function createCustomTerrainProvider(
  */
 export function isTerrainAvailable(provider: Cesium.TerrainProvider): boolean {
   return !(provider instanceof Cesium.EllipsoidTerrainProvider);
+}
+
+/**
+ * 测试地形瓦片 URL 是否可实际访问（GET 请求，5 秒超时）
+ * 比 HEAD 请求更可靠——有些服务器拒绝 HEAD 但允许 GET
+ * @param baseUrl 瓦片基础 URL（不含 /{z}/{x}/{y}.png）
+ */
+export async function testTerrainTileAccess(baseUrl: string): Promise<boolean> {
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000);
+    // 请求 z=0/x=0/y=0 的瓦片作为测试
+    const res = await fetch(`${baseUrl}/0/0/0.png`, {
+      signal: controller.signal,
+      method: 'GET',
+    });
+    clearTimeout(timeoutId);
+    return res.ok || res.status === 200 || res.status === 206;
+  } catch {
+    return false;
+  }
 }
 
 /**
