@@ -1,0 +1,6 @@
+name = "earth-ai-proxy"
+main = "cloudflare-worker.js"
+compatibility_date = "2024-01-01"
+
+# 环境变量（Secret 类型，需要通过 wrangler secret 命令设置）
+# DOUBAO_API_KEY = f8d5c334-632e-4093-aa54-3a49abe6ab40

@@ -1,4 +1,4 @@
-﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
+﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿﻿<!DOCTYPE html>
 <html lang="zh-CN">
 <head>
   <meta charset="UTF-8">
@@ -9578,9 +9578,27 @@
     }
 
     // ===== AI 代理地址配置 =====
-    // 部署 Cloudflare Worker 后，把下面的 URL 改成你的 Worker 地址
-    // 例如: https://ai-proxy.xxx.workers.dev
-    const AI_PROXY_BASE = 'https://earth-ai-proxy.a-tulip.workers.dev';
+    // 智能选择：
+    //   1. 如果部署在 Vercel 上，直接用相对路径 /api/doubao/v1/chat/completions
+    //   2. 如果部署在 GitHub Pages 或其他地方，使用独立的 Vercel 项目代理
+    const VERCEL_PROXY_BASE = ''; // 如果把 api 目录部署到另一个 Vercel 项目，在这里填：'https://earth-earth7-f786.vercel.app'
+    const CLOUDFLARE_PROXY_BASE = 'https://earth-ai-proxy.3164194843.workers.dev';
+
+    const host = window.location.hostname;
+    const isVercel = host.includes('vercel.app') || host === 'localhost' || host === '127.0.0.1';
+    const isVercelProject = !!VERCEL_PROXY_BASE;
+
+    let AI_PROXY_BASE;
+    if (isVercel) {
+      // 部署在 Vercel 上，用相对路径
+      AI_PROXY_BASE = '';
+    } else if (isVercelProject) {
+      // 部署在 GitHub Pages，用另一个 Vercel 项目
+      AI_PROXY_BASE = VERCEL_PROXY_BASE;
+    } else {
+      // 否则用 Cloudflare（可能国内访问不稳定）
+      AI_PROXY_BASE = CLOUDFLARE_PROXY_BASE;
+    }
 
     async function callVolcanoEngineAPI(prompt, systemPrompt, apiKey, endpointId) {
       const proxyUrl = AI_PROXY_BASE + '/api/doubao/v1/chat/completions';

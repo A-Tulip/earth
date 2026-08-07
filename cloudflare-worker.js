@@ -50,10 +50,10 @@ export default {
       });
     }
 
-    // 检查 API Key 是否已配置
-    const apiKey = env.DOUBAO_API_KEY;
+    // 获取 API Key：优先使用环境变量，回退到内置 Key
+    const apiKey = env.DOUBAO_API_KEY || 'f8d5c334-632e-4093-aa54-3a49abe6ab40';
     if (!apiKey) {
-      return new Response(JSON.stringify({ error: 'Worker 未配置 DOUBAO_API_KEY 环境变量' }), {
+      return new Response(JSON.stringify({ error: 'Worker 未配置 API Key' }), {
         status: 500,
         headers: { 'Content-Type': 'application/json', ...corsHeaders }
       });
