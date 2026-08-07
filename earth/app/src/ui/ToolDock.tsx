@@ -24,7 +24,8 @@ export function ToolDock() {
   const store = useGeographyStore();
   const state = store;
   const { busy: sceneBusy } = useLayerBusy('sceneMode');
-  const { busy: basemapBusy } = useLayerBusy('basemap', 'globeMaterial');
+  const { busy: basemapBusy } = useLayerBusy('basemap');
+  const { busy: globeMaterialBusy } = useLayerBusy('globeMaterial');
 
   // Esc 收起
   useEffect(() => {
@@ -81,7 +82,7 @@ export function ToolDock() {
       {/* 展开的面板 */}
       {activePanel && (
         <div className="mb-2 max-h-[60vh] w-64 overflow-y-auto rounded-xl bg-ink-800/90 p-3 text-sm text-white backdrop-blur-md ring-1 ring-geo-500/20 animate-slide-up">
-          {activePanel === 'view' && <ViewPanel state={state} sceneBusy={sceneBusy} basemapBusy={basemapBusy} />}
+          {activePanel === 'view' && <ViewPanel state={state} sceneBusy={sceneBusy} basemapBusy={basemapBusy} globeMaterialBusy={globeMaterialBusy} />}
           {activePanel === 'annotation' && <AnnotationPanel state={state} />}
           {activePanel === 'astronomy' && <AstronomyPanel state={state} />}
           {activePanel === 'data' && <DataPanel state={state} />}
@@ -90,7 +91,7 @@ export function ToolDock() {
       )}
 
       {/* 工具入口按钮组 */}
-      <div className={`flex items-center gap-1 rounded-full bg-ink-800/80 p-1.5 backdrop-blur-sm ring-1 ring-geo-500/20 ${dockDisabledClass(sceneBusy || basemapBusy)}`}>
+      <div className={`flex items-center gap-1 rounded-full bg-ink-800/80 p-1.5 backdrop-blur-sm ring-1 ring-geo-500/20 ${dockDisabledClass(sceneBusy || basemapBusy || globeMaterialBusy)}`}>
         {tools.map((t) => (
           <button
             key={t.id}
@@ -167,10 +168,12 @@ function ViewPanel({
   state,
   sceneBusy,
   basemapBusy,
+  globeMaterialBusy,
 }: {
   state: ReturnType<typeof useGeographyStore.getState>;
   sceneBusy: boolean;
   basemapBusy: boolean;
+  globeMaterialBusy: boolean;
 }) {
   // 仅当检测到有天地图 token 时才展示天地图显式底图切换（无 token 时点击也会自动回退到国际回退底图，但为了 UI 清晰，不展示给用户）
   const env = (import.meta as unknown as { env?: Record<string, string> }).env ?? {};
@@ -235,7 +238,7 @@ function ViewPanel({
           当前为椭球回退模式，等高线/坡度/坡向等地形分析功能不可用
         </div>
       )}
-      <div className={basemapBusy ? dockDisabledClass(true) : ''}>
+      <div className={globeMaterialBusy ? dockDisabledClass(true) : ''}>
         <PanelRow label="等高线">
           <Toggle
             id="terrain.contour"

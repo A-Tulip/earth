@@ -107,6 +107,13 @@ export function createBasemapProvider(
   const normalized: Exclude<BasemapType, 'amapSatellite' | 'amapPolitical' | 'amapRoad' | 'terrain' | 'tiandituSatellite' | 'tiandituPolitical' | 'tiandituRelief'> =
     type === 'terrain' ? 'relief' : (type as Exclude<BasemapType, 'amapSatellite' | 'amapPolitical' | 'amapRoad' | 'terrain' | 'tiandituSatellite' | 'tiandituPolitical' | 'tiandituRelief'>);
 
+  // -------- OSM 独立分支：始终走真实 OpenStreetMap 瓦片，不受天地图 token 影响 --------
+  // OSM 是用户明确选择的国际开源街道图，不能被天地图 token 劫持
+  if (normalized === 'osm') {
+    const base = createFallbackBasemapProvider('osm');
+    return [base, null];
+  }
+
   const baseKind: 'satellite' | 'political' | 'relief' | 'landform' | 'osm' =
     normalized === 'contour' ? 'political' : normalized;
 
