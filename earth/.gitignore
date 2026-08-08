@@ -1,61 +1,77 @@
-# Node.js
+# ============================================================
+# Earth Explorer AI - Git Ignore
+# ============================================================
+
+# ---------- Node.js / 前端 ----------
 node_modules/
 npm-debug.log*
+dist/
+.vite/
+test-results/
+playwright-report/
+coverage/
 
-# 日志文件
-*.log
-logs/
+# ---------- Python / 后端 ----------
+.venv/
+__pycache__/
+*.pyc
+*.pyo
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+.eggs/
 
-# 环境变量（真实密钥不提交）
+# ---------- 环境变量（真实密钥绝不提交）----------
 .env
 .env.local
 .env.*.local
 !.env.example
 
-# Python
-__pycache__/
-*.pyc
-*.pyo
+# ---------- 日志 ----------
+*.log
+logs/
 
-# 系统文件
+# ---------- 系统文件 ----------
 .DS_Store
 Thumbs.db
 desktop.ini
+ehthumbs.db
+ehthumbs_vista.db
 
-# IDE
+# ---------- IDE / 编辑器 ----------
 .idea/
 .vscode/
 *.swp
 *.swo
 *~
+.history/
 
-# 临时文件
+# ---------- 临时文件 ----------
 *.tmp
 *.temp
 .cache/
-
-# OS 生成的文件
-ehthumbs.db
-ehthumbs_vista.db
-
-# Trae 相关
-.trae/
-
-# 本地临时服务器（运行时生成的）
 *.pid
 
-# 测试产物
-test-results/
-playwright-report/
-coverage/
+# ---------- 测试产物 ----------
 verify-shot.png
 verify-requirements.mjs
 
-# Python 生成物
-__pycache__/
-*.pyc
-
-# 调研报告不提交到仓库（本地工作文件）
+# ---------- 调研/本地数据（不提交）----------
 research/
+data/
+assets/
+
+# ---------- Trae / AI 工具 ----------
+.trae/
+
+# ---------- 构建产物 ----------
+build/
+out/
+*.tsbuildinfo
+
+# ---------- Vercel ----------
+.vercel/
+
+# ---------- 其他 ----------
 docs
 ADR
