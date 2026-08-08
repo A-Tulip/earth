@@ -300,13 +300,9 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
         return;
       }
 
-      // ✅ 空格键快捷启动：如果 AI 对话面板未打开，先自动打开，再开始/停止录音
-      //   两种模式都确保「字幕/响应可见」，避免用户「按了没反应」的错觉
-      const ui = store.getState().ui;
-      if (ui.showAIChat !== true) {
-        store.getState().setUI({ showAIChat: true });
-      }
-
+      // ✅ 空格键只负责「快捷启动/停止语音」，不再强制打开 AI 对话面板。
+      //   语音过程中的 聆听/识别/回复/错误 反馈由底部 SubtitleLayer 独立展示，
+      //   无需依赖 AI 面板可见性，避免空格键"顺带弹出聊天界面"干扰课堂。
       e.preventDefault();
       // ---------------- 模式分支 ----------------
       if (mode === 'toggle') {
