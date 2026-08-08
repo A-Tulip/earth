@@ -267,8 +267,8 @@ function ViewPanel({
           <Toggle
             id="terrain.elevationRamp"
             checked={state.terrain.elevationRamp}
-            disabled={state.viewMode !== '3d' || !state.terrain.available}
-            title={!state.terrain.available ? '需要配置地形数据（VITE_CESIUM_ION_TOKEN）' : state.viewMode !== '3d' ? '高程分层仅在 3D 地球模式下可用' : undefined}
+            disabled={state.viewMode !== '3d'}
+            title={state.viewMode !== '3d' ? '高程分层仅在 3D 地球模式下可用' : !state.terrain.available ? '当前为椭球地形，高程分层显示基于海平面的均匀色带。配置 VITE_CESIUM_ION_TOKEN 可获得真实地形效果' : undefined}
             onChange={() =>
               state.terrain.elevationRamp
                 ? commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__', visible: false } })

@@ -317,10 +317,10 @@ export function registerCommandHandlers() {
   // ============ 地形分析（互斥材质） ============
 
   /** 清除所有地形材质并重置状态（即使 Cesium 未就绪，依然先写 store） */
-  const clearAllTerrainMaterials = () => {
+  const clearAllTerrainMaterials = async () => {
     store.getState().setTerrain({ contour: false, elevationRamp: false, slope: false, aspect: false });
     const r = getCesiumOrError();
-    if (r.ok) r.ctrl.clearTerrainMaterial();
+    if (r.ok) await r.ctrl.clearTerrainMaterial();
   };
 
   commandBus.register('layer.showContour', async (call) => {
@@ -329,7 +329,7 @@ export function registerCommandHandlers() {
     const ctrl = ready.ctrl;
     const { spacing } = call.args as { spacing?: number };
     // 互斥：先清除其他材质
-    clearAllTerrainMaterials();
+    await clearAllTerrainMaterials();
     const s = spacing ?? store.getState().terrain.contourSpacing;
     await ctrl.showContour(s);
     store.getState().setTerrain({ contour: true, contourSpacing: s });
@@ -340,7 +340,7 @@ export function registerCommandHandlers() {
     const ready = getCesiumOrError();
     if (!ready.ok) return ready;
     const ctrl = ready.ctrl;
-    clearAllTerrainMaterials();
+    await clearAllTerrainMaterials();
     await ctrl.showElevationRamp();
     store.getState().setTerrain({ elevationRamp: true });
     return { ok: true, message: '高程分层已开启' };
@@ -350,7 +350,7 @@ export function registerCommandHandlers() {
     const ready = getCesiumOrError();
     if (!ready.ok) return ready;
     const ctrl = ready.ctrl;
-    clearAllTerrainMaterials();
+    await clearAllTerrainMaterials();
     await ctrl.showSlope();
     store.getState().setTerrain({ slope: true });
     return { ok: true, message: '坡度分析已开启' };
@@ -360,7 +360,7 @@ export function registerCommandHandlers() {
     const ready = getCesiumOrError();
     if (!ready.ok) return ready;
     const ctrl = ready.ctrl;
-    clearAllTerrainMaterials();
+    await clearAllTerrainMaterials();
     await ctrl.showAspect();
     store.getState().setTerrain({ aspect: true });
     return { ok: true, message: '坡向分析已开启' };

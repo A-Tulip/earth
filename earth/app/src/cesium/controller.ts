@@ -788,22 +788,44 @@ export class CesiumController {
 
   async showElevationRamp(): Promise<void> {
     if (!this.viewer?.scene?.globe) return;
-    if (!this.isTerrainAvailable()) {
-      // 椭球回退：清除可能残留的材质，保持底图清晰
-      console.warn('[Terrain] 高程分层需要真实地形数据，当前为椭球回退，已跳过');
-      await this.applyGlobeMaterial('globeMaterial', () => {
-        this.viewer.scene.globe.material = undefined;
-      });
-      this.viewer.scene.requestRender();
-      return;
-    }
     await this.applyGlobeMaterial('globeMaterial', () => {
-      const globe = this.viewer.scene.globe;
-      globe.material = Cesium.Material.fromType('ElevationRamp', {
-        image: this.createElevationRampImage(),
-        minimumHeight: -10000,
-        maximumHeight: 9000,
+      // 使用 createElevationBandMaterial（Cesium 官方推荐的现代 API）
+      // 支持多图层颜色带，在有真实地形数据时显示精细分层效果
+      // 教学标准：深海蓝→平原绿→丘陵黄→山地棕→极高山白
+      this.viewer.scene.globe.material = Cesium.createElevationBandMaterial({
+        scene: this.viewer.scene,
+        layers: [{
+          entries: [
+            { height: -8000, color: Cesium.Color.fromCssColorString('#003f80') },   // 深海
+            { height: -200, color: Cesium.Color.fromCssColorString('#3a7ea5') },    // 海床
+            { height: 0, color: Cesium.Color.fromCssColorString('#8ecae6') },        // 海岸线
+            { height: 200, color: Cesium.Color.fromCssColorString('#74c69d') },      // 平原
+            { height: 500, color: Cesium.Color.fromCssColorString('#b7e4c7') },      // 低地
+            { height: 1000, color: Cesium.Color.fromCssColorString('#f9e79f') },     // 丘陵
+            { height: 2000, color: Cesium.Color.fromCssColorString('#f5c26b') },     // 低山
+            { height: 3000, color: Cesium.Color.fromCssColorString('#c97c3c') },     // 高原
+            { height: 4500, color: Cesium.Color.fromCssColorString('#7f5539') },     // 山地
+            { height: 9000, color: Cesium.Color.fromCssColorString('#ffffff') },     // 极高山
+          ],
+          extendDownwards: true,
+          extendUpwards: true,
+        }],
       });
+      // 降低主底图透明度，让分层设色效果更清晰可见
+      try {
+        const layers = this.viewer.scene.imageryLayers;
+        for (let i = 0; i < layers.length; i++) {
+          const lyr = layers.get(i);
+          const lLabel = (lyr as unknown as { _label?: string })._label;
+          if (lLabel === '__fallbackOceanNoise__') continue;
+          const credit = (lyr as unknown as { _credit?: unknown })._credit ?? '';
+          const s = String(credit);
+          if (!s.includes('注记') && !s.includes('标注') && !/cva|style=8/.test(s)) {
+            lyr.alpha = 0.40;
+            break;
+          }
+        }
+      } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts', (e as any)?.message ?? e); }
     });
     this.viewer.scene.requestRender();
   }
@@ -865,11 +887,25 @@ export class CesiumController {
   }
 
   /** 清除地形材质（globeMaterial kind，显式 destroy 纹理） */
-  clearTerrainMaterial(): void {
+  async clearTerrainMaterial(): Promise<void> {
     if (!this.viewer?.scene?.globe) return;
-    // Fire-and-forget; tsc will complain without await; wrap:
-    void this.applyGlobeMaterial('globeMaterial', () => {
+    await this.applyGlobeMaterial('globeMaterial', () => {
       this.viewer.scene.globe.material = undefined;
+      // 恢复主底图透明度
+      try {
+        const layers = this.viewer.scene.imageryLayers;
+        for (let i = 0; i < layers.length; i++) {
+          const lyr = layers.get(i);
+          const lLabel = (lyr as unknown as { _label?: string })._label;
+          if (lLabel === '__fallbackOceanNoise__') continue;
+          const credit = (lyr as unknown as { _credit?: unknown })._credit ?? '';
+          const s = String(credit);
+          if (!s.includes('注记') && !s.includes('标注') && !/cva|style=8/.test(s)) {
+            lyr.alpha = 1;
+            break;
+          }
+        }
+      } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts', (e as any)?.message ?? e); }
       this.viewer.scene.requestRender();
     });
   }
@@ -882,12 +918,11 @@ export class CesiumController {
   private async restoreTerrainMaterialFromStore(): Promise<void> {
     try {
       const st = useGeographyStore.getState().terrain;
-      // 椭球回退（无真实地形）时不应用地形材质
-      if (!st.available) return;
-      if (st.aspect) await this.showAspect();
-      else if (st.slope) await this.showSlope();
-      else if (st.elevationRamp) await this.showElevationRamp();
-      else if (st.contour) await this.showContour(st.contourSpacing || 200);
+      // ElevationRamp 在无地形时也能工作，其他地形分析需要真实地形
+      if (st.aspect && st.available) await this.showAspect();
+      else if (st.slope && st.available) await this.showSlope();
+      else if (st.elevationRamp) await this.showElevationRamp(); // 高程分层在椭球上也能工作
+      else if (st.contour && st.available) await this.showContour(st.contourSpacing || 200);
     } catch { /* ignore：恢复失败不影响模式切换主线 */ }
   }
 
@@ -1615,11 +1650,15 @@ export class CesiumController {
 
     // 回退：地形 provider 精确采样
     if (this.viewer.terrainProvider.availability) {
-      const sampled = await Cesium.sampleTerrainMostDetailed(
-        this.viewer.terrainProvider,
-        positions
-      );
-      return sampled[0].height ?? undefined;
+      try {
+        const sampled = await Cesium.sampleTerrainMostDetailed(
+          this.viewer.terrainProvider,
+          positions
+        );
+        return sampled[0].height ?? undefined;
+      } catch {
+        // 采样失败返回 undefined
+      }
     }
     return undefined;
   }

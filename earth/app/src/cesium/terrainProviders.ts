@@ -121,7 +121,7 @@ export function createBasemapProvider(
     ? createTiandituProvider(baseKind, TIANDITU_TOKEN)
     : createFallbackBasemapProvider(baseKind);
 
-  const addChineseLabel = normalized !== 'osm';
+  const addChineseLabel = true;  // OSM 已在上方提前 return，此处不会到达
   const label = addChineseLabel ? createLabelOverlayProvider() : null;
   return [base, label];
 }
@@ -381,6 +381,9 @@ export async function createMapLibreTerrainProvider(): Promise<Cesium.TerrainPro
 /**
  * 通用 CustomHeightmapTerrainProvider 工厂
  * 解码 Terrarium/MapLibre 编码格式的 PNG 高度图
+ *
+ * 注意：Cesium 1.107+ 推荐使用 Cesium.Terrain.fromProvider() 包装，
+ * 但当前项目的 Cesium 类型定义仍然使用旧 API，因此直接返回 TerrainProvider。
  */
 async function createCustomTerrainProvider(
   urlTemplate: string,
@@ -539,20 +542,20 @@ export async function createBestTerrainProvider(): Promise<{
       const provider = await createIonWorldTerrainProvider();
       return { provider, source: 'ion' };
     } catch (err: any) {
-      // fall through to MapLibre
+      // fall through to Terrarium
     }
   }
-  // 优先尝试 MapLibre DEM30（30m 高清地形，远优于 Terrarium 的 1km 分辨率）
-  try {
-    const provider = await createMapLibreTerrainProvider();
-    return { provider, source: 'maplibre' };
-  } catch (err: any) {
-    // fall through to Terrarium
-  }
-  // 回退到 AWS Terrarium（1km 地形）
+  // 优先尝试 AWS Terrarium（国内可访问，1km 分辨率）
   try {
     const provider = await createTerrariumTerrainProvider();
     return { provider, source: 'terrarium' };
+  } catch (err: any) {
+    // fall through to MapLibre
+  }
+  // 回退到 MapLibre DEM30（30m 高清地形，可能 DNS 失败）
+  try {
+    const provider = await createMapLibreTerrainProvider();
+    return { provider, source: 'maplibre' };
   } catch (err: any) {
     const provider = await createEllipsoidTerrainProvider();
     return { provider, source: 'ellipsoid', warning: 'All terrain sources failed' };

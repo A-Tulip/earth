@@ -10,7 +10,7 @@ import * as Cesium from 'cesium';
 import { CesiumController } from './controller';
 import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
-import { createBasemapProvider, createBestTerrainProvider, createTerrariumTerrainProvider, createMapLibreTerrainProvider, testTerrainTileAccess } from './terrainProviders';
+import { createBasemapProvider, createBestTerrainProvider, createTerrariumTerrainProvider, createMapLibreTerrainProvider } from './terrainProviders';
 import { createTickThrottle, FpsCounter, getGlobalDegrader, type DegradeConfig, DEGRADE_TIERS } from '../state/PerformanceMonitor';
 import { LayerLifeCycleManager, setLayerManagerSingleton } from './LayerLifeCycleManager';
 
@@ -70,10 +70,9 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       // 底图：天地图 WMTS 主用（若有 token），否则 Esri World Imagery
       baseLayer: new Cesium.ImageryLayer(createBasemapProvider('satellite')[0]),
 
-      // 地形：若有 ion token 用世界地形，否则用 AWS Terrarium 免费地形
-      terrain: ionToken
-        ? Cesium.Terrain.fromWorldTerrain()
-        : undefined,
+      // 地形：默认使用椭球地形，后续异步加载真实地形
+      // 注意：Cesium.Terrain.fromWorldTerrain() 返回 Promise，不能在此处直接使用
+      // 改为在 Viewer 创建后异步加载（见下方逻辑）
 
       // Q6 根因修复：3D 模式必须用 GeographicProjection，**不能**用 WebMercator
       // WebMercator 只适合 2D 平面，放到椭球上会造成"东半球贴对、西半球错位"的跨 180° 黑洞
@@ -313,8 +312,8 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     const creditContainer = viewer.creditDisplay.container;
     (creditContainer as HTMLElement).style.display = 'none';
 
-    // 无 ion token 时使用 AWS Terrarium 免费地形（CC0 Public Domain）
-    // 椭球地形会导致等高线/高程分层/坡度/地形夸张全部失效
+    // 无 ion token 时使用免费地形服务
+    // 椭球地形会导致等高线/坡度/地形夸张失效，但高程分层仍可显示（基于海平面均匀色带）
     // Q2：terrain 切换全部走 layerMgr.schedule('terrain')，触发 LoadingOverlay 防止蓝色裸露
     if (!ionToken) {
       // 先用椭球启动（保证地球立即显示），异步替换为高清地形
@@ -322,42 +321,41 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
       useGeographyStore.getState().setTerrain({ available: false });
       void layerMgr.schedule('terrain', async () => {
         if (cancelled) return;
-        // 优先尝试 MapLibre DEM30（30m 高清地形），失败回退到 Terrarium（1km）
-        // 连通性检测已放宽（仅警告不阻断），但需通过实际瓦片请求验证可用性
         let terrainOk = false;
-        try {
-          const mapLibreProvider = await createMapLibreTerrainProvider();
-          if (cancelled) return;
-          // 用实际瓦片请求验证 MapLibre 是否可用（HEAD 不可靠，GET 才能确认）
-          const mapLibreWorks = await testTerrainTileAccess('https://dem.maplibre.com/data/dem-30');
-          if (mapLibreWorks) {
-            viewer.terrainProvider = mapLibreProvider;
-            useGeographyStore.getState().setTerrain({ available: true });
-            terrainOk = true;
-          } else {
-            console.warn('[Terrain] MapLibre 瓦片不可访问，尝试 Terrarium...');
-          }
-        } catch {
-          // MapLibre 创建失败，直接尝试 Terrarium
-        }
+        console.info('[Terrain] 正在加载地形数据...');
+
+        // 方案 1：AWS Terrarium（CC0 免费，国内可访问，1km 分辨率）
+        // 不使用 testTerrainTileAccess 预检，因为浏览器端可能因 CORS/HEAD 限制检测失败
+        // 直接创建 provider，Cesium 会在渲染时自动加载瓦片
         if (!terrainOk) {
           try {
             const terrariumProvider = await createTerrariumTerrainProvider();
             if (cancelled) return;
-            // 同样验证 Terrarium 瓦片
-            const terrariumWorks = await testTerrainTileAccess('https://elevation-tiles-prod.s3.amazonaws.com/terrarium');
-            if (terrariumWorks) {
-              viewer.terrainProvider = terrariumProvider;
-              useGeographyStore.getState().setTerrain({ available: true });
-              terrainOk = true;
-            } else {
-              console.warn('[Terrain] Terrarium 瓦片也不可访问，尝试 Cesium World Terrain（默认 token）...');
-            }
-          } catch {
-            // Terrarium 创建失败，尝试 Cesium World Terrain
+            viewer.terrainProvider = terrariumProvider;
+            useGeographyStore.getState().setTerrain({ available: true });
+            terrainOk = true;
+            console.info('[Terrain] AWS Terrarium 地形加载成功（1km 分辨率）');
+          } catch (e) {
+            console.warn('[Terrain] Terrarium 创建失败:', (e as Error).message);
           }
         }
-        // 最终回退：Cesium World Terrain（使用 Cesium 内置默认 token，无需额外配置）
+
+        // 方案 2：MapLibre DEM30（30m 高清地形）—— 仅在 Terrarium 失败时尝试
+        // 注意：MapLibre 在国内网络可能 DNS 解析失败
+        if (!terrainOk) {
+          try {
+            const mapLibreProvider = await createMapLibreTerrainProvider();
+            if (cancelled) return;
+            viewer.terrainProvider = mapLibreProvider;
+            useGeographyStore.getState().setTerrain({ available: true });
+            terrainOk = true;
+            console.info('[Terrain] MapLibre DEM30 加载成功（30m 分辨率）');
+          } catch (e) {
+            console.warn('[Terrain] MapLibre 创建失败:', (e as Error).message);
+          }
+        }
+
+        // 方案 3：Cesium World Terrain（需要默认 token，可能 401）
         if (!terrainOk) {
           try {
             const worldTerrain = await Cesium.createWorldTerrainAsync();
@@ -365,26 +363,61 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
             viewer.terrainProvider = worldTerrain;
             useGeographyStore.getState().setTerrain({ available: true });
             terrainOk = true;
-            console.info('[Terrain] 使用 Cesium World Terrain（默认 token）');
-          } catch {
-            console.warn('[Terrain] Cesium World Terrain 也不可用，保持椭球地形');
+            console.info('[Terrain] Cesium World Terrain 加载成功');
+          } catch (e) {
+            console.warn('[Terrain] Cesium World Terrain 加载失败:', (e as Error).message);
           }
+        }
+
+        // 所有地形源都失败
+        if (!terrainOk) {
+          console.warn('[Terrain] 所有地形服务均不可用，使用椭球回退');
+          console.info('[Terrain] 提示：配置 VITE_CESIUM_ION_TOKEN（https://ion.cesium.com/tokens）可获取稳定的全球地形数据');
+          console.info('[Terrain] 当前椭球模式下：高程分层可正常显示（基于海平面均匀色带），但等高线/坡度/坡向分析不可用');
+          useGeographyStore.getState().setTerrain({ available: false });
         }
       });
     } else {
-      // 有 ion token：WorldTerrain 内部会异步加载，同样包 schedule 触发 LoadingOverlay
+      // 有 ion token：优先加载 Cesium World Terrain（高精度，全球覆盖）
+      // 回退链：World Terrain → AWS Terrarium → MapLibre → 椭球
       void layerMgr.schedule('terrain', async () => {
+        if (cancelled) return;
+        let terrainOk = false;
+        console.info('[Terrain] 正在加载 Cesium World Terrain（使用 Ion Token）...');
+
+        // 方案 1：Cesium World Terrain（需要 Ion Token，高精度）
         try {
-          // 等待 Ion WorldTerrain ready（从WorldTerrain返回的是Terrain对象，内部readyPromise）
-          const tAny = viewer.terrainProvider as unknown as {
-            readyPromise?: Promise<unknown>;
-            ready?: boolean;
-          };
-          if (tAny.ready === false && tAny.readyPromise) {
-            await Promise.race([tAny.readyPromise, new Promise((r) => setTimeout(r, 6000))]);
+          const worldTerrain = await Cesium.createWorldTerrainAsync();
+          if (cancelled) return;
+          viewer.terrainProvider = worldTerrain;
+          useGeographyStore.getState().setTerrain({ available: true });
+          terrainOk = true;
+          console.info('[Terrain] Cesium World Terrain 加载成功（高精度全球地形）');
+        } catch (e) {
+          console.warn('[Terrain] Cesium World Terrain 加载失败:', (e as Error).message);
+        }
+
+        // 方案 2：AWS Terrarium（如果 World Terrain 失败，回退到免费地形）
+        if (!terrainOk) {
+          console.info('[Terrain] 尝试回退到 AWS Terrarium 免费地形...');
+          try {
+            const terrariumProvider = await createTerrariumTerrainProvider();
+            if (cancelled) return;
+            viewer.terrainProvider = terrariumProvider;
+            useGeographyStore.getState().setTerrain({ available: true });
+            terrainOk = true;
+            console.info('[Terrain] AWS Terrarium 地形加载成功（回退方案，1km 分辨率）');
+          } catch (e) {
+            console.warn('[Terrain] Terrarium 回退也失败:', (e as Error).message);
           }
-        } catch (e) { console.warn('[EmptyCatch] cesium/CesiumCanvas.tsx:345', (e as any)?.message ?? e); }
-        if (!cancelled) useGeographyStore.getState().setTerrain({ available: true });
+        }
+
+        // 所有地形源都失败
+        if (!terrainOk) {
+          console.warn('[Terrain] 所有地形服务均不可用，使用椭球回退');
+          console.info('[Terrain] 当前椭球模式下：高程分层可正常显示（基于海平面均匀色带），但等高线/坡度/坡向分析不可用');
+          useGeographyStore.getState().setTerrain({ available: false });
+        }
       });
     }
 
