@@ -1655,12 +1655,20 @@ export class S2SAdapter {
     this.cb = cb;
   }
 
-  /** 建立与后端 /ws/s2s 的连接（相对路径由 vite 代理到 FastAPI:8787） */
+  /** 建立与后端 /ws/s2s 的连接
+   *  - 开发环境：默认 `wss://${location.host}/ws/s2s`，由 Vite 代理到 FastAPI:8787
+   *  - 生产环境：Vercel 无法代理 WebSocket，需通过 VITE_S2S_WS_URL 直连 Railway 后端
+   */
   connect(): Promise<void> {
     if (this.ws) return Promise.resolve();
     return new Promise((resolve, reject) => {
       const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const ws = new WebSocket(`${proto}://${location.host}/ws/s2s`);
+      const configured = (import.meta.env.VITE_S2S_WS_URL as string | undefined)?.trim();
+      const url =
+        configured && configured.length > 0
+          ? configured
+          : `${proto}://${location.host}/ws/s2s`;
+      const ws = new WebSocket(url);
       this.ws = ws;
       ws.binaryType = 'arraybuffer';
 

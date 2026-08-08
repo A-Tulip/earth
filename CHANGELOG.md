@@ -15,6 +15,9 @@
 ### Fixed
 - 底图瓦片错误监听（`terrainProviders.ts`）：增加 SSR（`typeof window === 'undefined'`）防护，
   并对同一 provider 的重复报错做去重，避免重复上报污染日志。
+- 生产环境实时语音（S2S）：Vercel 无法代理 WebSocket 到外部后端，导致 `/ws/s2s` 在生产失效。
+  现通过 `VITE_S2S_WS_URL`（写入 `app/.env.production`）让前端直连 Railway 的
+  `wss://earth-production.up.railway.app/ws/s2s`；开发环境留空仍走同源 Vite 代理。
 
 ---
 
