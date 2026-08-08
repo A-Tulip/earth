@@ -1,0 +1,105 @@
+# ============================================================
+# 地球探索者 · CI / CD 工作流
+#
+# 触发：
+#   - push / pull_request 到 main：完整 CI（前端质量 + 后端校验）
+#   - push 到 main：CI 通过后自动部署前端到 Vercel
+#
+# 前端部署所需的 Secrets（仓库 Settings → Secrets and variables → Actions）：
+#   VERCEL_TOKEN     - Vercel 访问令牌（需 antecedent 部署权限）
+#   VERCEL_ORG_ID    - 团队 ID（项目 .vercel/project.json 中 orgId）
+#   VERCEL_PROJECT_ID - 项目 ID（项目 .vercel/project.json 中 projectId）
+# ============================================================
+name: CI/CD
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  # ---------- 前端质量门禁 ----------
+  frontend:
+    name: Frontend (typecheck · test · validate · build)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: app
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: app/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Unit & integration tests
+        run: npm test
+
+      - name: Validate lesson content
+        run: npm run validate:content
+
+      - name: Production build
+        run: npm run build
+
+  # ---------- 后端校验 ----------
+  backend:
+    name: Backend (python compile · docker build)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+
+      - name: Validate main.py compiles
+        working-directory: api
+        run: python -m py_compile main.py
+
+      - name: Build backend Docker image
+        working-directory: api
+        run: docker build -t earth-explorer-api:ci .
+
+  # ---------- 前端部署（仅 main） ----------
+  deploy:
+    name: Deploy frontend to Vercel
+    needs: [frontend, backend]
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      # 注意：不要设置 working-directory=./app。
+      # Vercel 项目已配置 rootDirectory=app，CLI 从仓库根执行时 Vercel 会自动切换，
+      # 若再从 app/ 内执行会触发 app/app 路径错误（历史踩坑）。
+      - name: Deploy to Vercel
+        uses: amondnet/vercel-action@v20
+        with:
+          vercel-token: ${{ secrets.VERCEL_TOKEN }}
+          vercel-org-id: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-project-id: ${{ secrets.VERCEL_PROJECT_ID }}
+          scope: ${{ secrets.VERCEL_ORG_ID }}
+          vercel-args: --prod

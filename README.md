@@ -295,20 +295,6 @@ cd app && cp .env.example .env.local
 
 ---
 
-## 🧪 测试
-
-```bash
-cd app
-npm run build             # 类型检查 + 生产构建
-npm test                  # 单元 + 集成测试（Vitest）
-npm run test:e2e          # Playwright 端到端测试
-npm run typecheck         # TypeScript 类型检查
-npm run lint              # ESLint
-npm run validate:content  # 课程内容校验
-```
-
----
-
 ## 🛠️ 技术栈
 
 | 层 | 技术 | 用途 |
@@ -324,12 +310,38 @@ npm run validate:content  # 课程内容校验
 
 ---
 
+## 🧪 测试与持续集成
+
+```bash
+cd app
+npm run build             # 类型检查 + 生产构建
+npm test                  # 单元 + 集成测试（Vitest）
+npm run test:e2e          # Playwright 端到端测试
+npm run typecheck         # TypeScript 类型检查
+npm run lint              # ESLint
+npm run validate:content  # 课程内容校验
+```
+
+仓库通过 [GitHub Actions](.github/workflows/ci.yml) 在 **PR 与 push 到 main** 时自动执行：
+
+| 阶段 | 检查项 |
+|---|---|
+| 前端质量 | `typecheck` + 单元测试 + 课程内容校验 + 生产构建 |
+| 部署 | main 分支构建成功后自动部署前端到 Vercel |
+| 后端 | 校验 `api/main.py` 可编译 + Docker 镜像构建（`python:3.11-slim`） |
+
+> Vercel 部署需在仓库 Settings → Secrets 配置 `VERCEL_TOKEN`、`VERCEL_ORG_ID`、`VERCEL_PROJECT_ID`（见 [Vercel 部署](#前端vercel)）。
+
+---
+
 ## 📄 文档
 
 - [AGENTS.md](AGENTS.md) —— AI 开发规范、项目目标、代码规范、数据来源规则
+- [CHANGELOG.md](CHANGELOG.md) —— 版本变更记录（Keep a Changelog 规范）
 - [`app/.env.example`](app/.env.example) —— 前端环境变量模板（含 FAQ）
 - [`api/.env.example`](api/.env.example) —— 后端密钥模板（含鉴权模式说明）
 - [`api/main.py`](api/main.py) —— 后端端点一览
+- [`.github/workflows/ci.yml`](.github/workflows/ci.yml) —— CI / CD 工作流定义
 
 > 内部开发文档（架构/UI 系统/语音 Agent/课程编写等）保存在本地 `app/docs/`，不入库，避免与公开文档混淆。
 
