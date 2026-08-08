@@ -9,6 +9,8 @@
 - 前端 Vercel 部署配置（`app/vercel.json`）：SPA 回退 + `/api` 同源代理到后端。
 - 后端 Railway 容器化配置（`api/railway.json`、`api/Dockerfile` 动态 `$PORT`）。
 - 新增 GitHub Actions CI 工作流：lint + typecheck + 单元测试 + 课程校验 + 构建 + Vercel 部署 + 后端构建验证。
+- 后端已部署至 Railway（`https://earth-production.up.railway.app`），`volc.*` 密钥写入 Railway 环境变量，
+  `/api/health` 已确认 `llm / tts / asr` 就绪；Vercel `/api` 同源代理指向该 Railway 服务。
 
 ### Fixed
 - 底图瓦片错误监听（`terrainProviders.ts`）：增加 SSR（`typeof window === 'undefined'`）防护，
