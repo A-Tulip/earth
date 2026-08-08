@@ -366,6 +366,36 @@ export function registerCommandHandlers() {
     return { ok: true, message: '坡向分析已开启' };
   });
 
+  // ============ Google Earth 真实感 3D Tiles ============
+  commandBus.register('layer.toggleGoogleEarth', async () => {
+    const ready = getCesiumOrError();
+    if (!ready.ok) return ready;
+    const ctrl = ready.ctrl;
+
+    // 以 Cesium 场景中的实际状态为准（而非可能滞后的 store 状态）
+    const actuallyLoaded = ctrl.isGoogleEarthLoaded();
+    if (actuallyLoaded) {
+      ctrl.unloadGoogleEarth();
+      const stillLoaded = ctrl.isGoogleEarthLoaded();
+      if (stillLoaded) {
+        return { ok: false, code: 'LOAD_FAILED', error: 'Google Earth 卸载失败，场景中仍有残留 tileset' };
+      }
+      store.getState().setTerrain({ googleEarth: false });
+      return { ok: true, message: 'Google Earth 真实感 3D 已关闭' };
+    } else {
+      // 先同步 store 状态：避免 UI 显示"开"但实际未加载的错位
+      store.getState().setTerrain({ googleEarth: false });
+      const success = await ctrl.loadGoogleEarth();
+      if (success) {
+        store.getState().setTerrain({ googleEarth: true });
+        return { ok: true, message: 'Google Earth 真实感 3D 已开启' };
+      } else {
+        store.getState().setTerrain({ googleEarth: false });
+        return { ok: false, code: 'LOAD_FAILED', error: 'Google Earth 加载失败，请检查网络和 Token' };
+      }
+    }
+  });
+
   // ============ 区域叠加（三级阶梯/板块/气候带教学高亮） ============
   commandBus.register('layer.showRegion', async (call) => {
     const ready = getCesiumOrError();

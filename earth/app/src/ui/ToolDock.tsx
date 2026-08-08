@@ -123,10 +123,13 @@ export function ToolDock() {
 
 // ============ 面板组件 ============
 
-function PanelRow({ label, children }: { label: string; children: React.ReactNode }) {
+function PanelRow({ label, children, hint }: { label: string; children: React.ReactNode; hint?: string }) {
   return (
     <div className="flex items-center justify-between py-1.5">
-      <span className="text-white/80">{label}</span>
+      <div className="flex flex-col">
+        <span className="text-white/80">{label}</span>
+        {hint && <span className="text-[10px] text-white/40">{hint}</span>}
+      </div>
       {children}
     </div>
   );
@@ -203,6 +206,15 @@ function ViewPanel({
             <Toggle id={`view.basemap.${bm}`} checked={state.basemap === bm} onChange={() => commandBus.execute({ name: 'view.setBasemap', args: { basemap: bm } })} />
           </PanelRow>
         ))}
+        <PanelRow label="Google Earth" hint="真实感 3D 建筑叠加">
+          <Toggle
+            id="terrain.googleEarth"
+            checked={state.terrain.googleEarth}
+            disabled={state.viewMode !== '3d'}
+            title={state.viewMode !== '3d' ? 'Google Earth 仅在 3D 地球模式下可用' : '叠加 Google 真实感 3D Tiles（需要网络和 Cesium Ion Token）'}
+            onChange={() => commandBus.execute({ name: 'layer.toggleGoogleEarth', args: {} })}
+          />
+        </PanelRow>
       </div>
 
       <div className="my-2 h-px bg-white/10" />

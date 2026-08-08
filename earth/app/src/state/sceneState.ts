@@ -89,6 +89,7 @@ export interface TerrainAnalysisState {
   aspect: boolean;          // 坡向
   exaggeration: number;     // 地形夸张倍数
   available: boolean;       // 是否有真实地形数据（椭球时为 false，地形分析功能不可用）
+  googleEarth: boolean;     // Google Earth 真实感 3D Tiles
 }
 
 /** 镜头状态 */
@@ -324,6 +325,7 @@ export const initialSceneState: GeographySceneState = {
     aspect: false,
     exaggeration: 1.0,
     available: false, // 初始为 false，CesiumCanvas 加载真实地形后设为 true
+    googleEarth: false,
   },
 
   measurement: {

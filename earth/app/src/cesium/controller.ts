@@ -19,6 +19,11 @@ export type BasemapStr = import('../state/sceneState').BasemapType;
 export const RESET_CAMERA = { lon: 116.4, lat: 35.0, height: 15_000_000, headingDeg: 0, pitchDeg: -90, rollDeg: 0 };
 
 export class CesiumController {
+  private googleEarthTileset: Cesium.Cesium3DTileset | null = null;
+  private googleEarthLoaded = false;
+  private googleEarthLoading = false;
+  private googleEarthTilesets = new Set<Cesium.Cesium3DTileset>();
+
   constructor(private viewer: Cesium.Viewer) {
     this.bindIdleReset();
     this.applyStartupRenderTuning();
@@ -926,6 +931,115 @@ export class CesiumController {
     } catch { /* ignore：恢复失败不影响模式切换主线 */ }
   }
 
+  // ============ Google Earth 真实感 3D Tiles ============
+
+  /**
+   * 加载 Google Photorealistic 3D Tiles（真实感 3D 建筑和地形）
+   * Cesium Ion Asset ID: 2275207
+   * 需要有效的 Cesium Ion Token（VITE_CESIUM_ION_TOKEN）
+   */
+  async loadGoogleEarth(): Promise<boolean> {
+    if (!this.viewer?.scene) return false;
+    if (this.googleEarthLoaded) return true;
+    if (this.googleEarthLoading) return false;
+
+    const ionToken = import.meta.env.VITE_CESIUM_ION_TOKEN;
+    if (!ionToken) {
+      console.warn('[GoogleEarth] 未配置 VITE_CESIUM_ION_TOKEN，无法加载 Google Photorealistic 3D Tiles');
+      return false;
+    }
+
+    this.googleEarthLoading = true;
+    try {
+      console.info('[GoogleEarth] 正在加载 Google Photorealistic 3D Tiles...');
+      const tileset = await Cesium.Cesium3DTileset.fromIonAssetId(2275207, {
+        maximumScreenSpaceError: 8,
+      });
+
+      // 标记来源：便于 unload 时扫描 primitives 定位并清理残留
+      (tileset as unknown as { _googleEarthAssetId?: number })._googleEarthAssetId = 2275207;
+
+      this.viewer.scene.primitives.add(tileset);
+      this.googleEarthTileset = tileset;
+      this.googleEarthTilesets.add(tileset);
+      this.googleEarthLoaded = true;
+
+      if (tileset.showCreditsOnScreen !== undefined) {
+        tileset.showCreditsOnScreen = true;
+      }
+
+      console.info('[GoogleEarth] Google Photorealistic 3D Tiles 加载成功');
+      this.viewer.scene.requestRender();
+      return true;
+    } catch (e) {
+      console.error('[GoogleEarth] 加载失败:', (e as Error).message);
+      return false;
+    } finally {
+      this.googleEarthLoading = false;
+    }
+  }
+
+  /** 卸载 Google Photorealistic 3D Tiles */
+  unloadGoogleEarth(): void {
+    if (!this.viewer?.scene) {
+      this.googleEarthTileset = null;
+      this.googleEarthTilesets.clear();
+      this.googleEarthLoaded = false;
+      return;
+    }
+
+    const primitives = this.viewer.scene.primitives;
+
+    // 1. 从追踪集合中清理已知 tileset
+    for (const ts of this.googleEarthTilesets) {
+      try {
+        if (primitives.contains(ts)) {
+          primitives.remove(ts);
+          ts.destroy?.();
+        }
+      } catch {
+        // 忽略已损坏的 tileset
+      }
+    }
+    this.googleEarthTilesets.clear();
+
+    // 2. 扫描 primitives 中所有标记了 Google Earth assetId 的残留 tileset
+    //    防止因竞态/引用丢失导致的"幽灵 tileset"无法清理
+    for (let i = primitives.length - 1; i >= 0; i--) {
+      const p = primitives.get(i);
+      if (p instanceof Cesium.Cesium3DTileset) {
+        const tag = (p as unknown as { _googleEarthAssetId?: number })._googleEarthAssetId;
+        if (tag === 2275207) {
+          primitives.remove(p);
+          try { p.destroy?.(); } catch { /* ignore */ }
+          console.info('[GoogleEarth] 清理了残留 tileset (assetId=2275207)');
+        }
+      }
+    }
+
+    this.googleEarthTileset = null;
+    this.googleEarthLoaded = false;
+    console.info('[GoogleEarth] Google Photorealistic 3D Tiles 已卸载');
+    this.viewer.scene.requestRender();
+  }
+
+  /** 检查 Google Earth 是否已加载（同时检查状态和场景中是否有残留） */
+  isGoogleEarthLoaded(): boolean {
+    if (this.googleEarthLoaded) return true;
+    // 兜底：扫描 primitives 中是否有 Google Earth tileset 残留
+    if (this.viewer?.scene) {
+      const primitives = this.viewer.scene.primitives;
+      for (let i = 0; i < primitives.length; i++) {
+        const p = primitives.get(i);
+        if (p instanceof Cesium.Cesium3DTileset) {
+          const tag = (p as unknown as { _googleEarthAssetId?: number })._googleEarthAssetId;
+          if (tag === 2275207) return true;
+        }
+      }
+    }
+    return false;
+  }
+
   // ============ 天文可视化 ============
 
   private astronomyEntities: Cesium.Entity[] = [];
@@ -1672,6 +1786,7 @@ export class CesiumController {
 
   /** 销毁 */
   destroy(): void {
+    this.unloadGoogleEarth();
     this.setRotation(false, 0);
     this.clearMeasureHandler();
     this.clearAstronomyEntities();

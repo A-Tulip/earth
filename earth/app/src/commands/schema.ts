@@ -42,6 +42,7 @@ export const TOOL_NAMES = [
   'layer.showAspect',
   'layer.showRegion',     // 区域叠加（三级阶梯/板块/气候带教学高亮）
   'layer.clearRegion',    // 清除区域叠加
+  'layer.toggleGoogleEarth', // Google Earth 真实感 3D Tiles
   'terrain.setExaggeration',
   'terrain.setContourSpacing',
   'terrain.profile',      // 沿路径生成剖面
@@ -116,7 +117,8 @@ export type ErrorCode =
   | 'TOOL_NOT_AVAILABLE'
   | 'EXECUTION_FAILED'
   | 'BUTTON_NOT_FOUND'
-  | 'UI_NOT_READY';
+  | 'UI_NOT_READY'
+  | 'LOAD_FAILED';
 
 /** 参数校验规则 */
 export interface ParamSchema {
@@ -242,6 +244,7 @@ export const TOOL_SCHEMAS: Record<ToolName, Record<string, ParamSchema>> = {
   'layer.showElevationRamp': {},
   'layer.showSlope': {},
   'layer.showAspect': {},
+  'layer.toggleGoogleEarth': {},
   'terrain.setExaggeration': {
     value: { type: 'number', required: true, min: 0.5, max: 10, description: '地形夸张倍数' },
   },
