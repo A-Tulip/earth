@@ -14,7 +14,7 @@ API_DIR       := $(ROOT)/api
 PY_VENV       := $(API_DIR)/.venv/bin/python
 NODE          := $(if $(shell command -v pnpm 2>/dev/null),pnpm,$(if $(shell command -v npm 2>/dev/null),npm,yarn))
 
-.PHONY: help setup dev api start test lint typecheck clean docker docker-up docker-down
+.PHONY: help setup dev api start test lint typecheck clean docker docker-up docker-down docker-logs
 
 help:  ## 显示所有命令
 	@awk 'BEGIN {FS = ":.*##"} /^[a-zA-Z_-]+:.*##/ {printf "  \033[36m%-14s\033[0m %s\n", $$1, $$2}' $(MAKEFILE_LIST)
@@ -63,12 +63,15 @@ clean:  ## 清理前端 dist、后端 pyc、__pycache__
 	@find $(API_DIR) -type d -name __pycache__ -prune -exec rm -rf {} +
 	@echo "🧹 清理完成"
 
-# ---------- Docker（后端容器化部署）----------
-docker:  ## 构建并后台启动后端容器（需系统装有 docker compose）
+# ---------- Docker（全栈容器化部署：前端 Nginx + 后端 FastAPI）----------
+docker:  ## 构建并后台启动全栈容器（前端 8080 + 后端 8787；需装有 docker compose）
 	@cd $(ROOT) && docker compose up -d --build
 
-docker-up:  ## 后台启动后端容器（不重新构建）
+docker-up:  ## 后台启动全栈容器（不重新构建）
 	@cd $(ROOT) && docker compose up -d
 
-docker-down:  ## 停止并移除后端容器
+docker-down:  ## 停止并移除全栈容器
 	@cd $(ROOT) && docker compose down
+
+docker-logs:  ## 跟踪全栈容器日志（前端 web / 后端 api）
+	@cd $(ROOT) && docker compose logs -f

@@ -29,8 +29,9 @@ interface LayerGroup {
 }
 
 const SHORTCUTS: ShortcutItem[] = [
-  { key: '空格（按住）', description: '开始语音录音，松开后识别并执行指令' },
-  { key: '空格（松开）', description: '结束录音，提交给 ASR + LLM 处理' },
+  { key: '空格（单击）', description: '开始语音录音（无需按住）' },
+  { key: '空格（再按）', description: '结束录音，提交 ASR + LLM 识别并执行' },
+  { key: '⌘/Ctrl + /', description: '打开/关闭 AI 对话面板' },
   { key: '?', description: '打开/关闭本帮助面板' },
   { key: 'Esc', description: '关闭当前打开的浮层（工具面板/搜索/帮助）' },
   { key: '↑ ↓', description: '在搜索结果列表中上下移动高亮项' },
@@ -199,7 +200,7 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
           {tab === 'voice' && (
             <div className="space-y-1.5">
               <p className="mb-2 text-xs text-white/50">
-                按住空格说出以下指令，AI 会自动识别并执行。关键词识别为离线回退，
+                单击空格开始录音、再按一次结束并交由 AI 识别执行。关键词识别为离线回退，
                 配置火山引擎后支持自然语言。
               </p>
               {VOICE_EXAMPLES.map((c, i) => (
@@ -211,7 +212,8 @@ export function HelpPanel({ open, onClose }: HelpPanelProps) {
                 </div>
               ))}
               <div className="mt-4 rounded-lg bg-geo-500/10 px-3 py-2 text-xs text-geo-300/80">
-                提示：语音权限失败时会自动回退到文本命令入口；网络不可用时使用离线关键词识别。
+                提示：顶栏的「信号塔」按钮可开启实时对话模式（全双工，说话即响应、自动打断），
+                无需点击空格；语音权限失败时会自动回退到文本命令入口；网络不可用时使用离线关键词识别。
               </div>
             </div>
           )}

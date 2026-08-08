@@ -7,7 +7,7 @@
  * 服务端 VAD：客户端持续上传 16k PCM，服务端自动检测用户说话开始/结束，并将答案以 TTS 音频返回。
  * 前端职责：采集麦克风 → 降采样到 16k int16 → 上传；接收 TTS 音频 → 排队播放；维护倾听/处理/播报状态。
  *
- * 降级：若 S2S 连接失败，调用方应回退到三段式 RealtimeVoiceChat 或按住空格模式。
+ * 降级：若 S2S 连接失败，调用方应回退到三段式 RealtimeVoiceChat 或空格键单击模式。
  */
 
 import { useCallback, useEffect, useRef } from 'react';
@@ -244,7 +244,7 @@ export function useRealtimeS2SChat({ adapter, enabled = false }: RealtimeS2SChat
       } catch (err) {
         const message = err instanceof Error ? err.message : 'S2S 启动失败';
         store.getState().setVoice({
-          error: `实时对话启动失败：${message}。可用按住空格模式。`,
+          error: `实时对话启动失败：${message}。可用空格键单击模式。`,
           realtimeChatActive: false,
         });
         stopCapture();

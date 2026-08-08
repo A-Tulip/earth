@@ -122,6 +122,36 @@ npm run build
 ### Cesium 静态资源
 `dist/cesium/` 必须与 `index.html` 一起部署，Cesium 运行时按相对路径 `/cesium/` 加载 Workers/Assets。
 
+## 5.1 Docker 部署后端（FastAPI，可选）
+
+后端（`api/`）提供 LLM / TTS / ASR / 地理编码 / 图表等能力，可容器化部署为独立服务。
+
+```bash
+# 1.（可选）准备密钥：复制模板并填入 VOLC_* 真实值
+cp api/.env.example api/.env
+
+# 2. 构建并启动（后台）
+docker compose up -d --build
+
+# 3. 验证
+curl http://localhost:8787/api/health
+# 应返回 {"ok":true,"llm":true,"asr":true,"tts":true,...}（llm/asr/tts 按已配置的密钥显示）
+
+# 4. 查看日志 / 停止
+docker compose logs -f api
+docker compose down
+```
+
+**密钥安全：**
+- 镜像内**不打包**任何密钥：`api/.dockerignore` 排除了 `.env`
+- 密钥通过 `docker compose` 的 `env_file: ./api/.env` 在**运行时**注入容器
+- CI/云平台部署时，可直接在宿主环境注入 `VOLC_*`（优先级高于 `.env` 文件）
+
+**注意事项：**
+- 容器监听 `8787`，映射到宿主机同端口；如需改端口，同步修改 `docker-compose.yml` 的 `ports` 与 `app/vite.config.ts` 的 `/api` 代理 target
+- 前端仍建议按第 5 节部署到静态托管，通过 `VITE_API_*` / 反向代理指向后端地址
+- 容器以非 root 用户运行；matplotlib 中文图表已内置 Noto CJK 字体
+
 ## 6. 测试
 
 ```bash

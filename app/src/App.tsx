@@ -4,7 +4,7 @@
  * AI 地理画布：
  * - 打开即看到完整地球
  * - 无登录、无欢迎流程、无 API 配置
- * - 按住空格语音、工具坞手动操作
+ * - 空格键单击录音、工具坞手动操作
  */
 
 import { useState, useEffect, useRef, useCallback, lazy, Suspense, useMemo } from 'react';

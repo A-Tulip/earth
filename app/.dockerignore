@@ -1,0 +1,33 @@
+# ============================================================
+# 前端镜像构建时排除的文件（缩小上下文 + 防止密钥/产物入镜像）
+# VITE_* 构建变量通过 docker-compose build args 传入，不落盘。
+# ============================================================
+
+# 依赖与构建产物
+node_modules/
+dist/
+*.log
+
+# 密钥与本地环境（禁止进镜像）
+.env
+.env.*
+!.env.example
+
+# 测试与校验（生产镜像不需要）
+tests/
+e2e/
+*.spec.ts
+playwright.config.ts
+vitest.config.ts
+
+# 桌面/编辑器杂项
+.DS_Store
+.idea/
+.vscode/
+*.map
+
+# 仓库其它
+.git/
+.gitignore
+README.md
+Dockerfile

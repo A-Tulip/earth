@@ -1,7 +1,7 @@
 /**
  * RealtimeVoiceChat —— 实时对话模式（全双工语音交互）
  *
- * 与 PushToTalk（按住空格录音-松开提交）不同，实时对话模式：
+ * 与 PushToTalk（单击空格开始录音、再按一次提交）不同，实时对话模式：
  * - 用户随时说话，VAD 自动检测说话开始/结束
  * - 检测到句末（静音段）自动提交 LLM
  * - AI 回复通过 TTS 实时播放
@@ -158,7 +158,7 @@ export function useRealtimeVoiceChat({ asr, tts, llm, enabled = false }: Realtim
       asrStartPromiseRef.current = null;
       const message = err instanceof Error ? err.message : 'ASR 启动失败';
       store.getState().setVoice({
-        error: `实时对话 ASR 失败：${message}。可切换到按住空格模式。`,
+        error: `实时对话 ASR 失败：${message}。可切换到空格键单击模式。`,
       });
       setState('idle');
     }
@@ -372,7 +372,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
     } catch (err) {
       const message = err instanceof Error ? err.message : '麦克风权限失败';
       store.getState().setVoice({
-        error: `实时对话启动失败：${message}。可使用按住空格模式。`,
+        error: `实时对话启动失败：${message}。可使用空格键单击模式。`,
         realtimeChatActive: false,
       });
     }

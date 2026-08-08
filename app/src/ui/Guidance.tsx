@@ -1,7 +1,7 @@
 /**
  * Guidance —— 首次打开时的极轻引导文字
  *
- * "按住空格说出你想观察的地点或知识点"
+ * "单击空格说出你想观察的地点或知识点"
  * 引导数秒后淡出。
  */
 
@@ -43,7 +43,7 @@ export function Guidance() {
     >
       <div className="text-center">
         <p className="text-base font-light text-white/60">
-          按住空格说出你想观察的地点或知识点
+          单击空格说出你想观察的地点或知识点
         </p>
         <p className="mt-2 text-xs text-white/30">
           或点击左下角工具坞手动操作
