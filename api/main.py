@@ -310,7 +310,10 @@ def _ok_json(body: Any, status_code: int = 200) -> Response:
 #         b) 失败时回退 旧版 query-string token+appkey + json={"payload": payload_inner}
 # ============================================================
 ARK_RESPONSES_URL = "https://ark.cn-beijing.volces.com/api/v3/responses"
-TTS_HTTP_URL = "https://sami.bytedance.com/api/v1/invoke"
+# 火山大模型语音合成（新版控制台 X-Api-Key 鉴权，官方推荐 V3 HTTP Chunked 单向流式）
+TTS_HTTP_URL = "https://openspeech.bytedance.com/api/v3/tts/unidirectional"
+# 旧版 SAMI TTS（仅当用户使用旧版控制台 AppID+AccessToken 时作为回退）
+TTS_SAMI_URL = "https://sami.bytedance.com/api/v1/invoke"
 # ASR v3 流式大模型（官方最新，WS Header 鉴权，不再走 query/token）
 ASR_WS_URL = "wss://openspeech.bytedance.com/api/v3/sauc/bigmodel"
 # ASR HTTP 一句话识别（留作兜底，未使用主路径但保持兼容）
@@ -494,7 +497,8 @@ async def health_check():
     asr_token = os.environ.get("VOLC_ASR_ACCESS_TOKEN") or os.environ.get("VOLC_ASR_ACCESS_KEY")
     asr_api_key = os.environ.get("VOLC_ASR_API_KEY") or os.environ.get("VOLC_ASR_ACCESS_TOKEN") or os.environ.get("VOLC_ASR_ACCESS_KEY")
     tts_token = os.environ.get("VOLC_TTS_ACCESS_TOKEN") or os.environ.get("VOLC_TTS_ACCESS_KEY")
-    tts_api_key = os.environ.get("VOLC_TTS_API_KEY")
+    # TTS 新版 Key 未单独配置时回退到 ASR 单 Key（两者共用同一语音应用）
+    tts_api_key = os.environ.get("VOLC_TTS_API_KEY") or os.environ.get("VOLC_ASR_API_KEY")
     asr_ok = await _probe_asr_connectivity()
     return {
         "ok": True,
@@ -696,128 +700,161 @@ async def llm_chat(req: Request, limiter=Depends(limiter_dep)):
 
 
 # ---------------- TTS ----------------
+# 火山 TTS 服务提供两套鉴权（不要混用）：
+#   A) 新版控制台「单 API Key」（X-Api-Key Header）—— 推荐，也是当前主路径。
+#      TTS 与 ASR 共用同一个语音应用的 API Key，故 VOLC_TTS_API_KEY 未单独配置时
+#      自动回退到 VOLC_ASR_API_KEY（已验证该 Key + seed-tts-2.0 可正常合成）。
+#      V3 HTTP 单向流式端点返回 NDJSON 流（每行 {"code":0,"message":"","data":"<base64 chunk>"}），
+#      需把多行 data 拼接成完整音频后再返回单个 base64。
+#   B) 旧版 AppID + AccessToken（query-string 传参）—— 仅当无新版 Key 时作为回退。
+# 新版 v3 接口只认 2.0 版音色（以 _bigtts 结尾，如 zh_female_qingxinnvsheng_uranus_bigtts）；
+# 旧版 1.0 音色（zh_female_qingxin 等）不适用于 v3，会自动替换为 2.0 默认音色。
+_TTS_V2_DEFAULT_SPEAKER = "zh_female_qingxinnvsheng_uranus_bigtts"
+
+
 @app.post("/api/tts/synthesize", tags=["tts"])
 async def tts_synthesize(body: TTSRequest):
-    app_id = os.environ.get("VOLC_TTS_APP_ID")
-    # 新版控制台鉴权：X-Api-Key（单一 Key，不需要 app_id + access_token 组合）
-    tts_api_key = os.environ.get("VOLC_TTS_API_KEY")
+    # 新版控制台鉴权：X-Api-Key（单一 Key）。TTS 与 ASR 共用同一语音应用 Key，未单独配置时回退 ASR Key。
+    tts_api_key = os.environ.get("VOLC_TTS_API_KEY") or os.environ.get("VOLC_ASR_API_KEY")
     # 旧版控制台鉴权：app_id + access_token（通过 query-string 传递）
+    app_id = os.environ.get("VOLC_TTS_APP_ID")
     token = os.environ.get("VOLC_TTS_ACCESS_TOKEN") or os.environ.get("VOLC_TTS_ACCESS_KEY")
 
     if not tts_api_key and (not app_id or not token):
         raise ApiError(
             "PROVIDER_NOT_CONFIGURED",
-            "服务端未配置 VOLC_TTS：请设置 VOLC_TTS_API_KEY（新版）或 VOLC_TTS_APP_ID+VOLC_TTS_ACCESS_TOKEN（旧版）",
+            "服务端未配置 VOLC_TTS：请设置 VOLC_TTS_API_KEY / VOLC_ASR_API_KEY（新版）或 VOLC_TTS_APP_ID+VOLC_TTS_ACCESS_TOKEN（旧版）",
         )
     if not body.text.strip():
         raise ApiError("INVALID_ARGS", "text 不能为空")
 
     speaker = body.voiceType or os.environ.get("VOLC_TTS_VOICE_TYPE") or "zh_female_qingxin"
-    audio_fmt = body.format or "mp3"
+    audio_fmt = (body.format or "mp3").lower()
     speed_val = body.speed if isinstance(body.speed, (int, float)) else 0
-
-    payload_inner = json.dumps(
-        {
-            "speaker": speaker,
-            "text": body.text,
-            "audio_config": {
-                "format": audio_fmt,
-                "sample_rate": 24000,
-                "speech_rate": speed_val,
-            },
-        },
-        ensure_ascii=False,
-    )
 
     if _httpx_client is None:
         raise ApiError("SERVER_ERROR", "HTTP 客户端未初始化（请确认 lifespan 正常执行）")
 
-    # ------- 构造"两种鉴权 + 两种 body 包装"调用链，自动回退 -------
-    # 官方有四种可能组合（不同 SAMI endpoint/控制台版本）：
-    #  1. 新版 API Key 控制台：Header X-Api-Key + body 直接 payload_inner (JSON)
-    #  2. 新版 API Key 控制台：Header X-Api-Key + body {"payload": payload_inner}
-    #  3. 旧版 AppID+Access Token：query {version, token, appkey, namespace} + body {"payload": payload_inner}
-    #  4. 旧版 AppID+Access Token：query {version, token, appkey, namespace} + body 直接 payload_inner (JSON)
-    # 按"先新版后旧版"的顺序逐个尝试，任何 status_code==200+status_code==20000000 即命中。
-    candidates: list[dict[str, Any]] = []
+    last_err_msg = "火山 TTS 所有鉴权组合均失败"
+    last_business_code: Any = None
 
-    # --- 模式 A：有 VOLC_TTS_API_KEY（新版控制台）---
+    # ------- 模式 A：新版 v3 HTTP 单向流式（X-Api-Key + X-Api-Resource-Id，优先）-------
     if tts_api_key:
-        headers_a = {
-            "Content-Type": "application/json",
-            "X-Api-Key": tts_api_key,
+        # v3 只支持 2.0 版音色；用户显式指定了以 _bigtts 结尾的音色则沿用，否则用 2.0 默认
+        v3_speaker = speaker if isinstance(speaker, str) and speaker.endswith("_bigtts") else _TTS_V2_DEFAULT_SPEAKER
+        payload_v3 = {
+            "user": {"uid": "earth-explorer"},
+            "namespace": "UnidirectionalTTS",
+            "req_params": {
+                "text": body.text,
+                "speaker": v3_speaker,
+                "audio_params": {
+                    "format": audio_fmt,
+                    "sample_rate": 24000,
+                    "speech_rate": speed_val,
+                },
+            },
         }
-        # A1: body = payload_inner（最常命中）
-        candidates.append({
-            "url": TTS_HTTP_URL,
-            "headers": headers_a,
-            "json": json.loads(payload_inner),
-            "label": "tts:new-api-key-body-raw",
-        })
-        # A2: body = {"payload": payload_inner}（有些 sami namespace 需要包裹）
-        candidates.append({
-            "url": TTS_HTTP_URL,
-            "headers": headers_a,
-            "json": {"payload": payload_inner},
-            "label": "tts:new-api-key-body-wrapped",
-        })
+        for resource in ("seed-tts-2.0", "seed-tts-1.0"):
+            label = f"tts:new-v3-{resource}"
+            try:
+                r = await _httpx_client.post(
+                    TTS_HTTP_URL,
+                    headers={
+                        "Content-Type": "application/json",
+                        "X-Api-Key": tts_api_key,
+                        "X-Api-Resource-Id": resource,
+                    },
+                    json=payload_v3,
+                )
+            except httpx.TimeoutException as e:
+                last_err_msg = f"TTS {label} 上游 25s 超时：{e}"
+                continue
+            except Exception as e:
+                last_err_msg = f"TTS {label} 网络错误：{e}"
+                continue
+            if r.status_code != 200:
+                last_business_code = r.status_code
+                last_err_msg = f"火山 TTS HTTP {label} {r.status_code}：{r.text[:200]}"
+                continue
+            # v3 返回 NDJSON 流式：每行 {"code":0,"message":"","data":"<base64 chunk>"}
+            audio_bytes = b""
+            ok = False
+            for line in r.text.splitlines():
+                line = line.strip()
+                if not line:
+                    continue
+                try:
+                    obj = json.loads(line)
+                except Exception:
+                    continue
+                if obj.get("code") == 0 and obj.get("data"):
+                    try:
+                        audio_bytes += base64.b64decode(obj["data"])
+                        ok = True
+                    except Exception:
+                        continue
+                elif obj.get("code") not in (0, None):
+                    last_business_code = obj.get("code")
+                    last_err_msg = (
+                        f"火山 TTS 业务错误 [{label}] code={obj.get('code')} "
+                        f"{obj.get('message') or obj.get('status_text') or ''}"
+                    )
+            if ok and audio_bytes:
+                return _ok_json({
+                    "ok": True,
+                    "audio": base64.b64encode(audio_bytes).decode("ascii"),
+                    "format": audio_fmt,
+                })
 
-    # --- 模式 B：AppID + Access Token（旧版控制台 Query-string）---
-    if app_id and token:
+    # ------- 模式 B：旧版 AppID + Access Token（query-string 传参，仅无新版 Key 时）-------
+    if not tts_api_key and app_id and token:
+        payload_inner = json.dumps(
+            {
+                "speaker": speaker,
+                "text": body.text,
+                "audio_config": {
+                    "format": audio_fmt,
+                    "sample_rate": 24000,
+                    "speech_rate": speed_val,
+                },
+            },
+            ensure_ascii=False,
+        )
         qs_b = urllib.parse.urlencode(
             {"version": "v4", "token": token, "appkey": app_id, "namespace": "TTS"}
         )
-        url_b = f"{TTS_HTTP_URL}?{qs_b}"
+        url_b = f"{TTS_SAMI_URL}?{qs_b}"
         headers_b = {"Content-Type": "application/json"}
-        # B1: body = {"payload": payload_inner}（官方推荐）
-        candidates.append({
-            "url": url_b,
-            "headers": headers_b,
-            "json": {"payload": payload_inner},
-            "label": "tts:old-query-body-wrapped",
-        })
-        # B2: body = payload_inner（兼容部分 endpoint）
-        candidates.append({
-            "url": url_b,
-            "headers": headers_b,
-            "json": json.loads(payload_inner),
-            "label": "tts:old-query-body-raw",
-        })
+        for bf, lbl in (({"payload": payload_inner}, "tts:old-query-body-wrapped"),
+                        (json.loads(payload_inner), "tts:old-query-body-raw")):
+            try:
+                r = await _httpx_client.post(url_b, headers=headers_b, json=bf)
+            except httpx.TimeoutException as e:
+                last_err_msg = f"TTS {lbl} 上游 25s 超时：{e}"
+                continue
+            except Exception as e:
+                last_err_msg = f"TTS {lbl} 网络错误：{e}"
+                continue
+            if r.status_code != 200:
+                last_business_code = r.status_code
+                last_err_msg = f"火山 TTS HTTP {lbl} {r.status_code}：{r.text[:500]}"
+                continue
+            try:
+                data = r.json()
+            except Exception as e:
+                last_err_msg = f"火山 TTS {lbl} 返回非 JSON：{e}；body={r.text[:500]}"
+                continue
+            business_code = data.get("status_code")
+            if business_code == 20000000 and data.get("data"):
+                return _ok_json({"ok": True, "audio": data["data"], "format": audio_fmt})
+            last_business_code = business_code
+            last_err_msg = (
+                f"火山 TTS 业务错误 [{lbl}] code={business_code} "
+                f"{data.get('status_text') or data.get('status_code')}"
+            )
 
-    last_err_msg = f"火山 TTS 所有鉴权组合均失败（共尝试 {len(candidates)} 种）"
-    last_status_code = 0
-    last_business_code: Any = None
-
-    for c in candidates:
-        label = c["label"]
-        try:
-            r = await _httpx_client.post(c["url"], headers=c["headers"], json=c["json"])
-        except httpx.TimeoutException as e:
-            last_err_msg = f"TTS {label} 上游 25s 超时：{e}"
-            continue
-        except Exception as e:
-            last_err_msg = f"TTS {label} 网络错误：{e}"
-            continue
-        if r.status_code != 200:
-            last_status_code = r.status_code
-            last_err_msg = f"火山 TTS HTTP {label} {r.status_code}：{r.text[:500]}"
-            continue
-        try:
-            data = r.json()
-        except Exception as e:
-            last_err_msg = f"火山 TTS {label} 返回非 JSON：{e}；body={r.text[:500]}"
-            continue
-        business_code = data.get("status_code")
-        if business_code == 20000000 and data.get("data"):
-            return _ok_json({"ok": True, "audio": data["data"], "format": audio_fmt})
-        # 典型失败：40200002 DeniedAccess:IllegalToken → 下一个候选
-        last_business_code = business_code
-        last_err_msg = (
-            f"火山 TTS 业务错误 [{label}] code={business_code} "
-            f"{data.get('status_text') or data.get('status_code')}"
-        )
-
-    # ------- 所有候选均失败，返回汇总诊断 -------
+    # ------- 所有模式均失败，返回汇总诊断 -------
     if last_business_code == 40200002 or (
         isinstance(last_err_msg, str) and "IllegalToken" in last_err_msg
     ):
@@ -825,8 +862,8 @@ async def tts_synthesize(body: TTSRequest):
             "UPSTREAM_ERROR",
             f"{last_err_msg}。"
             "【排错建议】：控制台获取的 Key 类型不匹配本接口 SAMI namespace。"
-            "请确认你在火山引擎『语音合成 TTS』中使用的是『新版 X-Api-Key』还是『旧版 AppID+Access_Token+SecretKey』，"
-            "并设置到 api/.env 对应的 VOLC_TTS_API_KEY 或 VOLC_TTS_APP_ID+VOLC_TTS_ACCESS_TOKEN 变量（不要混用）。",
+            "新版请在 api/.env 设置 VOLC_TTS_API_KEY 或 VOLC_ASR_API_KEY（单一 X-Api-Key），"
+            "旧版请设置 VOLC_TTS_APP_ID+VOLC_TTS_ACCESS_TOKEN（不要混用）。",
         )
     raise ApiError("UPSTREAM_ERROR", last_err_msg)
 
