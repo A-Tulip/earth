@@ -16,6 +16,9 @@ Thumbs.db
 .env.*.local
 !.env.example
 
+# Vercel 本地链接文件（部署凭据，不提交）
+.vercel/
+
 # 测试产物
 test-results/
 playwright-report/
@@ -32,3 +35,4 @@ __pycache__/
 research/
 docs
 ADR
+.vercel

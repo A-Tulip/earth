@@ -31,5 +31,7 @@ ENV HOME=/home/earth \
     MPLCONFIGDIR=/tmp/matplotlib
 USER earth
 
-# 生产模式：不启用 --reload（Compose 中如需热重载可覆盖 command）
-CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8787"]
+# 生产模式：不启用 --reload。
+# 端口读取 $PORT 环境变量（Railway 会注入随机 $PORT；本地 Docker compose 注入 PORT=8787），
+# 未设置时默认 8787，兼容直接 docker run 场景。
+CMD ["sh", "-c", "uvicorn main:app --host 0.0.0.0 --port \"${PORT:-8787}\""]
