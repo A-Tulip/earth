@@ -1573,7 +1573,7 @@ export interface S2SConfig {
   speaker?: string;
   /** TTS 输出格式，默认 24000Hz，pcm_s16le */
   ttsFormat?: 'pcm' | 'pcm_s16le';
-  /** ASR 结束静音窗口(ms)，默认 1500 */
+  /** ASR 结束静音窗口(ms)，官方默认 1500，合法范围 [500, 50000]；调小可显著降低端到端语音"说完→回复"延迟 */
   endSmoothWindowMs?: number;
 }
 
@@ -1635,7 +1635,9 @@ export class S2SAdapter {
       model: 'O', // 官方枚举：O（默认）/ SC
       speaker: 'zh_female_vv_jupiter_bigtts',
       ttsFormat: 'pcm_s16le',
-      endSmoothWindowMs: 1500,
+      // 静音窗口 1500→800ms：官方合法范围 [500,50000]，调小可立即减少"说完→回复"的感知延迟约 700ms，
+      // 且 800ms 仍高于 500ms 下限，足以避免正常说话中途停顿被误判为句末。
+      endSmoothWindowMs: 800,
       ...config,
     };
     this.cb = cb;
