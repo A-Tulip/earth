@@ -9,7 +9,7 @@ import { LessonPackage, LessonStep } from './schema';
 import { commandBus } from '../commands/bus';
 import type { ToolResult } from '../commands/schema';
 import { useGeographyStore } from '../state/store';
-import { normalizeBasemap } from '../state/sceneState';
+import { normalizeBasemap, initialSceneState } from '../state/sceneState';
 import { tts as ttsAdapter } from './singletons';
 import { findFirstMention } from './geoReferencer';
 // ✅ ISSUE-6：LessonRuntime 可注入 LLM 适配器，用于：
@@ -322,7 +322,7 @@ export class LessonRuntime {
     }
 
     // ===== 语音/字幕播放 =====
-    const speakPromise = (async () => {
+    const buildSpeakPromise = () => (async () => {
       if (!narrationText) return;
       const muted = useGeographyStore.getState().voice.muted;
       if (!muted) {
@@ -343,12 +343,24 @@ export class LessonRuntime {
       });
     })();
 
+    // 🔊 修复「地图与旁白错位」的时序核心：
+    //   - 含显式 camera 的步骤：先等场景（含镜头 flyTo，通常 2-3s）到位，再开始朗读，
+    //     避免"语音已经在讲 XX，但地图还停在上一处/正在飞行"的错位感。
+    //   - 无显式 camera 的步骤：保持"旁白与场景并行 + 地理名词延时飞行"，
+    //     由 findFirstMention 在旁白进行到对应地点名词时飞行过去，实现"讲到哪移到哪"。
+    if (hasExplicitCamera) {
+      await scenePromise;
+      await buildSpeakPromise();
+    } else {
+      await Promise.all([buildSpeakPromise(), scenePromise]);
+    }
+
     // ✅ 课程播放超前修复：
     //   之前只等 speakPromise 并且用 Promise.race([scenePromise, 500ms]) 给场景只留 500ms
     //   这会导致 applySceneConfig 里的 camera.flyTo（通常 2-3s）还没到，自动推进器已把步骤跳到下一步，
     //   用户看到："课件一直播放着但内容还没加载完就跳到别的内容上去了"
     //   修复：旁白 + 场景动画 两者都完成 之后才允许自动推进。
-    await Promise.all([speakPromise, scenePromise]);
+    //   （上面已按步骤是否含显式 camera 决定先等场景还是并行，殊途同归：都保证场景就绪后再推进。）
 
     // 4. 显示问题（如果有），字幕一直显示，有题的步骤自动保持字幕
     if (step.question) {
@@ -428,8 +440,16 @@ export class LessonRuntime {
     await this.playStep(this.currentStepIndex);
   }
 
-  /** 关闭课程：清除 UI / 旁白 / 讲义 / 问题 / 时间动画 */
-  close(): void {
+  /**
+   * 关闭课程：清除 UI / 旁白 / 讲义 / 问题 / 时间动画
+   *
+   * @param options.resetCamera 关闭后是否回到首页（默认 true）。课程→课程切换时传 false，
+   *                            由新课直接接管镜头，避免"先回中国再飞过去"的错位。
+   * 改为 async 并 await 清理：确保地形材质/残留图层/区域标注清干净后再进入下一课，
+   * 避免与新课 applySceneConfig 的异步图层操作竞态（"课程切换地图不统一"根因）。
+   */
+  async close(options: { resetCamera?: boolean } = {}): Promise<void> {
+    const { resetCamera = true } = options;
     this.cancelAutoAdvance();
     ttsAdapter.stop();
     this.clearNarrationTimers();
@@ -466,10 +486,45 @@ export class LessonRuntime {
     // 关闭时间维度
     const cur = store.time;
     store.patch({ time: { ...cur, active: false, isPlaying: false } });
-    // 清除地形材质（等高线/坡度等课程可能开启）
-    void commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__' } });
-    // 回到首页
-    void commandBus.execute({ name: 'camera.reset', args: {} });
+
+    // 复位所有可切换图层到默认 + 清除地形材质 + 清除区域标注，
+    // 避免上一课开启的图层/材质残留到下一课。
+    await this.resetCourseLayers();
+
+    // 回到首页；课程→课程切换时跳过（由新课直接接管镜头）
+    if (resetCamera) {
+      await commandBus.execute({ name: 'camera.reset', args: {} });
+    }
+  }
+
+  /** 复位所有可切换图层到初始默认值 + 清除地形材质/区域标注（课程切换前清理） */
+  private async resetCourseLayers(): Promise<void> {
+    const store = useGeographyStore.getState();
+    const s = store;
+    for (const [k, v] of Object.entries(initialSceneState.annotations)) {
+      if (s.annotations[k as keyof typeof s.annotations] !== v) {
+        store.toggleAnnotation(k as keyof typeof s.annotations, v);
+      }
+    }
+    for (const [k, v] of Object.entries(initialSceneState.astronomy)) {
+      if (s.astronomy[k as keyof typeof s.astronomy] !== v) {
+        store.toggleAstronomy(k as keyof typeof s.astronomy, v);
+      }
+    }
+    for (const [k, v] of Object.entries(initialSceneState.data)) {
+      if (s.data[k as keyof typeof s.data] !== v) {
+        store.toggleData(k as keyof typeof s.data, v);
+      }
+    }
+    // 地形分析材质复位（写 store 并通知 Cesium）
+    store.setTerrain({ contour: false, elevationRamp: false, slope: false, aspect: false });
+    try {
+      await commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__' } });
+    } catch (e) { console.warn('[EmptyCatch] lessons/runtime.ts:resetCourseLayers', e instanceof Error ? e.message : String(e)); }
+    // 清除上一课绘制的区域
+    try {
+      await commandBus.execute({ name: 'layer.clearRegion', args: {} });
+    } catch (e) { console.warn('[EmptyCatch] lessons/runtime.ts:resetCourseLayers:region', e instanceof Error ? e.message : String(e)); }
   }
 
   /** 暂停 */
@@ -555,7 +610,7 @@ export class LessonRuntime {
     if (!wantAnyTerrainMaterial && hasAnyTerrainMaterialNow) {
       try {
         await commandBus.execute({ name: 'layer.toggle', args: { layer: '__clearTerrain__' } });
-      } catch (e) { console.warn('[EmptyCatch] lessons/runtime.ts:558', (e as any)?.message ?? e); }
+      } catch (e) { console.warn('[EmptyCatch] lessons/runtime.ts:558', e instanceof Error ? e.message : String(e)); }
     }
 
     // 时间维度：先写 store（CesiumCanvas 订阅驱动时钟）；若步骤不想要时间动画则关闭
