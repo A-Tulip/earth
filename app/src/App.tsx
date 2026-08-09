@@ -131,7 +131,7 @@ export default function App() {
       systemRole:
         '你是一位耐心的初高中地理助教。结合当前地球三维场景讲解地理知识，回答简洁、准确、贴合国家地理课标，多用地形、气候、行政区划等真实地理案例，可引导学生在画布上切换图层查看。',
       speakingStyle: '温和、清晰、有耐心，语速适中，讲解地理概念时循序渐进',
-      model: '1.2.1.1', // O2.0
+      model: 'O', // 官方枚举：O（默认）/ SC，见火山「端到端实时语音大模型API」文档
       speaker: 'zh_female_vv_jupiter_bigtts',
     }),
   );
