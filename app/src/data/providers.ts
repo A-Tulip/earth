@@ -28,9 +28,10 @@ interface OpenMeteoCurrent {
   };
 }
 
-/** Open-Meteo 年/月气候归档 */
+/** Open-Meteo 气候归档（archive API 用 daily 参数，返回逐日数组） */
 interface OpenMeteoArchive {
-  monthly?: {
+  daily?: {
+    time?: string[];
     temperature_2m_mean?: number[];
     precipitation_sum?: number[];
   };
@@ -372,16 +373,31 @@ export interface TemperatureData extends OfflineMarker {
 
 export async function fetchTemperature(city: CityData): Promise<TemperatureData> {
   try {
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&monthly=temperature_2m_mean`;
+    // archive API 的月变量不生效（400/空返回），改用 daily 逐日再按年/月聚合
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&daily=temperature_2m_mean`;
     // 使用缓存：历史气温 24 小时 TTL（2023 年数据不变）
     const data = await apiCache.fetch<OpenMeteoArchive>(url, { customTtlMs: TTL_24H });
-    const monthly: number[] = data.monthly?.temperature_2m_mean ?? [];
-    const valid = monthly.filter((v: number) => v != null && !isNaN(v));
-    const avg = valid.length > 0 ? valid.reduce((a: number, b: number) => a + b, 0) / valid.length : 15;
+    const times = data.daily?.time ?? [];
+    const daily = data.daily?.temperature_2m_mean ?? [];
+    const valid = daily.filter((v: number) => v != null && !isNaN(v));
+    const annualAvg = valid.length > 0 ? valid.reduce((a: number, b: number) => a + b, 0) / valid.length : 15;
+    // 按月份聚合（time[i] 形如 "2023-01-05"）
+    const monthly = new Array<number>(12).fill(0);
+    const monthCount = new Array<number>(12).fill(0);
+    for (let i = 0; i < daily.length && i < times.length; i++) {
+      const m = Number(times[i]?.slice(5, 7)) - 1;
+      if (m >= 0 && m < 12 && daily[i] != null && !isNaN(daily[i])) {
+        monthly[m] += daily[i];
+        monthCount[m] += 1;
+      }
+    }
+    for (let m = 0; m < 12; m++) {
+      monthly[m] = monthCount[m] > 0 ? Math.round((monthly[m] / monthCount[m]) * 10) / 10 : 0;
+    }
     return {
       city: city.name, lon: city.lon, lat: city.lat,
-      annualAvg: Math.round(avg * 10) / 10,
-      monthly: monthly.map((v: number) => (v == null || isNaN(v) ? 0 : Math.round(v * 10) / 10)),
+      annualAvg: Math.round(annualAvg * 10) / 10,
+      monthly,
     };
   } catch {
     return { city: city.name, lon: city.lon, lat: city.lat, annualAvg: 15, monthly: [], _offline: true };
@@ -400,15 +416,29 @@ export interface PrecipitationData extends OfflineMarker {
 
 export async function fetchPrecipitation(city: CityData): Promise<PrecipitationData> {
   try {
-    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&monthly=precipitation_sum`;
+    // archive API 的月变量不生效（400/空返回），改用 daily 逐日再按年/月聚合
+    const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&daily=precipitation_sum`;
     // 使用缓存：历史降水 24 小时 TTL（2023 年数据不变）
     const data = await apiCache.fetch<OpenMeteoArchive>(url, { customTtlMs: TTL_24H });
-    const monthly: number[] = data.monthly?.precipitation_sum ?? [];
-    const total = monthly.filter((v: number) => v != null && !isNaN(v)).reduce((a: number, b: number) => a + b, 0);
+    const times = data.daily?.time ?? [];
+    const daily = data.daily?.precipitation_sum ?? [];
+    const valid = daily.filter((v: number) => v != null && !isNaN(v));
+    const total = valid.reduce((a: number, b: number) => a + b, 0);
+    // 按月份聚合（time[i] 形如 "2023-01-05"）
+    const monthly = new Array<number>(12).fill(0);
+    for (let i = 0; i < daily.length && i < times.length; i++) {
+      const m = Number(times[i]?.slice(5, 7)) - 1;
+      if (m >= 0 && m < 12 && daily[i] != null && !isNaN(daily[i])) {
+        monthly[m] += daily[i];
+      }
+    }
+    for (let m = 0; m < 12; m++) {
+      monthly[m] = Math.round(monthly[m]);
+    }
     return {
       city: city.name, lon: city.lon, lat: city.lat,
       annualTotal: Math.round(total),
-      monthly: monthly.map((v: number) => (v == null || isNaN(v) ? 0 : Math.round(v))),
+      monthly,
     };
   } catch {
     return { city: city.name, lon: city.lon, lat: city.lat, annualTotal: 800, monthly: [], _offline: true };
