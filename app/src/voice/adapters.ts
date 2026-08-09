@@ -1567,7 +1567,7 @@ export interface S2SConfig {
   systemRole?: string;
   /** 对话风格（O 版本生效） */
   speakingStyle?: string;
-  /** 模型路由：O2.0=1.2.1.1，SC2.0=2.2.0.0 */
+  /** 端到端模型版本，官方枚举：O（默认）/ SC */
   model?: string;
   /** 音色：vv/xiaohe/yunzhou/xiaotian，对应 zh_*_jupiter_bigtts */
   speaker?: string;
@@ -1632,7 +1632,7 @@ export class S2SAdapter {
   constructor(config: S2SConfig = {}, cb: S2SCallbacks = {}) {
     this.config = {
       botName: '豆包',
-      model: '1.2.1.1', // O2.0
+      model: 'O', // 官方枚举：O（默认）/ SC
       speaker: 'zh_female_vv_jupiter_bigtts',
       ttsFormat: 'pcm_s16le',
       endSmoothWindowMs: 1500,
@@ -1765,11 +1765,25 @@ export class S2SAdapter {
     return Promise.resolve();
   }
 
-  /** 上传音频（TaskRequest / Audio-only request）：PCM16LE 单声道 16k 字节 */
+  /**
+   * 上传音频（TaskRequest 200 / Audio-only request）：
+   * PCM16LE 单声道 16k 字节。
+   * 官方协议：Audio-only request(0b0010) + event flag(0b0100) + 事件200(TaskRequest) + sessionId + Raw payload。
+   * 若不携带 event 与 sessionId，服务端会将其当作 JSON 解析而报 "unexpected end of JSON input"。
+   */
   sendAudio(pcm16Bytes: Uint8Array): void {
     if (!this.isConnected || !this.sessionStarted) return;
-    // Audio-only request(0b0010) + Raw(0b0000)：header + payloadSize + payload
-    this.sendRaw(concatBytes([new Uint8Array([0x11, 0x20, 0x00, 0x00]), int32BE(pcm16Bytes.length), pcm16Bytes]));
+    const sid = new TextEncoder().encode(this.sessionId);
+    this.sendRaw(
+      concatBytes([
+        new Uint8Array([0x11, 0x24, 0x00, 0x00]), // Audio-only + event flag + Raw(无压缩)
+        int32BE(200), // TaskRequest
+        int32BE(sid.length),
+        sid,
+        int32BE(pcm16Bytes.length),
+        pcm16Bytes,
+      ])
+    );
   }
 
   /** FinishSession（事件 102）：结束当前会话，连接可复用 */
