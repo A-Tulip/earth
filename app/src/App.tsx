@@ -27,8 +27,8 @@ import { AIChatPanel } from './ui/AIChatPanel';
 import { isEditable } from './voice/PushToTalk';
 import { Mic } from './ui/icons';
 import { usePushToTalk } from './voice/PushToTalk';
-import { useRealtimeS2SChat } from './voice/RealtimeS2SChat';
-import { createASRAdapter, createTTSAdapter, createLLMAdapter, createS2SAdapter } from './voice/adapters';
+import { useRealtimeVoiceChat } from './voice/RealtimeVoiceChat';
+import { createASRAdapter, createTTSAdapter, createLLMAdapter } from './voice/adapters';
 import { LessonRuntime } from './lessons/runtime';
 import { LESSON_CATALOG } from './lessons/catalog';
 import { commandBus } from './commands/bus';
@@ -124,17 +124,6 @@ export default function App() {
   const asrRef = useRef(createASRAdapter());
   const ttsRef = useRef(createTTSAdapter());
   const llmRef = useRef(createLLMAdapter());
-  // 端到端实时语音（Realtime S2S，单连接完成 ASR+LLM+TTS）
-  const s2sRef = useRef(
-    createS2SAdapter({
-      botName: '地理助教',
-      systemRole:
-        '你是一位耐心的初高中地理助教。结合当前地球三维场景讲解地理知识，回答简洁、准确、贴合国家地理课标，多用地形、气候、行政区划等真实地理案例，可引导学生在画布上切换图层查看。',
-      speakingStyle: '温和、清晰、有耐心，语速适中，讲解地理概念时循序渐进',
-      model: 'O', // 官方枚举：O（默认）/ SC，见火山「端到端实时语音大模型API」文档
-      speaker: 'zh_female_vv_jupiter_bigtts',
-    }),
-  );
 
   // 调试：暴露 asr 适配器到 window
   useEffect(() => {
@@ -152,9 +141,11 @@ export default function App() {
     enabled: !realtimeChatActive,
   });
 
-  // 实时对话模式（全双工，端到端 S2S：单连接完成 ASR+LLM+TTS）
-  const { toggleRealtimeChat } = useRealtimeS2SChat({
-    adapter: s2sRef.current,
+  // 实时对话模式（三段式：ASR→LLM工具调用→commandBus操控地球→TTS，支持打断）
+  const { toggleRealtimeChat } = useRealtimeVoiceChat({
+    asr: asrRef.current,
+    tts: ttsRef.current,
+    llm: llmRef.current,
     enabled: realtimeChatActive,
   });
 
