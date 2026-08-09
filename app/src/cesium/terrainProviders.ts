@@ -23,16 +23,23 @@ declare global {
   }
 }
 
+/** unknown 错误守卫：取可读错误信息（AGENTS.md：禁用 any，用 unknown + 类型守卫） */
+function errorMessage(err: unknown): string {
+  return err instanceof Error ? err.message : String(err);
+}
+
 function attachTileErrorListener(provider: Cesium.ImageryProvider, kind: string): void {
   if (typeof window === 'undefined') return;
-  const errorEvent = (provider as any).errorEvent;
+  const errorEvent = (provider as unknown as {
+    errorEvent?: { addEventListener: (cb: (e: { message?: string }) => void) => void };
+  }).errorEvent;
   if (!errorEvent || typeof errorEvent.addEventListener !== 'function') return;
 
   let reported = false;
-  errorEvent.addEventListener((providerError: any) => {
+  errorEvent.addEventListener((providerError) => {
     if (reported) return;
     reported = true;
-    const layerManager = (window as any).__layerManager || null;
+    const layerManager = window.__layerManager || null;
     const msg = `TileError(${kind}): ${providerError?.message || 'tile fetch failed'}`;
     console.warn('[TileError]', kind, msg);
     layerManager?.reportExternalError?.(kind, new Error(msg));
@@ -513,8 +520,8 @@ export async function createIonWorldTerrainProvider(): Promise<Cesium.TerrainPro
   try {
     Cesium.Ion.defaultAccessToken = ION_TOKEN!;
     return await Cesium.createWorldTerrainAsync();
-  } catch (err: any) {
-    throw new Error('CesiumIonAuthFailed: ' + (err?.message || String(err)));
+  } catch (err: unknown) {
+    throw new Error('CesiumIonAuthFailed: ' + errorMessage(err));
   }
 }
 
@@ -531,17 +538,17 @@ export async function createBestTerrainProvider(): Promise<{
     try {
       const provider = await createIonWorldTerrainProvider();
       return { provider, source: 'ion' };
-    } catch (err: any) {
+    } catch (err: unknown) {
       try {
         const provider = await createMapLibreTerrainProvider();
-        return { provider, source: 'maplibre', warning: `Cesium ion failed: ${err?.message || String(err)}` };
-      } catch (err2: any) {
+        return { provider, source: 'maplibre', warning: `Cesium ion failed: ${errorMessage(err)}` };
+      } catch (err2: unknown) {
         try {
           const provider = await createTerrariumTerrainProvider();
-          return { provider, source: 'terrarium', warning: `Cesium ion failed: ${err?.message || String(err)}` };
-        } catch (err3: any) {
+          return { provider, source: 'terrarium', warning: `Cesium ion failed: ${errorMessage(err)}` };
+        } catch (err3: unknown) {
           const provider = await createEllipsoidTerrainProvider();
-          return { provider, source: 'ellipsoid', warning: `Cesium ion & MapLibre & Terrarium failed: ${err3?.message || String(err3)}` };
+          return { provider, source: 'ellipsoid', warning: `Cesium ion & MapLibre & Terrarium failed: ${errorMessage(err3)}` };
         }
       }
     }
@@ -549,13 +556,13 @@ export async function createBestTerrainProvider(): Promise<{
   try {
     const provider = await createMapLibreTerrainProvider();
     return { provider, source: 'maplibre' };
-  } catch (err: any) {
+  } catch (err: unknown) {
     try {
       const provider = await createTerrariumTerrainProvider();
       return { provider, source: 'terrarium' };
-    } catch (err2: any) {
+    } catch (err2: unknown) {
       const provider = await createEllipsoidTerrainProvider();
-      return { provider, source: 'ellipsoid', warning: `MapLibre & Terrarium failed: ${err2?.message || String(err2)}` };
+      return { provider, source: 'ellipsoid', warning: `MapLibre & Terrarium failed: ${errorMessage(err2)}` };
     }
   }
 }

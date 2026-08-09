@@ -56,7 +56,7 @@ export function SolarSystemCanvas({ onReady }: SolarSystemCanvasProps) {
       const clamp = t.next === 0 ? 1.25 : t.next === 1 ? 1.0 : t.next === 2 ? 0.85 : 0.7;
       renderer.setPixelRatio(Math.min(window.devicePixelRatio, clamp));
       // tier 0/1：抗锯齿开；2/3 关（WebGL1/2 重建代价大，不重造 renderer，只 setPixelRatio）
-      try { (renderer as unknown as { outputColorSpace?: unknown }).outputColorSpace; } catch (e) { console.warn('[EmptyCatch] solar-system/SolarSystemCanvas.tsx:59', (e as any)?.message ?? e); }
+      try { (renderer as unknown as { outputColorSpace?: unknown }).outputColorSpace; } catch (e) { console.warn('[EmptyCatch] solar-system/SolarSystemCanvas.tsx:59', e instanceof Error ? e.message : String(e)); }
     });
 
     // OrbitControls：让用户可以拖动旋转视角、滚轮缩放

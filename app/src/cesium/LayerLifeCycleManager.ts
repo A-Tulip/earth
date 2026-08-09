@@ -87,12 +87,12 @@ export class LayerLifeCycleManager {
     try {
       const off = viewer.scene.postRender.addEventListener(() => {
         this.initialized = true;
-        try { off(); } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:90', (e as any)?.message ?? e); }
+        try { off(); } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:90', e instanceof Error ? e.message : String(e)); }
       });
       // 兜底：3s 后强制标记为已初始化
       setTimeout(() => { this.initialized = true; }, 3000);
-    } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:94', (e as any)?.message ?? e); }
-    if (typeof window !== 'undefined') { (window as any).__layerManager = this; }
+    } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:94', e instanceof Error ? e.message : String(e)); }
+    if (typeof window !== 'undefined') { window.__layerManager = this; }
   }
 
   /**
@@ -271,7 +271,7 @@ export class LayerLifeCycleManager {
     // 防御：viewer / scene 未就绪时跳过，避免 "Cannot read properties of undefined (reading 'scene')"
     if (!viewer || !viewer.scene) return Promise.resolve();
     return new Promise((resolve) => {
-      try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:274', (e as any)?.message ?? e); }
+      try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:274', e instanceof Error ? e.message : String(e)); }
       requestAnimationFrame(() => resolve());
     });
   }
@@ -291,7 +291,7 @@ export class LayerLifeCycleManager {
         Object.values(mat.uniforms).forEach((v) => {
           const t = v as { destroy?: () => void; isDestroyed?: () => boolean } | undefined;
           if (t && typeof t.destroy === 'function' && !t.isDestroyed?.()) {
-            try { t.destroy(); } catch (_e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:294', (_e as any)?.message ?? _e); }
+            try { t.destroy(); } catch (_e) { console.warn('[EmptyCatch] cesium/LayerLifeCycleManager.ts:294', _e instanceof Error ? _e.message : String(_e)); }
           }
         });
       }

@@ -213,7 +213,7 @@ export class CachedFetcher {
     if (this.config.persist) {
       try {
         localStorage.removeItem(this.config.persistKeyPrefix + key);
-      } catch (e) { console.warn('[EmptyCatch] state/CachedFetcher.ts:216', (e as any)?.message ?? e); }
+      } catch (e) { console.warn('[EmptyCatch] state/CachedFetcher.ts:216', e instanceof Error ? e.message : String(e)); }
     }
   }
 

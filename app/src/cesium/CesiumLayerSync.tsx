@@ -81,10 +81,10 @@ export function CesiumLayerSync() {
               } else {
                 viewer.entities.remove(e);
               }
-            } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:84', (e as any)?.message ?? e); }
+            } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:84', e instanceof Error ? e.message : String(e)); }
           }
           entities[key] = [];
-          try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:87', (e as any)?.message ?? e); }
+          try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:87', e instanceof Error ? e.message : String(e)); }
         };
         if (mgr) void mgr.schedule(kind, async () => run());
         else run();
@@ -125,10 +125,10 @@ export function CesiumLayerSync() {
                 if (idx.has(idStr)) {
                   merged.push(idx.get(idStr)!);
                   // build 过程已经 add 了 cand（因为 build 内部是 viewer.entities.add），移除它避免重复
-                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:128', (e as any)?.message ?? e); }
+                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:128', e instanceof Error ? e.message : String(e)); }
                 } else {
                   merged.push(alreadyInViewer);
-                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:131', (e as any)?.message ?? e); }
+                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:131', e instanceof Error ? e.message : String(e)); }
                 }
               } else {
                 merged.push(cand);
@@ -136,8 +136,8 @@ export function CesiumLayerSync() {
             }
             entities[key] = merged;
             backfillLabelMeta(merged);
-            try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:139', (e as any)?.message ?? e); }
-            try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:140', (e as any)?.message ?? e); }
+            try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:139', e instanceof Error ? e.message : String(e)); }
+            try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:140', e instanceof Error ? e.message : String(e)); }
           } catch (e) {
             console.warn('[CesiumLayerSync] ensureLayer build fail', key, e);
           }
@@ -171,7 +171,7 @@ export function CesiumLayerSync() {
             if (existing.length === 0) {
               entities[key] = built;
               backfillLabelMeta(built);
-              try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:174', (e as any)?.message ?? e); }
+              try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:174', e instanceof Error ? e.message : String(e)); }
             } else {
               // 冲突：有旧引用了 → 按 id 建索引，只有不存在的才保留；新建的重复 id 立即 remove
               const idx = new Map<string, Cesium.Entity>();
@@ -182,7 +182,7 @@ export function CesiumLayerSync() {
                 const idStr = String(cand.id);
                 if (idx.has(idStr)) {
                   // 已存在 → cand 是 buildAsync 内部 viewer.entities.add 创建的重复，移除它
-                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:185', (e as any)?.message ?? e); }
+                  try { viewer.entities.remove(cand); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:185', e instanceof Error ? e.message : String(e)); }
                 } else {
                   finalList.push(cand);
                   idx.set(idStr, cand);
@@ -190,9 +190,9 @@ export function CesiumLayerSync() {
               }
               entities[key] = finalList;
               backfillLabelMeta(finalList);
-              try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:193', (e as any)?.message ?? e); }
+              try { applyLabelLOD(viewer, entities); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:193', e instanceof Error ? e.message : String(e)); }
             }
-            try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:195', (e as any)?.message ?? e); }
+            try { viewer.scene.requestRender(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:195', e instanceof Error ? e.message : String(e)); }
           } catch (e) {
             console.warn('[CesiumLayerSync] async build fail', key, e);
           }
@@ -1051,20 +1051,20 @@ export function CesiumLayerSync() {
                   const s = useGeographyStore.getState() as unknown as { setAstronomy?: (p: Partial<{ rotation: boolean }>) => void };
                   if (s.setAstronomy) s.setAstronomy({ rotation: false });
                   else useGeographyStore.setState({ astronomy: { ...useGeographyStore.getState().astronomy, rotation: false } });
-                } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1054', (e as any)?.message ?? e); }
+                } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1054', e instanceof Error ? e.message : String(e)); }
               }
               try {
                 // CesiumController 暴露的是 setRotation(enabled, speed)
                 const c = ctrl0 as unknown as { setRotation: (en: boolean, sp: number) => void };
                 c.setRotation(false, 0);
-              } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1060', (e as any)?.message ?? e); }
+              } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1060', e instanceof Error ? e.message : String(e)); }
             }
           },
           { fireImmediately: true },
         );
         return () => {
-          try { tickListener(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1066', (e as any)?.message ?? e); }
-          try { storeModeUnsub?.(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1067', (e as any)?.message ?? e); }
+          try { tickListener(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1066', e instanceof Error ? e.message : String(e)); }
+          try { storeModeUnsub?.(); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1067', e instanceof Error ? e.message : String(e)); }
         };
       } catch (e) {
         // Q2 关键：scheduleLOD 构建失败永不冒泡到组件挂载异常（否则整个图层同步崩）
@@ -1151,6 +1151,9 @@ interface LabelMeta {
 
 const LABEL_META_KEY = Symbol.for('earth.labelMeta');
 
+/** LOD 写入所需的 Cesium 标签字段（show/pixelOffset 实际可接受常量赋值，公开类型未暴露，用 unknown 守卫） */
+type LabelLodFields = { show?: unknown; pixelOffset?: unknown };
+
 type LabelLayerKind = LabelMeta['layerKind'];
 
 /** 图层 ID 前缀 → 标签元数据默认值（在实体创建后"回填"，避免对每条 viewer.entities.add 做外科手术修改） */
@@ -1220,12 +1223,10 @@ function backfillLabelMeta(layer: Cesium.Entity[]): void {
 
 function setMeta(e: Cesium.Entity, m: LabelMeta): void {
   // 直接挂到 entity 上，不破坏 id/name，Cesium 容忍自定义属性
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  (e as any)[LABEL_META_KEY] = m;
+  (e as unknown as Record<symbol, unknown>)[LABEL_META_KEY] = m;
 }
 function getMeta(e: Cesium.Entity): LabelMeta | null {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return ((e as any)[LABEL_META_KEY] as LabelMeta) ?? null;
+  return ((e as unknown as Record<symbol, unknown>)[LABEL_META_KEY] as LabelMeta) ?? null;
 }
 
 /** build 标签 entity 时调用，写入 LOD 元数据 */
@@ -1305,7 +1306,7 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
   try {
     const f = (window as unknown as { _labelLODFactor?: number })._labelLODFactor;
     if (typeof f === 'number' && f > 0) scale *= f;
-  } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1308', (e as any)?.message ?? e); }
+  } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1308', e instanceof Error ? e.message : String(e)); }
 
   // 收集图层内有标签的实体（按 layerKind bucket）
   const buckets = new Map<LabelMeta['layerKind'], Array<{ e: Cesium.Entity; meta: LabelMeta }>>();
@@ -1332,11 +1333,11 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
     const lbl = e.label!;
     if (lbl.show !== undefined) {
       // Cesium Property 在赋值为 boolean 常量时通常自动包一层
-      try { (lbl as any).show = !hideByHeight; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1335', (e as any)?.message ?? e); }
+      try { (lbl as unknown as LabelLodFields).show = !hideByHeight; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1335', e instanceof Error ? e.message : String(e)); }
     }
     // 清 pixelOffset 到 base
     if (lbl.pixelOffset !== undefined) {
-      try { (lbl as any).pixelOffset = Cesium.Cartesian2.clone(meta.baseOffset); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1339', (e as any)?.message ?? e); }
+      try { (lbl as unknown as LabelLodFields).pixelOffset = Cesium.Cartesian2.clone(meta.baseOffset); } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1339', e instanceof Error ? e.message : String(e)); }
     }
   }
 
@@ -1346,7 +1347,7 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
     if (arr.length <= budget) return;
     arr.sort((a, b) => b.meta.priority - a.meta.priority);
     for (let i = budget; i < arr.length; i++) {
-      try { ((arr[i].e.label as any).show) = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1349', (e as any)?.message ?? e); }
+      try { ((arr[i].e.label as unknown as LabelLodFields).show) = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1349', e instanceof Error ? e.message : String(e)); }
     }
   });
 
@@ -1362,7 +1363,7 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
     .filter((x) => {
       // 二次确认 show = true
       try {
-        const s = (x.e.label as any).show;
+        const s = (x.e.label as unknown as LabelLodFields).show;
         if (s === false) return false;
       } catch { return false; }
       return !x.meta || h <= x.meta.maxVisibleHeightMeters;
@@ -1431,19 +1432,19 @@ function applyLabelLOD(viewer: Cesium.Viewer, layerEntities: Record<string, Cesi
         keptVisible.push({ cx: cx + ox, cy: cy + oy, w: pxW, h: pxH });
         if (o !== 0 && item.e.label) {
           try {
-            const lbl = item.e.label as any;
+            const lbl = item.e.label as unknown as LabelLodFields;
             lbl.pixelOffset = new Cesium.Cartesian2(
               item.meta.baseOffset.x + ox,
               item.meta.baseOffset.y + oy,
             );
-          } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1439', (e as any)?.message ?? e); }
+          } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1439', e instanceof Error ? e.message : String(e)); }
         }
         break;
       }
     }
     if (!placed) {
       // 3 次都冲突 → 隐藏（避免文字叠在一起）
-      try { ((item.e.label as any).show) = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1446', (e as any)?.message ?? e); }
+      try { ((item.e.label as unknown as LabelLodFields).show) = false; } catch (e) { console.warn('[EmptyCatch] cesium/CesiumLayerSync.tsx:1446', e instanceof Error ? e.message : String(e)); }
     }
   }
 }
