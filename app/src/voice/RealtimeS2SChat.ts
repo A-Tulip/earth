@@ -224,7 +224,10 @@ export function useRealtimeS2SChat({ adapter, enabled = false }: RealtimeS2SChat
         captureCtxRef.current = captureCtx;
         const source = captureCtx.createMediaStreamSource(stream);
         micSourceRef.current = source;
-        const processor = captureCtx.createScriptProcessor(4096, 1, 0);
+        // ⚠️ ScriptProcessorNode 必须显式声明输出通道（≥1）才能 connect(destination)，
+        //   否则浏览器抛 "cannot connect a ScriptProcessorNode with 0 output channels to any destination node"。
+        //   输出通道实际不产生声音（onaudioprocess 里我们 echo 输入到输出，但输出端不接扬声器）。
+        const processor = captureCtx.createScriptProcessor(4096, 1, 1);
         processorRef.current = processor;
         resamplerRef.current = new LinearResampler(captureCtx.sampleRate, 16000);
 
@@ -234,9 +237,10 @@ export function useRealtimeS2SChat({ adapter, enabled = false }: RealtimeS2SChat
           if (resampled.length > 0) {
             adapter.sendAudio(floatToPcm16LE(resampled));
           }
+          // 仅用于驱动 onaudioprocess（不接 destination.destination，不产生扬声器声音）
         };
         source.connect(processor);
-        processor.connect(captureCtx.destination); // 0 输出通道，仅用于驱动 onaudioprocess
+        processor.connect(captureCtx.destination); // 1 输出通道，用于驱动 onaudioprocess
 
         // 3. 播放器
         playerRef.current = new PcmPlayer();
