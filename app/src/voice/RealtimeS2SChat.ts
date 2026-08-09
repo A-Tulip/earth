@@ -265,6 +265,7 @@ export class RealtimeS2SChat {
     const ready = await new Promise<boolean>((resolve, reject) => {
       const timeout = setTimeout(() => reject(new S2SUnavailableError('S2S 连接超时')), 8000);
       ws.addEventListener('open', () => {
+        console.debug('[S2S] ws open, sending StartConnection');
         // 就绪后发 StartConnection
         try {
           this.sendEvent(S2S_EVT_START_CONNECTION, '{}');
@@ -272,8 +273,9 @@ export class RealtimeS2SChat {
       });
       ws.addEventListener('message', (ev) => {
         try {
-          const str = ev.data as string;
+          const str = typeof ev.data === 'string' ? ev.data : '';
           const msg = JSON.parse(str) as { type?: string; s2s?: boolean; connect_id?: string; error?: string };
+          console.debug('[S2S] handshake msg type=', msg.type, 's2s=', msg.s2s, 'dataType=', typeof ev.data);
           if (msg.type === 'ready') {
             clearTimeout(timeout);
             if (msg.s2s) {
@@ -291,10 +293,12 @@ export class RealtimeS2SChat {
         }
       });
       ws.addEventListener('error', () => {
+        console.debug('[S2S] ws error event');
         clearTimeout(timeout);
         reject(new S2SUnavailableError('S2S WebSocket 连接失败'));
       });
       ws.addEventListener('close', () => {
+        console.debug('[S2S] ws close event');
         clearTimeout(timeout);
         reject(new S2SUnavailableError('S2S WebSocket 提前关闭'));
       });
