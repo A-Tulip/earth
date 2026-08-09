@@ -17,7 +17,7 @@ import { CommandMenu } from './ui/CommandMenu';
 import { SubtitleLayer } from './ui/SubtitleLayer';
 import { LessonPlayer } from './ui/LessonPlayer';
 import { Starfield } from './ui/Starfield';
-import { Guidance } from './ui/Guidance';
+
 import { FpsDisplay } from './ui/FpsDisplay';
 import { LoadingOverlay } from './ui/LoadingOverlay';
 import { AppLoader } from './ui/AppLoader';
@@ -290,9 +290,6 @@ export default function App() {
         onToggleRealtimeChat={handleToggleRealtimeChat}
         onOpenHelp={() => setHelpOpen(true)}
       />
-
-      {/* 引导文字 */}
-      <Guidance />
 
       {/* 工具坞 */}
       <ToolDock />

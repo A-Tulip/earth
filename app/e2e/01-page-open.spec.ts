@@ -25,8 +25,8 @@ test('页面打开后显示"地球探索者"和地球画布', async ({ page }) =
   // 2. Cesium canvas 存在（容器内会有 canvas 元素）
   await expect(page.locator('canvas').first()).toBeVisible({ timeout: 30_000 });
 
-  // 3. 引导文字（交互模式已从「按住空格」改为「单击空格」）
-  await expect(page.getByText('单击空格', { exact: false })).toBeVisible({ timeout: 15_000 });
+  // 3. 启动加载屏最终淡出（打开即用、无欢迎引导遮挡）
+  await expect(page.getByTestId('app-loader')).toBeHidden({ timeout: 30_000 });
 });
 
 test('页面打开 5 秒内无致命 pageerror', async ({ page }) => {
