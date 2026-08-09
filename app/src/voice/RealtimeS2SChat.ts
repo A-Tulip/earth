@@ -76,6 +76,12 @@ class PcmPlayer {
     if (!this.ctx) {
       try {
         this.ctx = new AudioContext();
+        // 生产浏览器 autoplay 策略：非用户手势内创建的 AudioContext 初始为 suspended，
+        // 不 resume 则 createBufferSource().start() 不发声。TTS 帧到达时已是异步回调，
+        // 这里在创建时立即尝试 resume（点击按钮的 transient activation 窗口内通常可成功）。
+        if (this.ctx.state === 'suspended') {
+          void this.ctx.resume().catch(() => undefined);
+        }
       } catch {
         return null;
       }
@@ -222,6 +228,12 @@ export function useRealtimeS2SChat({ adapter, enabled = false }: RealtimeS2SChat
         streamRef.current = stream;
         const captureCtx = new AudioContext();
         captureCtxRef.current = captureCtx;
+        // 生产 browser autoplay：非用户手势(async 效果体+WS 握手后)创建的 AudioContext 初始 suspended，
+        // 不 resume 则 ScriptProcessor 的 onaudioprocess 永不触发 → 麦克风静音、无对话响应。
+        // 按钮点击的 transient activation 窗口内 resume 通常可成功。
+        if (captureCtx.state === 'suspended') {
+          await captureCtx.resume().catch(() => undefined);
+        }
         const source = captureCtx.createMediaStreamSource(stream);
         micSourceRef.current = source;
         // ⚠️ ScriptProcessorNode 必须显式声明输出通道（≥1）才能 connect(destination)，

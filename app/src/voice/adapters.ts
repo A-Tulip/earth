@@ -1326,6 +1326,11 @@ export class StreamingASR implements ASRAdapter {
       // 不传 sampleRate，让浏览器用原生；之后在 JS 端重采样
       this.audioContext = new (window.AudioContext ||
         (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
+      // 生产浏览器 autoplay：空格触发→WS 握手→此处创建 AudioContext 时已脱离用户手势，初始为 suspended，
+      // 不 resume 则 ScriptProcessor 的 onaudioprocess 永不回调 → 麦克风静音、语音识别无结果。
+      if (this.audioContext.state === 'suspended') {
+        await this.audioContext.resume().catch(() => undefined);
+      }
       const actualSR = this.audioContext.sampleRate;
       const track = stream.getAudioTracks()[0];
       this.sourceNode = this.audioContext.createMediaStreamSource(stream);
