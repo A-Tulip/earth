@@ -10,7 +10,7 @@ import * as Cesium from 'cesium';
 import { CesiumController } from './controller';
 import { useGeographyStore } from '../state/store';
 import { commandBus, registerCommandHandlers } from '../commands/bus';
-import { createBasemapProvider, createTerrariumTerrainProvider } from './terrainProviders';
+import { createBasemapProvider, createTerrariumTerrainProvider, createMapLibreTerrainProvider } from './terrainProviders';
 import { createTickThrottle, FpsCounter, getGlobalDegrader, type DegradeConfig, DEGRADE_TIERS } from '../state/PerformanceMonitor';
 import { LayerLifeCycleManager, setLayerManagerSingleton } from './LayerLifeCycleManager';
 
@@ -313,21 +313,30 @@ export function CesiumCanvas({ onReady }: CesiumCanvasProps) {
     const creditContainer = viewer.creditDisplay.container;
     (creditContainer as HTMLElement).style.display = 'none';
 
-    // 无 ion token 时使用 AWS Terrarium 免费地形（CC0 Public Domain）
+    // 无 ion token 时使用 MapLibre DEM30 高清地形，失败回退 AWS Terrarium（CC0 Public Domain）
     // 椭球地形会导致等高线/高程分层/坡度/地形夸张全部失效
     // Q2：terrain 切换全部走 layerMgr.schedule('terrain')，触发 LoadingOverlay 防止蓝色裸露
     if (!ionToken) {
-      // 先用椭球启动（保证地球立即显示），异步替换为 Terrarium 地形
+      // 先用椭球启动（保证地球立即显示），异步替换为高清地形
       viewer.terrainProvider = new Cesium.EllipsoidTerrainProvider();
       useGeographyStore.getState().setTerrain({ available: false });
       void layerMgr.schedule('terrain', async () => {
+        if (cancelled) return;
+        // 优先尝试 MapLibre DEM30（30m 高清），失败回退 Terrarium（1km）
         try {
-          const terrariumProvider = await createTerrariumTerrainProvider();
+          const hdProvider = await createMapLibreTerrainProvider();
           if (cancelled) return;
-          viewer.terrainProvider = terrariumProvider;
+          viewer.terrainProvider = hdProvider;
           useGeographyStore.getState().setTerrain({ available: true });
         } catch {
-          // 保持椭球地形，terrain.available 已为 false
+          try {
+            const terrariumProvider = await createTerrariumTerrainProvider();
+            if (cancelled) return;
+            viewer.terrainProvider = terrariumProvider;
+            useGeographyStore.getState().setTerrain({ available: true });
+          } catch {
+            // 保持椭球地形，terrain.available 已为 false
+          }
         }
       });
     } else {
