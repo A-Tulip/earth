@@ -363,6 +363,91 @@ export async function createTerrariumTerrainProvider(): Promise<Cesium.TerrainPr
   return provider;
 }
 
+// ============ MapLibre DEM30 地形 Provider ============
+
+/**
+ * MapLibre DEM30 —— 高清全球地形（CC0 Public Domain）
+ *
+ * URL: https://dem.maplibre.com/data/dem-30/{z}/{x}/{y}.png
+ * 编码: height = r * 256 + g + b / 256 - 32768（与 Terrarium 相同）
+ * 覆盖: 全球，30m 分辨率（z≈20），街景级地形细节
+ *
+ * MapLibre DEM30 基于 Copernicus GLO-90、SRTM、ALOS 等多个公开 DEM 源融合，
+ * 是目前公开可用的最高精度全球地形之一。
+ *
+ * 包含连通性检测：网络无法访问 dem.maplibre.com 时仅警告，不阻断创建，
+ * 由上层在瓦片加载失败时回退到椭球/低精度地形。
+ */
+export async function createMapLibreTerrainProvider(): Promise<Cesium.TerrainProvider> {
+  // 连通性检测（超时 3 秒）——失败仅警告，不阻断创建
+  try {
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 3000);
+    const testRes = await fetch('https://dem.maplibre.com/data/dem-30/0/0/0.png', {
+      signal: controller.signal,
+      method: 'HEAD',
+    });
+    clearTimeout(timeoutId);
+    if (!testRes.ok && testRes.status !== 200 && testRes.status !== 206) {
+      console.warn('[MapLibre] 连通性检测返回非预期状态:', testRes.status, '仍尝试创建 provider...');
+    }
+  } catch (e) {
+    console.warn('[MapLibre] 连通性检测失败:', (e as Error).message, '仍尝试创建 provider...');
+  }
+
+  // MapLibre 瓦片最高 z≈20，解码逻辑与 Terrarium 相同（r*256+g+b/256-32768）
+  const width = 64;
+  const height = 64;
+  const maxLevel = 20;
+
+  const provider = new Cesium.CustomHeightmapTerrainProvider({
+    width,
+    height,
+    tilingScheme: new Cesium.WebMercatorTilingScheme(),
+    callback: async (x: number, y: number, level: number) => {
+      const effectiveLevel = Math.min(level, maxLevel);
+      const scale = Math.pow(2, level - effectiveLevel);
+      const scaledX = Math.floor(x / scale);
+      const scaledY = Math.floor(y / scale);
+
+      const url = `https://dem.maplibre.com/data/dem-30/${effectiveLevel}/${scaledX}/${scaledY}.png`;
+
+      try {
+        const response = await fetch(url);
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const blob = await response.blob();
+        const bitmap = await createImageBitmap(blob);
+
+        const canvas = document.createElement('canvas');
+        canvas.width = width;
+        canvas.height = height;
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('Canvas 2D context 不可用');
+
+        ctx.drawImage(bitmap, 0, 0, width, height);
+        const imageData = ctx.getImageData(0, 0, width, height);
+
+        // 解码 Terrarium/MapLibre: height = r * 256 + g + b / 256 - 32768
+        const heights = new Float32Array(width * height);
+        for (let i = 0; i < width * height; i++) {
+          const r = imageData.data[i * 4];
+          const g = imageData.data[i * 4 + 1];
+          const b = imageData.data[i * 4 + 2];
+          heights[i] = r * 256 + g + b / 256 - 32768;
+        }
+
+        bitmap.close();
+        return heights;
+      } catch {
+        // 网络失败：返回全 0 高度（海平面），由上层回退
+        return new Float32Array(width * height);
+      }
+    },
+  });
+
+  return provider;
+}
+
 // ============ 工具函数 ============
 
 /**
@@ -439,7 +524,7 @@ export function createEllipsoidTerrainProvider(): Promise<Cesium.TerrainProvider
 
 export async function createBestTerrainProvider(): Promise<{
   provider: Cesium.TerrainProvider;
-  source: 'ion' | 'terrarium' | 'ellipsoid';
+  source: 'ion' | 'maplibre' | 'terrarium' | 'ellipsoid';
   warning?: string;
 }> {
   if (ION_TOKEN) {
@@ -448,19 +533,29 @@ export async function createBestTerrainProvider(): Promise<{
       return { provider, source: 'ion' };
     } catch (err: any) {
       try {
-        const provider = await createTerrariumTerrainProvider();
-        return { provider, source: 'terrarium', warning: `Cesium ion failed: ${err?.message || String(err)}` };
+        const provider = await createMapLibreTerrainProvider();
+        return { provider, source: 'maplibre', warning: `Cesium ion failed: ${err?.message || String(err)}` };
       } catch (err2: any) {
-        const provider = await createEllipsoidTerrainProvider();
-        return { provider, source: 'ellipsoid', warning: `Cesium ion & Terrarium failed: ${err2?.message || String(err2)}` };
+        try {
+          const provider = await createTerrariumTerrainProvider();
+          return { provider, source: 'terrarium', warning: `Cesium ion failed: ${err?.message || String(err)}` };
+        } catch (err3: any) {
+          const provider = await createEllipsoidTerrainProvider();
+          return { provider, source: 'ellipsoid', warning: `Cesium ion & MapLibre & Terrarium failed: ${err3?.message || String(err3)}` };
+        }
       }
     }
   }
   try {
-    const provider = await createTerrariumTerrainProvider();
-    return { provider, source: 'terrarium' };
+    const provider = await createMapLibreTerrainProvider();
+    return { provider, source: 'maplibre' };
   } catch (err: any) {
-    const provider = await createEllipsoidTerrainProvider();
-    return { provider, source: 'ellipsoid', warning: `Terrarium failed: ${err?.message || String(err)}` };
+    try {
+      const provider = await createTerrariumTerrainProvider();
+      return { provider, source: 'terrarium' };
+    } catch (err2: any) {
+      const provider = await createEllipsoidTerrainProvider();
+      return { provider, source: 'ellipsoid', warning: `MapLibre & Terrarium failed: ${err2?.message || String(err2)}` };
+    }
   }
 }
