@@ -33,8 +33,11 @@
  *               102=FinishSession, 200=TaskRequest, 300=SayHello,
  *               500=ChatTTSText, 501=ChatTextQuery, 502=ChatRAGText
  * 服务端事件 ID：50 ConnectionStarted, 150 SessionStarted, 152 SessionFinished,
- *               153 SessionFailed, 352 TTSResponse(音频), 450 ASRInfo,
- *               451 ASRResponse(转写), 459 ASREnded
+ *               153 SessionFailed, 154 Usage, 350 TTSResponse(文本), 351 TTS句首,
+ *               359 TTS结束, 450 ASRInfo, 451 ASRResponse(转写), 459 ASREnded,
+ *               550 ModelStream(模型流式文本), 553 问题开始, 559 回复结束
+ *
+ * 注意：TTS 音频不通过事件携带，而是独立 MSG_AUDIO_RESP(0b1011) 帧下发。
  *
  * 鉴权由后端 /ws/s2s 代理完成，前端只做透明二进制双向转发。
  */
@@ -70,11 +73,14 @@ const S2S_SRV_CONNECTION_FAILED = 51;
 const S2S_SRV_SESSION_STARTED = 150;
 const S2S_SRV_SESSION_FINISHED = 152;
 const S2S_SRV_SESSION_FAILED = 153;
-const S2S_SRV_USAGE = 154;
-const S2S_SRV_TTS_RESPONSE = 352;
+const S2S_SRV_TTS_RESPONSE = 350;   // 文本事件（payload.text 为 TTS 朗读文本）
+const S2S_SRV_TTS_SENTENCE = 351;   // TTS 句首信息
 const S2S_SRV_ASR_INFO = 450;
 const S2S_SRV_ASR_RESPONSE = 451;
 const S2S_SRV_ASR_ENDED = 459;
+const S2S_SRV_MODEL_STREAM = 550;   // 模型流式回复文本（payload.content 逐段）
+const S2S_SRV_QUESTION_STARTED = 553;
+const S2S_SRV_REPLY_ENDED = 559;
 
 /** 会话状态机 */
 export type S2SSessionState = 'idle' | 'connecting' | 'session_starting' | 'active' | 'error' | 'closed';
@@ -473,11 +479,7 @@ export class RealtimeS2SChat {
       const size = readU32(dv, offset);
       offset += 4;
       if (offset + size > bytes.length) return;
-      // 352 = TTSResponse：payload 为二进制 PCM 音频（非 JSON），直接播放
-      if (eventId === S2S_SRV_TTS_RESPONSE) {
-        this.onServerAudio(new Uint8Array(bytes.slice(offset, offset + size)));
-        return;
-      }
+      // 注意：TTS 音频不在此（事件 350 是 JSON 文本）；音频走 MSG_AUDIO_RESP 帧。
       let jsonStr = '';
       try {
         jsonStr = new TextDecoder().decode(bytes.subarray(offset, offset + size));
@@ -537,16 +539,16 @@ export class RealtimeS2SChat {
         break;
       }
       case S2S_SRV_TTS_RESPONSE: {
-        // 部分实现把文本放 payload.user_message / payload.model_message
-        const reply = (payload?.model_message as string) ?? (payload?.text as string) ?? '';
-        if (reply) {
-          this.setRef({ response: reply } as never);
-          this.opts.callbacks?.onReply?.(reply);
+        // 350：TTS 文本事件（payload.text 为该句要朗读的文本）
+        const text = (payload?.text as string) ?? '';
+        if (text) {
+          this.setRef({ response: text } as never);
+          this.opts.callbacks?.onReply?.(text);
         }
         break;
       }
-      case 550: {
-        // 模型流式回复文本：payload.content 为逐段文本（火山 Realtime 实测）
+      case S2S_SRV_MODEL_STREAM: {
+        // 550：模型流式回复文本（payload.content 为逐段文本）
         const content = (payload?.content as string) ?? '';
         if (content) {
           this.setRef({ response: content } as never);
@@ -554,6 +556,12 @@ export class RealtimeS2SChat {
         }
         break;
       }
+      case S2S_SRV_QUESTION_STARTED:
+      case S2S_SRV_TTS_SENTENCE:
+      case S2S_SRV_REPLY_ENDED:
+      case 359: // TTS 结束
+        // 无文本负载，仅用于时序标记，忽略
+        break;
       case S2S_SRV_SESSION_FINISHED:
         this.setStateRef('idle', 'session finished');
         break;
