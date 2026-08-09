@@ -73,7 +73,7 @@ app/                    # 新主线（AI 地理画布）
 | 地形夸张 | （新增） | `CesiumController.setTerrainExaggeration` | 工具坞→视图 | `terrain.setExaggeration` | ✅ 单元 |
 | 地形剖面 | （新增） | `terrain.profile` | 工具坞→测量 | `terrain.profile` | 待补 |
 | 海拔查询 | （新增） | `CesiumController.sampleHeight` | 点击地图 | `explain.location` | ✅ 单元 |
-| 语音控制 | 麦克风按钮 | `PushToTalk`（空格长按） | 空格/麦克风按钮 | — | ✅ 单元 |
+| 语音控制 | 麦克风按钮 | `PushToTalk`（空格单击 Toggle） | 空格/麦克风按钮 | — | ✅ 单元 |
 | 城市搜索 | `city-search` | `CommandMenu` 搜索 | 右上课程入口 | `camera.flyTo` | ✅ 单元 |
 | 知识库 | `knowledge-modal` | 讲义层 + AI 解释 | 课程/上下文 | `explain.current` | ✅ 集成 |
 | 互动问答 | `quiz-btn` | 课程步骤 `question` | 课程内 | `question.ask` | ✅ 单元 |

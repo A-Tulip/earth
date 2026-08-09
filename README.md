@@ -34,9 +34,9 @@
 | 环境 | 地址 | 状态 |
 |---|---|---|
 | **前端（Vercel）** | <https://earth-beryl-eight.vercel.app> | ✅ 已部署 |
-| 后端（Railway） | 待创建（见[部署](#-部署-后端)） | ⏳ |
+| **后端（Railway）** | <https://earth-production.up.railway.app> | ✅ 已部署 |
 
-> 生产环境前端已通过 Vercel Rewrites 将 `/api/*` 同源代理到后端，后端就绪前云端能力自动回退到浏览器/关键词模式。
+> 生产环境前端已通过 Vercel Rewrites 将 `/api/*` 同源代理到后端，实时语音 WebSocket（`/ws/s2s`）经 `VITE_S2S_WS_URL` 直连后端；任一云端能力异常时自动回退到浏览器/关键词模式，课堂不中断。
 
 ---
 
@@ -177,13 +177,13 @@ Geography Command Bus ──► 工具协议 Schema 校验（TOOL_NAMES / TOOL_S
 {
   "$schema": "https://openapi.vercel.sh/vercel.json",
   "rewrites": [
-    { "source": "/api/(.*)", "destination": "https://earth-backend.railway.app/api/$1" },
+    { "source": "/api/(.*)", "destination": "https://earth-production.up.railway.app/api/$1" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
 ```
 
-> ⚠️ **待办**：后端 Railway 就绪后，将第一条 rewrite 的 `https://earth-backend.railway.app` 替换为真实后端地址。静态资源（`/cesium`、`/assets`）优先于 rewrites，不受影响。
+> 第一条 rewrite 将 `/api/*` 同源代理到 Railway 后端 `earth-production.up.railway.app`；第二条实现 SPA 回退。静态资源（`/cesium`、`/assets`）优先于 rewrites，不受影响。
 
 **CLI 部署**：
 
@@ -194,7 +194,7 @@ vercel deploy --prod --yes --token $VERCEL_TOKEN
 
 ### 后端（Railway）
 
-后端为 **FastAPI 独立服务**，通过 Dockerfile 部署，代码与配置已就绪：
+生产环境已部署至 <https://earth-production.up.railway.app>。后端为 **FastAPI 独立服务**，通过 Dockerfile 部署，代码与配置已就绪：
 
 - [`api/Dockerfile`](api/Dockerfile) —— `python:3.11-slim` + Noto CJK 字体 + 非 root 用户，端口读取 `$PORT`（兼容 Railway 随机端口）。
 - [`api/railway.json`](api/railway.json) —— 指定 Dockerfile 构建 + `/api/health` 健康检查。
@@ -207,9 +207,9 @@ vercel deploy --prod --yes --token $VERCEL_TOKEN
 3. Railway 自动识别 `api/Dockerfile` 并构建（如未识别，在 Settings 强制选择 Dockerfile）。
 4. 在 Variables 中配置密钥环境变量（见[后端环境变量](#后端-fastapi)）；`PORT` 由 Railway 自动注入。
 5. 部署完成后，Railway 会给出公网 URL（`https://<service>.up.railway.app`）。
-6. 回到 `app/vercel.json`，将 `/api` 转发地址替换为上述真实 URL。
+6. **修改环境变量后必须 `railway redeploy --from-source`** 重新部署，否则运行中实例不会加载新变量。
 
-> 健康检查：Railway 会轮询 `/api/health`，返回 200 即视为就绪。
+> 健康检查：Railway 会轮询 `/api/health`，返回 200 即视为就绪。详细排障（含 TTS 生产 502 修复）见 [`app/docs/deployment.md`](app/docs/deployment.md)。
 
 ### 全栈容器化（Docker / Docker Compose）
 
@@ -249,10 +249,11 @@ cd app && cp .env.example .env.local
 | 密钥 | 作用 | 申请地址 |
 |---|---|---|
 | `VOLC_ARK_API_KEY` | 豆包大模型（LLM 意图理解/回答） | <https://console.volcengine.com/ark> |
-| `VOLC_ASR_API_KEY` / `VOLC_ASR_APP_ID` | 流式语音识别（ASR） | <https://console.volcengine.com/speech/app> |
-| `VOLC_TTS_API_KEY` / `VOLC_TTS_APP_ID` | 语音合成（TTS） | <https://console.volcengine.com/speech/app> |
+| `VOLC_ASR_API_KEY` | 流式语音识别（ASR）**与 TTS 共用**（新版 v3 单 Key） | <https://console.volcengine.com/speech/app> |
+| `VOLC_ASR_RESOURCE_ID` | ASR / S2S 资源 ID（`volc.speech.dialog`） | — |
+| `VOLC_TTS_APP_ID` / `VOLC_TTS_ACCESS_TOKEN` | 旧版 TTS（仅当无 `VOLC_ASR_API_KEY` 时回退） | <https://console.volcengine.com/speech/app> |
 
-> 完整密钥项、鉴权模式（AppID 体系 / API Key 体系）与申请步骤见 [`api/.env.example`](api/.env.example)。
+> TTS 鉴权优先级：`VOLC_TTS_API_KEY` → `VOLC_ASR_API_KEY`（新版 v3，推荐）→ `VOLC_TTS_APP_ID + VOLC_TTS_ACCESS_TOKEN`（旧版 query）。完整密钥项、鉴权模式与申请步骤见 [`api/.env.example`](api/.env.example)。
 
 ---
 

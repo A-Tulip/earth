@@ -2,11 +2,12 @@
 
 ## 1. 交互模型
 
-### 桌面端：Push-to-Talk
-- **按住 Space** 开始录音，**松开 Space** 提交
+### 桌面端：空格键（默认 Toggle 模式）
+- **单击空格** 开始录音，**再按一次空格** 停止并提交（默认 `toggle` 模式，适合教学场景单手操作）
 - 首次使用只展示一次快捷键提示
-- 按住空格 → 画面底部中央出现很轻的"正在聆听"
-- 松开 → 显示识别结果和执行状态 → 完成后自动淡出
+- 单击空格 → 画面底部中央出现很轻的"正在聆听"
+- 再按空格 → 显示识别结果和执行状态 → 完成后自动淡出
+- 可选 `pushToTalk` 模式（按住录音、松开提交），用于精确控制录音时长，通过 `usePushToTalk({ mode })` 切换
 
 ### 触摸设备
 - 右下角小型麦克风按钮（`md:hidden`）
@@ -67,8 +68,8 @@ interface LLMAdapter { chat(messages): Promise<{ text, toolCalls }> }
 **架构：**
 ```
 浏览器 ──/api/llm/chat──► FastAPI 后端(8787) ──Bearer ARK_API_KEY──► ark.cn-beijing.volces.com
-        ──/api/tts/synthesize──►                ──X-Api-Access-Key──► sami.bytedance.com
-        ──/api/asr/recognition──►               ──X-Api-Access-Key──► openspeech.bytedance.com
+        ──/api/tts/synthesize──►                ──X-Api-Key──► openspeech.bytedance.com (v3)
+        ──/api/asr/recognition──►               ──X-Api-Key──► openspeech.bytedance.com
         ──/ws/asr──►                            （流式 ASR WebSocket）
         ──/api/health──►                        （健康检查）
         ──/api/charts/generate──►               （matplotlib 图表）
@@ -83,7 +84,7 @@ make setup
 
 # 1. 配置后端密钥（不入前端构建）
 cp api/.env.example api/.env
-# 编辑 api/.env 填入 VOLC_ARK_API_KEY、VOLC_TTS_APP_ID、VOLC_TTS_ACCESS_KEY 等
+# 编辑 api/.env 填入 VOLC_ARK_API_KEY、VOLC_ASR_API_KEY 等（新版 v3 单 Key，ASR 与 TTS 共用）
 
 # 2. 启动后端 FastAPI（端口 8787，开发模式）
 make api
@@ -162,7 +163,7 @@ VITE_ASR_PROVIDER=volcengine   # 流式 ASR，WS 鉴权不足时自动降级浏�
 
 ## 6. 实时对话模式（`src/voice/RealtimeVoiceChat.ts`）
 
-与 Push-to-Talk（按住空格）不同，实时对话模式为**全双工**：
+与 Push-to-Talk（单击空格）不同，实时对话模式为**全双工**：
 
 - 用户随时说话，VAD 自动检测说话开始/结束
 - 检测到句末（静音 800ms）自动提交 LLM
@@ -180,12 +181,12 @@ VITE_ASR_PROVIDER=volcengine   # 流式 ASR，WS 鉴权不足时自动降级浏�
 
 **对话历史：** 最多 20 条消息（`trimHistory`），切换课程时自动清空（按 `activeLessonId` 订阅）。
 
-**启用方式：** TopBar 的「实时对话」按钮（`data-agent-button="voice.toggleRealtime"`），或 AI 调用 `realtime.toggle`。启用后自动禁用 Push-to-Talk。
+**启用方式：** TopBar 的「实时对话」按钮（`data-agent-button="voice.toggleRealtime"`），或 AI 调用 `realtime.toggle`。启用后自动禁用空格（Toggle）录音入口。
 
 **降级链：**
 1. 流式 ASR（`/ws/asr` WebSocket）+ VAD ← 主路径
 2. 浏览器 Web Speech API（连续模式）+ VAD ← 自动降级
-3. Push-to-Talk 模式 ← 手动降级（关闭实时对话）
+3. 单击空格（Toggle）模式 ← 手动降级（关闭实时对话）
 
 ## 7. 可靠性
 
@@ -193,4 +194,4 @@ VITE_ASR_PROVIDER=volcengine   # 流式 ASR，WS 鉴权不足时自动降级浏�
 - 错误分类（权限/网络/服务/参数）
 - 可观测日志（开发环境）
 - 任何环节失败保留字幕和手动工具能力
-- 实时对话启动失败（麦克风权限/ASR 不可用）→ 提示用户切换到按住空格模式，课堂不中断
+- 实时对话启动失败（麦克风权限/ASR 不可用）→ 提示用户切换到单击空格（Toggle）模式，课堂不中断
