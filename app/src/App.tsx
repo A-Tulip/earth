@@ -166,6 +166,7 @@ export default function App() {
 
   // 组合开关：优先全双工 S2S，失败自动回退三段式
   const handleToggleRealtimeChat = useCallback(async () => {
+    console.debug('[S2S] handleToggleRealtimeChat invoked, active=', store.getState().voice.realtimeChatActive);
     const active = store.getState().voice.realtimeChatActive;
     if (active) {
       // 关闭：三段式经 enabled 副作用 teardown，S2S 经其 enabled 清理 teardown

@@ -242,7 +242,6 @@ export class RealtimeS2SChat {
   async start(): Promise<void> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
     this.setStateRef('connecting', 'connecting');
-
     // 生产：从 VITE_S2S_WS_URL 的 origin 推导同源 /ws/s2s，直连 Railway 后端
     const s2sConfig = (import.meta.env.VITE_S2S_WS_URL as string | undefined)?.trim();
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -257,6 +256,7 @@ export class RealtimeS2SChat {
     } else {
       wsUrl = `${proto}//${window.location.host}/ws/s2s`;
     }
+    console.debug('[S2S] start() connecting wsUrl=', wsUrl);
 
     const ws = new WebSocket(wsUrl);
     ws.binaryType = 'arraybuffer';
