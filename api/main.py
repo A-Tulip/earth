@@ -1800,8 +1800,10 @@ async def ws_s2s_proxy(ws: WebSocket):
     await ws.accept()
     logger.info("客户端已连接 /ws/s2s")
 
+    app_id = os.environ.get("VOLC_ASR_APP_ID")
+    access_token = os.environ.get("VOLC_ASR_ACCESS_TOKEN") or os.environ.get("VOLC_ASR_ACCESS_KEY")
     s2s_api_key = os.environ.get("VOLC_ASR_API_KEY") or os.environ.get("VOLC_S2S_API_KEY")
-    resource_id = os.environ.get("VOLC_S2S_RESOURCE_ID") or os.environ.get("VOLC_ASR_RESOURCE_ID") or S2S_RESOURCE_ID
+    resource_id = os.environ.get("VOLC_S2S_RESOURCE_ID") or S2S_RESOURCE_ID
 
     def _send_json(obj: dict[str, Any]):
         try:
@@ -1809,22 +1811,33 @@ async def ws_s2s_proxy(ws: WebSocket):
         except Exception:
             return None
 
-    if not s2s_api_key:
+    if not ((app_id and access_token) or s2s_api_key):
         await _send_json({"type": "error", "code": "S2S_NOT_CONFIGURED",
-                          "message": "服务端未配置 S2S：请在 api/.env 填写 VOLC_ASR_API_KEY（新版单 Key）"})
+                          "message": "服务端未配置 S2S：请在 api/.env 填写 VOLC_ASR_APP_ID+VOLC_ASR_ACCESS_TOKEN（官方鉴权）或 VOLC_ASR_API_KEY（新版单 Key）"})
         await _send_json({"type": "ready", "s2s": False})
         await ws.close()
         return
 
-    # ---------- 建立火山上游连接（单 Key 直连）----------
+    # ---------- 建立火山上游连接 ----------
+    # 官方文档鉴权：X-Api-App-ID + X-Api-Access-Key + X-Api-App-Key(固定值) + X-Api-Resource-Id
+    # 回退：新版控制台单 Key（X-Api-Key）。
     import websockets as wslib
     import uuid
     connect_id = str(uuid.uuid4())
-    upstream_headers: dict[str, str] = {
-        "X-Api-Key": s2s_api_key,
-        "X-Api-Resource-Id": resource_id,
-        "X-Api-Connect-Id": connect_id,
-    }
+    if app_id and access_token:
+        upstream_headers: dict[str, str] = {
+            "X-Api-App-Id": app_id,
+            "X-Api-Access-Key": access_token,
+            "X-Api-Resource-Id": resource_id,
+            "X-Api-App-Key": "PlgvMymc7f3tQnJ6",
+            "X-Api-Connect-Id": connect_id,
+        }
+    else:
+        upstream_headers = {
+            "X-Api-Key": s2s_api_key or "",
+            "X-Api-Resource-Id": resource_id,
+            "X-Api-Connect-Id": connect_id,
+        }
     upstream_ws = None
     try:
         upstream_ws = await wslib.connect(S2S_WS_URL, additional_headers=upstream_headers)
