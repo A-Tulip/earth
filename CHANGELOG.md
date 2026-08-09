@@ -18,6 +18,18 @@
 - 生产环境实时语音（S2S）：Vercel 无法代理 WebSocket 到外部后端，导致 `/ws/s2s` 在生产失效。
   现通过 `VITE_S2S_WS_URL`（写入 `app/.env.production`）让前端直连 Railway 的
   `wss://earth-production.up.railway.app/ws/s2s`；开发环境留空仍走同源 Vite 代理。
+- 生产 TTS 502（`40200002 IllegalToken`）：Railway 环境缺少新版单 API Key（`VOLC_ASR_API_KEY`），
+  后端误回退到无效的旧版 `AppID+Token`。已将 key 同步到 Railway 环境变量并
+  `railway redeploy --from-source` 重新部署，TTS 恢复 200 + MP3。
+
+### Docs
+- [`app/docs/deployment.md`](app/docs/deployment.md)：重写为当前 Vercel + Railway 真实生产部署文档，
+  含部署架构图、前后端配置步骤、环境变量清单、TTS 502 实战排障、健康检查假阳性说明与安全边界。
+- [`README.md`](README.md)：修正后端已部署地址（`earth-production.up.railway.app`）、
+  `vercel.json` rewrite 目标、后端密钥清单（TTS/ASR 共用新版 v3 单 Key）与部署步骤。
+- [`app/docs/voice-agent.md`](app/docs/voice-agent.md)：空格键改为默认 Toggle（单击开始/再按停止），
+  统一 TTS/ASR v3 `X-Api-Key` 鉴权描述，更正后端启动命令。
+- [`app/docs/migration.md`](app/docs/migration.md)：语音控制迁移表述改为空格单击 Toggle。
 
 ---
 
