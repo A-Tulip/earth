@@ -206,6 +206,7 @@ export class RealtimeS2SChat {
     speaking?: boolean;
     asrStreaming?: boolean;
     transcript?: string;
+    partialText?: string;
     response?: string;
     error?: string | null;
   }) => void;
@@ -219,6 +220,7 @@ export class RealtimeS2SChat {
         speaking?: boolean;
         asrStreaming?: boolean;
         transcript?: string;
+        partialText?: string;
         response?: string;
         error?: string | null;
       }) => void;
@@ -529,7 +531,7 @@ export class RealtimeS2SChat {
       case S2S_SRV_ASR_RESPONSE: {
         const text = (payload?.result as string) ?? (payload?.text as string) ?? '';
         if (text) {
-          this.setRef({ partialText: text } as never);
+          this.setRef({ partialText: text });
           this.opts.callbacks?.onTranscript?.(text);
         }
         break;
@@ -537,7 +539,7 @@ export class RealtimeS2SChat {
       case S2S_SRV_ASR_ENDED: {
         const text = (payload?.result as string) ?? (payload?.text as string) ?? '';
         if (text) {
-          this.setRef({ transcript: text, partialText: '' } as never);
+          this.setRef({ transcript: text, partialText: '' });
           this.opts.callbacks?.onTranscript?.(text);
         }
         break;
@@ -546,7 +548,7 @@ export class RealtimeS2SChat {
         // 350：TTS 文本事件（payload.text 为该句要朗读的文本）
         const text = (payload?.text as string) ?? '';
         if (text) {
-          this.setRef({ response: text } as never);
+          this.setRef({ response: text });
           this.opts.callbacks?.onReply?.(text);
         }
         break;
@@ -555,7 +557,7 @@ export class RealtimeS2SChat {
         // 550：模型流式回复文本（payload.content 为逐段文本）
         const content = (payload?.content as string) ?? '';
         if (content) {
-          this.setRef({ response: content } as never);
+          this.setRef({ response: content });
           this.opts.callbacks?.onReply?.(content);
         }
         break;
@@ -635,7 +637,7 @@ export class RealtimeS2SChat {
   private setSpeaking(speaking: boolean): void {
     if (this.speaking === speaking) return;
     this.speaking = speaking;
-    this.setRef({ speaking } as never);
+    this.setRef({ speaking });
     this.opts.callbacks?.onSpeakingChange?.(speaking);
   }
 

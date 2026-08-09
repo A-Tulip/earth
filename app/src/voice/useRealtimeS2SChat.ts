@@ -34,7 +34,7 @@ export function useRealtimeS2SChat({ enabled = false, systemRole, pcmOutput = tr
       partialText?: string;
       response?: string;
       error?: string | null;
-    }) => store.getState().setVoice(partial as never);
+    }) => store.getState().setVoice(partial);
     const client = new RealtimeS2SChat({
       systemRole,
       pcmOutput,
@@ -52,6 +52,12 @@ export function useRealtimeS2SChat({ enabled = false, systemRole, pcmOutput = tr
         },
         onSpeakingChange: (speaking) => {
           store.getState().setVoice({ speaking });
+        },
+        onStateChange: (state) => {
+          // 会话中途断开/出错时复位 s2sActive，让三段式回退接管（App.tsx: enabled = realtimeChatActive && !s2sActive）
+          if (state === 'closed' || state === 'error') {
+            store.getState().setVoice({ s2sActive: false });
+          }
         },
       },
     });
