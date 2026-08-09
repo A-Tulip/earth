@@ -28,6 +28,8 @@ import { isEditable } from './voice/PushToTalk';
 import { Mic } from './ui/icons';
 import { usePushToTalk } from './voice/PushToTalk';
 import { useRealtimeVoiceChat } from './voice/RealtimeVoiceChat';
+import { useRealtimeS2SChat } from './voice/useRealtimeS2SChat';
+import { S2SUnavailableError } from './voice/RealtimeS2SChat';
 import { createASRAdapter, createTTSAdapter, createLLMAdapter } from './voice/adapters';
 import { LessonRuntime } from './lessons/runtime';
 import { LESSON_CATALOG } from './lessons/catalog';
@@ -51,7 +53,12 @@ export default function App() {
 
   // 暴露 store setState 到 window（仅开发调试 + E2E 测试使用，不依赖此做功能使用）
   useEffect(() => {
-    const w = window as unknown as { _geographyStoreDebug?: { setState: (p: any) => void; getState: () => any } };
+    const w = window as unknown as {
+      _geographyStoreDebug?: {
+        setState: typeof useGeographyStore.setState;
+        getState: typeof useGeographyStore.getState;
+      };
+    };
     w._geographyStoreDebug = { setState: (p) => useGeographyStore.setState(p), getState: () => useGeographyStore.getState() };
   }, []);
 
@@ -132,6 +139,13 @@ export default function App() {
 
   // 实时对话模式状态（启用时禁用 Push-to-Talk）
   const realtimeChatActive = useGeographyStore((s) => s.voice.realtimeChatActive);
+  const s2sActive = useGeographyStore((s) => s.voice.s2sActive);
+
+  // 全双工 S2S（端到端实时语音，优先）。enabled 由 realtimeChatActive 驱动，停止/卸载时自动清理。
+  const s2s = useRealtimeS2SChat({
+    enabled: realtimeChatActive,
+    endSmoothWindowMs: 1500,
+  });
 
   // Push-to-Talk（实时对话模式启用时禁用）
   const { toggleRecording, interrupt } = usePushToTalk({
@@ -141,13 +155,41 @@ export default function App() {
     enabled: !realtimeChatActive,
   });
 
-  // 实时对话模式（三段式：ASR→LLM工具调用→commandBus操控地球→TTS，支持打断）
-  const { toggleRealtimeChat } = useRealtimeVoiceChat({
+  // 三段式实时对话（ASR→LLM工具调用→commandBus操控地球→TTS，支持打断）
+  // 仅作为 S2S 不可用时的回退路径：s2sActive 为真时不启动 VAD，避免双通道冲突。
+  useRealtimeVoiceChat({
     asr: asrRef.current,
     tts: ttsRef.current,
     llm: llmRef.current,
-    enabled: realtimeChatActive,
+    enabled: realtimeChatActive && !s2sActive,
   });
+
+  // 组合开关：优先全双工 S2S，失败自动回退三段式
+  const handleToggleRealtimeChat = useCallback(async () => {
+    const active = store.getState().voice.realtimeChatActive;
+    if (active) {
+      // 关闭：三段式经 enabled 副作用 teardown，S2S 经其 enabled 清理 teardown
+      store.getState().setVoice({ realtimeChatActive: false, s2sActive: false });
+      return;
+    }
+    // 开启：先试全双工 S2S
+    try {
+      await s2s.start(); // 成功时内部置 realtimeChatActive=true, s2sActive=true
+    } catch (err) {
+      if (err instanceof S2SUnavailableError) {
+        // S2S 不可用 → 回退三段式（enabled 副作用会启动 VAD）
+        store.getState().setVoice({
+          realtimeChatActive: true,
+          s2sActive: false,
+          error: '端到端实时语音暂不可用，已切换到基础实时对话。',
+        });
+      } else {
+        store.getState().setVoice({
+          error: `实时对话启动失败：${err instanceof Error ? err.message : String(err)}`,
+        });
+      }
+    }
+  }, [store, s2s]);
 
   // Cesium 就绪回调（命令处理器由 CesiumCanvas 内部注册一次）
   const handleCesiumReady = useCallback((controller: CesiumController) => {
@@ -245,7 +287,7 @@ export default function App() {
       <TopBar
         onOpenCommandMenu={() => setCommandMenuOpen(true)}
         onToggleMute={toggleMute}
-        onToggleRealtimeChat={toggleRealtimeChat}
+        onToggleRealtimeChat={handleToggleRealtimeChat}
         onOpenHelp={() => setHelpOpen(true)}
       />
 

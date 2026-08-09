@@ -132,6 +132,7 @@ export interface VoiceState {
   asrStreaming: boolean;    // 是否使用流式 ASR
   asrReady: boolean;        // 流式 ASR 是否已就绪
   realtimeChatActive: boolean;  // 实时对话模式（全双工，VAD 自动检测）
+  s2sActive: boolean;           // 是否走全双工 S2S（true=端到端，false=三段式回退）
 }
 
 /** 课程运行时状态 */
@@ -364,6 +365,7 @@ export const initialSceneState: GeographySceneState = {
     asrStreaming: false,
     asrReady: false,
     realtimeChatActive: false,  // 实时对话模式默认关闭，需用户主动开启
+    s2sActive: false,           // 全双工 S2S 默认关闭（失败时回退三段式）
   },
 
   lesson: {

@@ -154,7 +154,7 @@ export function SubtitleLayer() {
       .then((m) => m.tts.stop())
       .catch(() => {
         if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
-          try { window.speechSynthesis.cancel(); } catch (e) { console.warn('[EmptyCatch] ui/SubtitleLayer.tsx:157', (e as any)?.message ?? e); }
+          try { window.speechSynthesis.cancel(); } catch (e) { console.warn('[EmptyCatch] ui/SubtitleLayer.tsx:157', e instanceof Error ? e.message : String(e)); }
         }
       });
     setReading(false);
@@ -309,7 +309,7 @@ ${sanitizedLecture}
         var id = href.slice(1);
         parent.postMessage({ type:'TOC_JUMP', id: id }, '*');
         var el = document.getElementById(id);
-        if (el) try { el.scrollIntoView({ behavior:'smooth', block:'start' }); } catch (e) { console.warn('[EmptyCatch] ui/SubtitleLayer.tsx:312', (e as any)?.message ?? e); }
+        if (el) try { el.scrollIntoView({ behavior:'smooth', block:'start' }); } catch (e) { console.warn('[EmptyCatch] ui/SubtitleLayer.tsx:312', e instanceof Error ? e.message : String(e)); }
       }
     }
   });

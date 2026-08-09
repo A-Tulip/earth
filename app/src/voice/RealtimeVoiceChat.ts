@@ -44,7 +44,39 @@ const VAD_CONFIG = {
 };
 
 /** 对话状态机 */
-type ChatState = 'idle' | 'listening' | 'processing' | 'speaking';
+export type ChatState = 'idle' | 'listening' | 'processing' | 'speaking';
+
+/**
+ * 纯函数：是否应自动打断 TTS（barge-in）。
+ * 仅当 TTS 正在播放（speaking）且检测到用户语音能量时才打断。
+ * 抽成纯函数以便单元测试核心链路。
+ */
+export function shouldBargeIn(
+  state: ChatState,
+  rms: number,
+  energyThreshold: number,
+): boolean {
+  return state === 'speaking' && rms > energyThreshold;
+}
+
+/**
+ * 纯函数：顺序执行 LLM 返回的工具调用（操控界面）。
+ * 单个工具失败不中断整体流程（与 submitToLlm 内的行为一致）。
+ * 抽成纯函数以便注入命令执行器做单元测试。
+ */
+export async function executeToolCalls(
+  calls: { name: string; args: Record<string, unknown> }[] | undefined,
+  execute: (cmd: { name: string; args: Record<string, unknown> }) => Promise<unknown>,
+): Promise<void> {
+  if (!calls || calls.length === 0) return;
+  for (const call of calls) {
+    try {
+      await execute({ name: call.name, args: call.args });
+    } catch {
+      // 单个工具失败不中断整体流程
+    }
+  }
+}
 
 /**
  * 实时对话模式 Hook
@@ -257,16 +289,10 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
       });
       trimHistory();
 
-      // 执行工具调用
-      if (response.toolCalls && response.toolCalls.length > 0) {
-        for (const call of response.toolCalls) {
-          try {
-            await commandBus.execute({ name: call.name as never, args: call.args });
-          } catch {
-            // 单个工具失败不中断整体流程
-          }
-        }
-      }
+      // 执行工具调用（操控界面），单个失败不中断
+      await executeToolCalls(response.toolCalls, (cmd) =>
+        commandBus.execute({ name: cmd.name as never, args: cmd.args }),
+      );
 
       // TTS 朗读回复
       if (response.text && !store.getState().voice.muted) {
@@ -280,7 +306,12 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
         }
       }
 
-      setState('idle');
+      // 🔊 若在 TTS 播放期间被用户打断（barge-in），VAD 已把状态切到 listening 并启动新一轮 ASR，
+      //    这里不要再强制覆盖成 idle，否则"用户已开口、正在识别"的状态会被瞬间清掉，
+      //    表现为"打断 AI 播报后没反应 / 下一句识别不全"。
+      if (!ttsAbortRef.current) {
+        setState('idle');
+      }
     } catch (err) {
       store.getState().setVoice({
         error: err instanceof Error ? err.message : 'LLM 处理失败',
@@ -323,7 +354,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
           void startAsr();
           setState('listening');
         }
-      } else if (state === 'speaking') {
+      } else if (shouldBargeIn(state, rms, VAD_CONFIG.energyThreshold)) {
         // 自动打断：TTS 播放中检测到用户说话
         stopTts();
         if (speechStartRef.current === 0) {
@@ -357,9 +388,23 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
     if (vadIntervalRef.current !== null) return;
 
     try {
-      const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+      // ⚠️ 回声消除：VAD 麦克风必须开启 echoCancellation，否则 AI TTS 播报会被自己
+      //    的麦克风拾取（声学回声）→ rms 瞬间超阈值 → shouldBargeIn 误判为"用户说话"
+      //    → AI 打断自己的播报（"连接不稳定/不能正常对话"的典型根因）。
+      const stream = await navigator.mediaDevices.getUserMedia({
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
+      });
       vadStreamRef.current = stream;
       vadAudioContextRef.current = new AudioContext();
+      // ⚠️ autoplay 策略：实时对话按钮点击后异步创建 AudioContext，初始为 suspended，
+      //    不 resume() 则 analyser 永不返回数据 → VAD 检测不到语音 → "开启后没反应"。
+      if (vadAudioContextRef.current.state === 'suspended') {
+        await vadAudioContextRef.current.resume().catch(() => undefined);
+      }
       const source = vadAudioContextRef.current.createMediaStreamSource(stream);
       const analyser = vadAudioContextRef.current.createAnalyser();
       analyser.fftSize = 512;

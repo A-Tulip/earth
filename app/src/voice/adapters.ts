@@ -15,6 +15,7 @@ import { safeJSONParse } from '../ui/sanitize';
 // GEOGRAPHY_TOOLS 由 commands/schema.ts 从 TOOL_SCHEMAS 程序化生成，
 // 让 LLM 能调用整个教学 API 面（此前手写数组只覆盖子集，导致 agent 无法调用大部分工具）。
 import { GEOGRAPHY_TOOLS } from '../commands/schema';
+import { apiUrl } from '../state/apiBase';
 
 /**
  * 从 FastAPI 返回的错误 JSON 中抽取可读错误消息。
@@ -41,7 +42,7 @@ export function extractApiError(errJson: unknown, fallback?: string): string {
   try {
     const s = JSON.stringify(o);
     if (s && s.length < 240) return s;
-  } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:44', (e as any)?.message ?? e); }
+  } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:44', e instanceof Error ? e.message : String(e)); }
   return fallback ?? '服务调用失败（未知错误）';
 }
 
@@ -82,7 +83,7 @@ export class BrowserSpeechASR implements ASRAdapter {
 
   private flushPartial(): void {
     const combined = this.finalText + (this.interimText ? (this.finalText ? ' ' : '') + this.interimText : '');
-    try { this.onPartialCb?.(combined); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:85', (e as any)?.message ?? e); }
+    try { this.onPartialCb?.(combined); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:85', e instanceof Error ? e.message : String(e)); }
   }
 
   async start(): Promise<void> {
@@ -215,7 +216,7 @@ export class BrowserSpeechASR implements ASRAdapter {
 
   private cleanupRecognition(): void {
     if (!this.recognition) return;
-    try { this.recognition.abort(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:218', (e as any)?.message ?? e); }
+    try { this.recognition.abort(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:218', e instanceof Error ? e.message : String(e)); }
     this.recognition.onstart = null;
     this.recognition.onresult = null;
     this.recognition.onerror = null;
@@ -228,7 +229,7 @@ export class BrowserSpeechASR implements ASRAdapter {
   abort(): void {
     this.stopResolve?.({ text: '', isFinal: true });
     this.cleanupRecognition();
-    try { this.onPartialCb?.(''); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:231', (e as any)?.message ?? e); }
+    try { this.onPartialCb?.(''); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:231', e instanceof Error ? e.message : String(e)); }
   }
 
   isListening(): boolean {
@@ -293,7 +294,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
 
       const synth = window.speechSynthesis;
       // 先清空队列，避免上一条还在讲
-      try { synth.cancel(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:296', (e as any)?.message ?? e); }
+      try { synth.cancel(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:296', e instanceof Error ? e.message : String(e)); }
       this.clearPoll();
 
       const utter = new SpeechSynthesisUtterance(text);
@@ -321,7 +322,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
         // 如果 voices 还没加载好，Chrome/Edge 在 speak() 后可能刚加载完成——再重新设一次 voice
         if (!v) {
           const v2 = this.pickZhVoice();
-          if (v2) try { utter.voice = v2; } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:324', (e as any)?.message ?? e); }
+          if (v2) try { utter.voice = v2; } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:324', e instanceof Error ? e.message : String(e)); }
         }
         this.startPoll(finish);
       };
@@ -363,7 +364,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
         } else {
           stopCount = 0;
         }
-      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:366', (e as any)?.message ?? e); }
+      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:366', e instanceof Error ? e.message : String(e)); }
     }, 500);
   }
 
@@ -376,7 +377,7 @@ export class BrowserSpeechTTS implements TTSAdapter {
 
   stop(): void {
     if ('speechSynthesis' in window) {
-      try { window.speechSynthesis.cancel(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:379', (e as any)?.message ?? e); }
+      try { window.speechSynthesis.cancel(); } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:379', e instanceof Error ? e.message : String(e)); }
     }
     this.speaking = false;
     this.clearPoll();
@@ -897,7 +898,7 @@ export class VolcengineArkLLM implements LLMAdapter, IntentChatLLM {
     if (options?.model) headers['X-Model'] = options.model;
     else if (isFastIntent) headers['X-Intent-Hint'] = 'fast';
 
-    const res = await fetch('/api/llm/chat', {
+    const res = await fetch(apiUrl('/api/llm/chat'), {
       method: 'POST',
       headers,
       body: JSON.stringify({
@@ -941,7 +942,7 @@ export class VolcengineArkLLM implements LLMAdapter, IntentChatLLM {
         const args = (safeJSONParse<Record<string, unknown>>(tc.function?.arguments ?? '{}') ?? {}) as Record<string, unknown>;
         const name = tc.function?.name ?? '';
         if (name) toolCalls.push({ name, args });
-      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:944', (e as any)?.message ?? e); }
+      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:944', e instanceof Error ? e.message : String(e)); }
     });
 
     // 槽位 2：服务端自定义 {reply, commands}（非流式 JSON）
@@ -1029,7 +1030,7 @@ export class VolcengineTTS implements TTSAdapter {
 
     this.speaking = true;
     try {
-      const res = await fetch('/api/tts/synthesize', {
+      const res = await fetch(apiUrl('/api/tts/synthesize'), {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ text }),
@@ -1207,8 +1208,8 @@ export class StreamingASR implements ASRAdapter {
   private connectHandshake(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
       // 生产：Vercel 只重写 /api/*，不代理 /ws/*（`/(.*)→/index.html` 会吞掉 WS 握手）。
-      //   S2S 已通过 VITE_S2S_WS_URL 直连 Railway 后端，这里从同一 origin 推导 /ws/asr，
-      //   让空格 PushToTalk 的流式 ASR 也走同一后端。
+      //   VITE_S2S_WS_URL 提供后端 origin，这里从同一 origin 推导 /ws/asr，
+      //   让实时对话 / 空格 PushToTalk 的流式 ASR 都走同一后端。
       // 开发：无 VITE_S2S_WS_URL 时回退同源，由 Vite 代理到 FastAPI:8787。
       const s2sConfig = (import.meta.env.VITE_S2S_WS_URL as string | undefined)?.trim();
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -1231,7 +1232,7 @@ export class StreamingASR implements ASRAdapter {
       const cleanupAndResolve = () => { clearTimeout(timeout); resolve(); };
       const cleanupAndReject = (e: Error) => {
         clearTimeout(timeout);
-        try { ws.close(); } catch (_e) { console.warn('[EmptyCatch] voice/adapters.ts:1219', (_e as any)?.message ?? _e); }
+        try { ws.close(); } catch (_e) { console.warn('[EmptyCatch] voice/adapters.ts:1219', _e instanceof Error ? _e.message : String(_e)); }
         reject(e);
       };
 
@@ -1252,7 +1253,7 @@ export class StreamingASR implements ASRAdapter {
               is_little_endian: true,  // JS Int16Array 总是系统字节序，macOS/Windows/ARM/Linux 都是 LE
             },
           }));
-        } catch (_e) { console.warn('[EmptyCatch] voice/adapters.ts:1240', (_e as any)?.message ?? _e); }
+        } catch (_e) { console.warn('[EmptyCatch] voice/adapters.ts:1240', _e instanceof Error ? _e.message : String(_e)); }
       });
 
       ws.addEventListener('message', (event) => {
@@ -1462,7 +1463,7 @@ export class VolcengineASR implements ASRAdapter {
     try {
       const ctrl = new AbortController();
       const timer = window.setTimeout(() => ctrl.abort(), 3000);
-      const health = await fetch('/api/health', { signal: ctrl.signal })
+      const health = await fetch(apiUrl('/api/health'), { signal: ctrl.signal })
         .then((r) => r.json())
         .catch(() => null)
         .finally(() => window.clearTimeout(timer)) as { asr?: boolean } | null;
@@ -1563,371 +1564,6 @@ export function createLLMAdapter(): LLMAdapter {
   return new KeywordIntentLLM();
 }
 
-// ============================================================
-// 端到端实时语音大模型（Realtime S2S）—— 单连接完成 ASR+LLM+TTS 全链路
-//
-// 协议要点（详见 ADR/豆包语音_端到端实时语音大模型API接入文档）：
-//   - 端点：wss://openspeech.bytedance.com/api/v3/realtime/dialogue
-//   - 鉴权：单 API Key 放 X-Api-Key 请求头（新版控制台），无需 AppID+AccessToken
-//   - 二进制帧：4B header + optional + payloadSize(4B) + payload
-//       header: b0=0x11(version1+4B头) b1=消息类型+flags b2=序列化+压缩 b3=0x00
-//   - 事件帧(Full-client request 0b0001 + event 0b0100 + JSON)：b1=0x14,b2=0x10
-//       = header + event(4B) + [sessionIdSize(4B)+sessionId] + payloadSize(4B) + payload
-//   - 音频帧(Audio-only request 0b0010 + Raw)：b1=0x20,b2=0x00
-//       = header + payloadSize(4B) + payload(PCM16LE)
-//   - 客户端事件：1=StartConnection 100=StartSession 102=FinishSession 200=TaskRequest(音频)
-//   - 服务端事件：50=ConnectionStarted 150=SessionStarted 352=TTSResponse(音频)
-//                 451=ASRResponse(转写) 459=ASREnded 550=ChatResponse 599=DialogCommonError
-// ============================================================
 
-export interface S2SConfig {
-  /** 人设 bot 名（O 版本生效，≤20 字符） */
-  botName?: string;
-  /** 背景人设（O 版本生效） */
-  systemRole?: string;
-  /** 对话风格（O 版本生效） */
-  speakingStyle?: string;
-  /** 端到端模型版本，官方枚举：O（默认）/ SC */
-  model?: string;
-  /** 音色：vv/xiaohe/yunzhou/xiaotian，对应 zh_*_jupiter_bigtts */
-  speaker?: string;
-  /** TTS 输出格式，默认 24000Hz，pcm_s16le */
-  ttsFormat?: 'pcm' | 'pcm_s16le';
-  /** ASR 结束静音窗口(ms)，官方默认 1500，合法范围 [500, 50000]；调小可显著降低端到端语音"说完→回复"延迟 */
-  endSmoothWindowMs?: number;
-}
 
-export interface S2SCallbacks {
-  onSessionStarted?: (dialogId: string) => void;
-  /** 模型识别到用户说话的文本（is_interim=true 为实时过程，false 为稳态） */
-  onASRResponse?: (text: string, isInterim: boolean) => void;
-  onASREnded?: () => void;
-  /** 模型回复的文本内容 */
-  onChatResponse?: (text: string) => void;
-  /** 返回的 TTS 音频（PCM16LE 24000Hz 单声道原始字节） */
-  onTTSAudio?: (data: ArrayBuffer) => void;
-  onTTSEnded?: () => void;
-  onError?: (code: string, message: string) => void;
-}
 
-/** 随机 UUID（不带连接符则 32 字符，带连接符则 36 字符） */
-function uuid32(): string {
-  const bytes = new Uint8Array(16);
-  crypto.getRandomValues(bytes);
-  const hex = Array.from(bytes, (b) => b.toString(16).padStart(2, '0')).join('');
-  return hex;
-}
-
-/** 拼接若干 Uint8Array */
-function concatBytes(parts: Uint8Array[]): Uint8Array {
-  const total = parts.reduce((n, p) => n + p.length, 0);
-  const out = new Uint8Array(total);
-  let off = 0;
-  for (const p of parts) {
-    out.set(p, off);
-    off += p.length;
-  }
-  return out;
-}
-
-/** 4 字节大端序 int32 */
-function int32BE(n: number): Uint8Array {
-  const b = new Uint8Array(4);
-  new DataView(b.buffer).setInt32(0, n, false);
-  return b;
-}
-
-/**
- * S2S 适配器：连接后端 /ws/s2s 透明代理，封装火山端到端实时语音大模型二进制协议。
- * 一次连接完成 ASR + LLM + TTS 全链路（语音进 → 语音出）。
- */
-export class S2SAdapter {
-  private ws: WebSocket | null = null;
-  private ready = false;
-  private sessionStarted = false;
-  private readonly config: S2SConfig;
-  private cb: S2SCallbacks;
-  private readonly sessionId: string;
-
-  constructor(config: S2SConfig = {}, cb: S2SCallbacks = {}) {
-    this.config = {
-      botName: '豆包',
-      model: 'O', // 官方枚举：O（默认）/ SC
-      speaker: 'zh_female_vv_jupiter_bigtts',
-      ttsFormat: 'pcm_s16le',
-      // 静音窗口 1500→800ms：官方合法范围 [500,50000]，调小可立即减少"说完→回复"的感知延迟约 700ms，
-      // 且 800ms 仍高于 500ms 下限，足以避免正常说话中途停顿被误判为句末。
-      endSmoothWindowMs: 800,
-      ...config,
-    };
-    this.cb = cb;
-    this.sessionId = uuid32();
-  }
-
-  get isConnected(): boolean {
-    return !!this.ws && this.ready;
-  }
-
-  get hasSession(): boolean {
-    return this.sessionStarted;
-  }
-
-  /** 动态设置/更换事件回调（hook 在启用时绑定） */
-  setCallbacks(cb: S2SCallbacks): void {
-    this.cb = cb;
-  }
-
-  /** 建立与后端 /ws/s2s 的连接
-   *  - 开发环境：默认 `wss://${location.host}/ws/s2s`，由 Vite 代理到 FastAPI:8787
-   *  - 生产环境：Vercel 无法代理 WebSocket，需通过 VITE_S2S_WS_URL 直连 Railway 后端
-   */
-  connect(): Promise<void> {
-    if (this.ws) return Promise.resolve();
-    return new Promise((resolve, reject) => {
-      const proto = location.protocol === 'https:' ? 'wss' : 'ws';
-      const configured = (import.meta.env.VITE_S2S_WS_URL as string | undefined)?.trim();
-      const url =
-        configured && configured.length > 0
-          ? configured
-          : `${proto}://${location.host}/ws/s2s`;
-      const ws = new WebSocket(url);
-      this.ws = ws;
-      ws.binaryType = 'arraybuffer';
-
-      ws.onmessage = (ev: MessageEvent) => {
-        if (typeof ev.data === 'string') {
-          let msg: { type?: string; s2s?: boolean; code?: string; message?: string };
-          try {
-            msg = JSON.parse(ev.data as string);
-          } catch {
-            return;
-          }
-          if (msg.type === 'ready') {
-            if (msg.s2s) {
-              this.ready = true;
-              this.sendStartConnection();
-              resolve();
-            } else {
-              this.fail(new Error(msg.message || '后端 S2S 未就绪'), msg.code, resolve, reject);
-            }
-          } else if (msg.type === 'error') {
-            this.fail(new Error(msg.message || 'S2S 错误'), msg.code, resolve, reject);
-          }
-          return;
-        }
-        this.handleBinaryFrame(ev.data as ArrayBuffer);
-      };
-
-      ws.onerror = () => {
-        this.fail(new Error('WebSocket 连接失败（后端未启动？运行 npm run api:dev）'), 'WS_ERROR', resolve, reject);
-      };
-      ws.onclose = () => {
-        this.ready = false;
-        this.sessionStarted = false;
-        this.ws = null;
-      };
-    });
-  }
-
-  private fail(err: Error, code: string | undefined, resolve: () => void, reject: (e: Error) => void): void {
-    this.cb.onError?.(code || 'S2S_ERROR', err.message);
-    reject(err);
-  }
-
-  private sendRaw(data: Uint8Array): void {
-    if (this.ws && this.ws.readyState === WebSocket.OPEN) {
-      this.ws.send(data);
-    }
-  }
-
-  /** 事件帧：header + event + [sessionIdSize+sessionId] + payloadSize + payload */
-  private buildEventFrame(eventId: number, withSessionId: boolean, payload: Uint8Array): Uint8Array {
-    const parts: Uint8Array[] = [
-      new Uint8Array([0x11, 0x14, 0x10, 0x00]), // Full-client request + event + JSON
-      int32BE(eventId),
-    ];
-    if (withSessionId) {
-      const sid = new TextEncoder().encode(this.sessionId);
-      parts.push(int32BE(sid.length), sid);
-    }
-    parts.push(int32BE(payload.length), payload);
-    return concatBytes(parts);
-  }
-
-  /** StartConnection（事件 1）：声明创建连接 */
-  private sendStartConnection(): void {
-    const payload = new TextEncoder().encode('{}');
-    this.sendRaw(this.buildEventFrame(1, false, payload));
-  }
-
-  /** StartSession（事件 100）：初始化会话，配置 ASR/TTS/dialog */
-  startSession(): Promise<void> {
-    if (!this.isConnected) return Promise.reject(new Error('S2S 未连接'));
-    if (this.sessionStarted) return Promise.resolve();
-    const c = this.config;
-    const payloadObj: Record<string, unknown> = {
-      asr: {
-        extra: { end_smooth_window_ms: c.endSmoothWindowMs, enable_custom_vad: false },
-      },
-      tts: {
-        audio_config: { channel: 1, format: c.ttsFormat, sample_rate: 24000 },
-        speaker: c.speaker,
-        extra: {},
-      },
-      dialog: {
-        bot_name: c.botName,
-        system_role: c.systemRole || '',
-        speaking_style: c.speakingStyle || '',
-        extra: { model: c.model },
-      },
-    };
-    const payload = new TextEncoder().encode(JSON.stringify(payloadObj));
-    this.sendRaw(this.buildEventFrame(100, true, payload));
-    this.sessionStarted = true;
-    return Promise.resolve();
-  }
-
-  /**
-   * 上传音频（TaskRequest 200 / Audio-only request）：
-   * PCM16LE 单声道 16k 字节。
-   * 官方协议：Audio-only request(0b0010) + event flag(0b0100) + 事件200(TaskRequest) + sessionId + Raw payload。
-   * 若不携带 event 与 sessionId，服务端会将其当作 JSON 解析而报 "unexpected end of JSON input"。
-   */
-  sendAudio(pcm16Bytes: Uint8Array): void {
-    if (!this.isConnected || !this.sessionStarted) return;
-    const sid = new TextEncoder().encode(this.sessionId);
-    this.sendRaw(
-      concatBytes([
-        new Uint8Array([0x11, 0x24, 0x00, 0x00]), // Audio-only + event flag + Raw(无压缩)
-        int32BE(200), // TaskRequest
-        int32BE(sid.length),
-        sid,
-        int32BE(pcm16Bytes.length),
-        pcm16Bytes,
-      ])
-    );
-  }
-
-  /** FinishSession（事件 102）：结束当前会话，连接可复用 */
-  finishSession(): void {
-    if (!this.isConnected || !this.sessionStarted) return;
-    const payload = new TextEncoder().encode('{}');
-    this.sendRaw(this.buildEventFrame(102, true, payload));
-    this.sessionStarted = false;
-  }
-
-  /** 断开连接 */
-  disconnect(): void {
-    if (this.ws) {
-      try {
-        this.ws.close();
-      } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1780', (e as any)?.message ?? e); }
-      this.ws = null;
-    }
-    this.ready = false;
-    this.sessionStarted = false;
-  }
-
-  /** 解析服务端二进制帧并分发事件 */
-  private handleBinaryFrame(buffer: ArrayBuffer): void {
-    try {
-      const bytes = new Uint8Array(buffer);
-      if (bytes.length < 8) return;
-      const b1 = bytes[1];
-      const messageType = b1 >> 4;
-      const flags = b1 & 0x0f;
-      const serialization = bytes[2] >> 4;
-
-      let offset = 4;
-      const readInt32 = (): number => new DataView(bytes.buffer, bytes.byteOffset, bytes.byteLength).getInt32(offset, false);
-
-      // code（仅错误帧 0b1111）
-      if (messageType === 0b1111) {
-        offset += 4;
-      }
-      // sequence（flags 含 0b00xx）
-      if (flags & 0b0011) {
-        offset += 4;
-      }
-      // event（flags 含 0b0100）
-      let eventId = -1;
-      if (flags & 0b0100) {
-        eventId = readInt32();
-        offset += 4;
-      }
-      // 连接/会话 id：size + id
-      if (offset + 4 <= bytes.length && (messageType === 0b1001 || messageType === 0b1011 || messageType === 0b1111)) {
-        const idSize = readInt32();
-        offset += 4;
-        if (idSize > 0 && offset + idSize <= bytes.length) offset += idSize;
-      }
-      // payload
-      if (offset + 4 > bytes.length) return;
-      const payloadSize = readInt32();
-      offset += 4;
-      const payload = bytes.subarray(offset, offset + payloadSize);
-
-      this.dispatchEvent(eventId, serialization, payload);
-    } catch {
-      /* 解析失败则忽略该帧 */
-    }
-  }
-
-  private dispatchEvent(eventId: number, serialization: number, payload: Uint8Array): void {
-    switch (eventId) {
-      case 50: // ConnectionStarted
-        break;
-      case 150: {
-        // SessionStarted → dialog_id
-        const text = new TextDecoder().decode(payload);
-        try {
-          this.cb.onSessionStarted?.(JSON.parse(text).dialog_id || '');
-        } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1843', (e as any)?.message ?? e); }
-        break;
-      }
-      case 451: {
-        // ASRResponse：识别文本
-        const text = new TextDecoder().decode(payload);
-        try {
-          const obj = JSON.parse(text) as { results?: Array<{ text: string; is_interim: boolean }> };
-          const r = obj.results?.[0];
-          if (r) this.cb.onASRResponse?.(r.text, r.is_interim);
-        } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1855', (e as any)?.message ?? e); }
-        break;
-      }
-      case 459:
-        this.cb.onASREnded?.();
-        break;
-      case 550: {
-        // ChatResponse：模型文本回复
-        const text = new TextDecoder().decode(payload);
-        try {
-          const obj = JSON.parse(text) as { content?: string };
-          if (obj.content) this.cb.onChatResponse?.(obj.content);
-        } catch (e) { console.warn('[EmptyCatch] voice/adapters.ts:1869', (e as any)?.message ?? e); }
-        break;
-      }
-      case 352:
-        // TTSResponse：音频数据（Raw payload）
-        if (serialization === 0b0000) {
-          this.cb.onTTSAudio?.(payload.slice().buffer as ArrayBuffer);
-        }
-        break;
-      case 359:
-        this.cb.onTTSEnded?.();
-        break;
-      case 599: {
-        const text = new TextDecoder().decode(payload);
-        this.cb.onError?.('S2S_DIALOG_ERROR', text);
-        break;
-      }
-      default:
-        break;
-    }
-  }
-}
-
-/** 创建 S2S 适配器（实时对话模式使用） */
-export function createS2SAdapter(config?: S2SConfig, cb?: S2SCallbacks): S2SAdapter {
-  return new S2SAdapter(config, cb);
-}

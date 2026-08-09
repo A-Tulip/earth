@@ -9,6 +9,7 @@
 import * as Cesium from 'cesium';
 import { ToolCall, ToolResult, ToolName, validateToolCall } from './schema';
 import { useGeographyStore } from '../state/store';
+import { apiUrl } from '../state/apiBase';
 import { CesiumController } from '../cesium/controller';
 import { LessonRuntime } from '../lessons/runtime';
 import {
@@ -228,7 +229,7 @@ export function registerCommandHandlers() {
     const carto = Cesium.Cartographic.fromCartesian(cam.position);
     const height = Math.max(500, carto.height);
     // angle 语义：0 表示纯俯视（pitch = -90°），45 表示 45° 斜俯视（pitch = -45°）
-    const rawAngle: unknown = (call.args as any).angle;
+    const rawAngle: unknown = (call.args as Record<string, unknown>).angle;
     const angle0 = typeof rawAngle === 'number' ? rawAngle : 0;
     const angle = Math.max(0, Math.min(90, isFinite(angle0) ? angle0 : 0));
     const pitch = Cesium.Math.toRadians(angle - 90); // angle=0 → pitch=-90°, angle=45 → pitch=-45°
@@ -629,9 +630,9 @@ export function registerCommandHandlers() {
             if (cur.finished) return;
             if (!runtime) return;
             void runtime.nextStep().catch(() => null);
-          } catch (e) { console.warn('[EmptyCatch] commands/bus.ts:632', (e as any)?.message ?? e); }
+          } catch (e) { console.warn('[EmptyCatch] commands/bus.ts:632', e instanceof Error ? e.message : String(e)); }
         }, 1500);
-      } catch (e) { console.warn('[EmptyCatch] commands/bus.ts:634', (e as any)?.message ?? e); }
+      } catch (e) { console.warn('[EmptyCatch] commands/bus.ts:634', e instanceof Error ? e.message : String(e)); }
     }
 
     return { ok: true, data: { correct, explanation }, message: correct ? '回答正确!' : '回答错误' };
@@ -674,6 +675,13 @@ export function registerCommandHandlers() {
     const runtime = commandBus.getContext().lesson;
     if (!runtime) {
       return { ok: false, error: '课程运行时未初始化', code: 'TOOL_NOT_AVAILABLE' };
+    }
+    // ✅ 切换课程前先清理上一门课：复位残留图层/地形材质/区域标注/镜头，避免切入新课残留。
+    //    resetCamera:false → 由新课直接接管镜头，避免"先回中国再飞过去"的错位。
+    //    await 清理 → 与新课 applySceneConfig 的图层操作串行，杜绝竞态。
+    const store = useGeographyStore.getState();
+    if (store.lesson.activeLessonId && store.lesson.activeLessonId !== lessonId) {
+      await runtime.close({ resetCamera: false });
     }
     await runtime.load(lessonId);
     await runtime.start();
@@ -724,7 +732,7 @@ export function registerCommandHandlers() {
     const runtime = commandBus.getContext().lesson;
     if (!runtime) return { ok: false, error: '无活动课程', code: 'EXECUTION_FAILED' };
     try {
-      runtime.close();
+      await runtime.close();
       return { ok: true, message: '已退出课程' };
     } catch (e) {
       return { ok: false, error: (e as Error).message, code: 'EXECUTION_FAILED' };
@@ -1130,7 +1138,7 @@ export function registerCommandHandlers() {
       const timeoutId = window.setTimeout(() => controller.abort(), 15_000);
       let resp: Response;
       try {
-        resp = await fetch('/api/charts/generate', {
+        resp = await fetch(apiUrl('/api/charts/generate'), {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(args),

@@ -21,6 +21,77 @@ import {
 } from '../src/voice/adapters';
 import { validateToolCall } from '../src/commands/schema';
 import { isEditable } from '../src/voice/PushToTalk';
+import { shouldBargeIn, executeToolCalls } from '../src/voice/RealtimeVoiceChat';
+
+describe('实时对话核心链路', () => {
+  const THRESHOLD = 0.012;
+
+  describe('barge-in 打断 TTS', () => {
+    it('speaking + 检测到语音 → 打断', () => {
+      expect(shouldBargeIn('speaking', 0.03, THRESHOLD)).toBe(true);
+    });
+
+    it('speaking + 静音 → 不打断', () => {
+      expect(shouldBargeIn('speaking', 0.005, THRESHOLD)).toBe(false);
+    });
+
+    it('idle + 检测到语音 → 不打断（仅 speaking 才打断）', () => {
+      expect(shouldBargeIn('idle', 0.03, THRESHOLD)).toBe(false);
+    });
+
+    it('listening/processing → 不打断', () => {
+      expect(shouldBargeIn('listening', 0.03, THRESHOLD)).toBe(false);
+      expect(shouldBargeIn('processing', 0.03, THRESHOLD)).toBe(false);
+    });
+
+    it('边界：rms 恰好等于阈值 → 不打断', () => {
+      expect(shouldBargeIn('speaking', THRESHOLD, THRESHOLD)).toBe(false);
+    });
+  });
+
+  describe('tool-call 操控界面', () => {
+    it('顺序执行所有工具调用', async () => {
+      const executed: string[] = [];
+      const execute = vi.fn(async (cmd: { name: string }) => {
+        executed.push(cmd.name);
+      });
+      await executeToolCalls(
+        [
+          { name: 'layer.showContour', args: {} },
+          { name: 'camera.flyTo', args: { longitude: 116.4, latitude: 39.9 } },
+        ],
+        execute,
+      );
+      expect(executed).toEqual(['layer.showContour', 'camera.flyTo']);
+      expect(execute).toHaveBeenCalledTimes(2);
+    });
+
+    it('单个工具失败不中断后续工具', async () => {
+      const executed: string[] = [];
+      const execute = vi.fn(async (cmd: { name: string }) => {
+        if (cmd.name === 'camera.flyTo') throw new Error('execute failed');
+        executed.push(cmd.name);
+      });
+      await expect(
+        executeToolCalls(
+          [
+            { name: 'camera.flyTo', args: {} },
+            { name: 'layer.showContour', args: {} },
+          ],
+          execute,
+        ),
+      ).resolves.toBeUndefined();
+      expect(executed).toEqual(['layer.showContour']);
+    });
+
+    it('空数组 / undefined 不执行任何调用', async () => {
+      const execute = vi.fn();
+      await executeToolCalls(undefined, execute);
+      await executeToolCalls([], execute);
+      expect(execute).not.toHaveBeenCalled();
+    });
+  });
+});
 
 describe('KeywordIntentLLM 意图解析', () => {
   const llm = new KeywordIntentLLM();

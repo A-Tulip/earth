@@ -91,7 +91,7 @@ export function usePushToTalk({ asr, tts, llm, enabled = true, mode = 'toggle' }
     // ✅ ISSUE-3 根因修复：不要再检查 isRecordingRef.current！
     //   onKeyDown 在调用 startRecording() 前 **先把 isRecordingRef=true**，这是故意的（防止极短按键 Tap 时 onKeyUp 先触发但 isRecording=false 导致 stopRecording 空退出）。
     //   真正需要检查的是 ASR 是否已经在录音（asr.isListening()），而不是"我们想录"这个标记。
-    console.error('[PUSH2TALK_DEBUG] startRecording called, isListening=', asr.isListening(), 'muted=', store.getState().voice.muted);
+    console.debug('[PUSH2TALK_DEBUG] startRecording called, isListening=', asr.isListening(), 'muted=', store.getState().voice.muted);
     if (asr.isListening()) return;
 
     // Q3-5 静音状态：给明确提示，不要静默失败（用户常按了空格没反应）
@@ -268,7 +268,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
 
     const onKeyDown = (e: KeyboardEvent) => {
       if (!isSpaceKey(e)) return;
-      console.error('[PUSH2TALK_DEBUG] space keydown, repeat=', e.repeat, 'isRecordingRef=', isRecordingRef.current, 'muted=', store.getState().voice.muted, 'showAIChat=', store.getState().ui.showAIChat);
+      console.debug('[PUSH2TALK_DEBUG] space keydown, repeat=', e.repeat, 'isRecordingRef=', isRecordingRef.current, 'muted=', store.getState().voice.muted, 'showAIChat=', store.getState().ui.showAIChat);
       if (e.repeat) return; // 防重复（OS/浏览器长按产生重复 keydown）
 
       // 🔥 toggle 模式且正在录音：第二次空格 = 停止并提交，优先级最高。
@@ -343,7 +343,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
     const onBlur = () => {
       if (isRecordingRef.current) {
         isRecordingRef.current = false;
-        try { asr.abort(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:350', (e as any)?.message ?? e); }
+        try { asr.abort(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:350', e instanceof Error ? e.message : String(e)); }
         store.getState().setVoice({ listening: false, asrStreaming: false });
       }
     };
@@ -352,7 +352,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
     const onVisibilityChange = () => {
       if (document.hidden && isRecordingRef.current) {
         isRecordingRef.current = false;
-        try { asr.abort(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:359', (e as any)?.message ?? e); }
+        try { asr.abort(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:359', e instanceof Error ? e.message : String(e)); }
         store.getState().setVoice({ listening: false, asrStreaming: false });
       }
     };
@@ -400,7 +400,7 @@ ${historyRef.current.length ? `\n【已进行 ${Math.floor(historyRef.current.le
 
   /** 打断当前旁白 */
   const interrupt = useCallback(() => {
-    try { tts.stop(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:407', (e as any)?.message ?? e); }
+    try { tts.stop(); } catch (e) { console.warn('[EmptyCatch] voice/PushToTalk.ts:407', e instanceof Error ? e.message : String(e)); }
     store.getState().setVoice({ speaking: false });
   }, [tts, store]);
 

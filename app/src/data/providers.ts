@@ -13,6 +13,53 @@
  */
 
 import { apiCache, TTL_10M, TTL_1H, TTL_24H } from '../state/CachedFetcher';
+import { apiUrl } from '../state/apiBase';
+
+// ============ 外部 API 响应类型（unknown/类型守卫，避免禁用的 any） ============
+
+/** Open-Meteo 当前天气 */
+interface OpenMeteoCurrent {
+  current?: {
+    temperature_2m?: number;
+    weather_code?: number;
+    wind_speed_10m?: number;
+    relative_humidity_2m?: number;
+    pressure_msl?: number;
+  };
+}
+
+/** Open-Meteo 年/月气候归档 */
+interface OpenMeteoArchive {
+  monthly?: {
+    temperature_2m_mean?: number[];
+    precipitation_sum?: number[];
+  };
+}
+
+/** USGS 地震 GeoJSON Feed */
+interface UsgsFeed {
+  features?: {
+    id: string;
+    geometry: { coordinates: number[] };
+    properties: { mag: number; place: string; time: number };
+  }[];
+}
+
+/** NASA EONET 事件 */
+interface EonetFeed {
+  events?: {
+    id: string;
+    title: string;
+    categories?: { title: string }[];
+    geometry?: { coordinates: number[]; date?: string }[];
+  }[];
+}
+
+/** Nominatim 逆地理编码 */
+interface NominatimReverse {
+  address?: Record<string, string>;
+  display_name?: string;
+}
 
 // ============ 数据源标识 ============
 
@@ -126,7 +173,7 @@ export async function fetchWeather(city: CityData): Promise<WeatherData> {
 export async function fetchWeatherByCoord(lon: number, lat: number, displayName = ''): Promise<WeatherData> {
   try {
     const url = `https://api.open-meteo.com/v1/forecast?latitude=${lat}&longitude=${lon}&current=temperature_2m,weather_code,wind_speed_10m,relative_humidity_2m,pressure_msl&timezone=auto`;
-    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_10M });
+    const data = await apiCache.fetch<OpenMeteoCurrent>(url, { customTtlMs: TTL_10M });
     const temp = Math.round(data.current?.temperature_2m ?? 25);
     const code = data.current?.weather_code ?? 0;
     const result: WeatherData = {
@@ -187,8 +234,8 @@ export async function fetchEarthquakes(minMagnitude = 4.5): Promise<EarthquakeDa
   try {
     const url = `https://earthquake.usgs.gov/earthquakes/feed/v1.0/summary/${minMagnitude}_month.geojson`;
     // 使用缓存：地震数据 1 小时 TTL
-    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_1H });
-    return (data.features ?? []).map((f: any) => ({
+    const data = await apiCache.fetch<UsgsFeed>(url, { customTtlMs: TTL_1H });
+    return (data.features ?? []).map((f) => ({
       id: f.id,
       lon: f.geometry.coordinates[0],
       lat: f.geometry.coordinates[1],
@@ -218,10 +265,10 @@ export async function fetchNaturalEvents(): Promise<NaturalEventData[]> {
   try {
     const url = 'https://eonet.gsfc.nasa.gov/api/v3/events?status=open&limit=50';
     // 使用缓存：自然事件 1 小时 TTL
-    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_1H });
-    return (data.events ?? []).flatMap((e: any) => {
+    const data = await apiCache.fetch<EonetFeed>(url, { customTtlMs: TTL_1H });
+    return (data.events ?? []).flatMap((e) => {
       const geometries = e.geometry ?? [];
-      return geometries.map((g: any) => ({
+      return geometries.map((g) => ({
         id: e.id,
         title: e.title,
         category: e.categories?.[0]?.title ?? '未知',
@@ -327,7 +374,7 @@ export async function fetchTemperature(city: CityData): Promise<TemperatureData>
   try {
     const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&monthly=temperature_2m_mean`;
     // 使用缓存：历史气温 24 小时 TTL（2023 年数据不变）
-    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_24H });
+    const data = await apiCache.fetch<OpenMeteoArchive>(url, { customTtlMs: TTL_24H });
     const monthly: number[] = data.monthly?.temperature_2m_mean ?? [];
     const valid = monthly.filter((v: number) => v != null && !isNaN(v));
     const avg = valid.length > 0 ? valid.reduce((a: number, b: number) => a + b, 0) / valid.length : 15;
@@ -355,7 +402,7 @@ export async function fetchPrecipitation(city: CityData): Promise<PrecipitationD
   try {
     const url = `https://archive-api.open-meteo.com/v1/archive?latitude=${city.lat}&longitude=${city.lon}&start_date=2023-01-01&end_date=2023-12-31&monthly=precipitation_sum`;
     // 使用缓存：历史降水 24 小时 TTL（2023 年数据不变）
-    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_24H });
+    const data = await apiCache.fetch<OpenMeteoArchive>(url, { customTtlMs: TTL_24H });
     const monthly: number[] = data.monthly?.precipitation_sum ?? [];
     const total = monthly.filter((v: number) => v != null && !isNaN(v)).reduce((a: number, b: number) => a + b, 0);
     return {
@@ -718,7 +765,7 @@ export interface ReverseGeocodeResult {
 export async function reverseGeocode(lon: number, lat: number): Promise<ReverseGeocodeResult> {
   // ---- Layer 1: FastAPI 同源代理（优先：带缓存 + 不限流 + 中文友好）----
   try {
-    const url = `/api/geocoding/reverse?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&lang=zh-CN&zoom=14`;
+    const url = `${apiUrl('/api/geocoding/reverse')}?lat=${encodeURIComponent(String(lat))}&lon=${encodeURIComponent(String(lon))}&lang=zh-CN&zoom=14`;
     const resp = await fetch(url, { method: 'GET', signal: AbortSignal.timeout(4000) });
     if (resp.ok) {
       const data = await resp.json();
@@ -760,7 +807,7 @@ export async function reverseGeocode(lon: number, lat: number): Promise<ReverseG
       accept_language: 'zh-CN,en;q=0.5',
     });
     const url = `https://nominatim.openstreetmap.org/reverse?${params.toString()}`;
-    const data = await apiCache.fetch<any>(url, { customTtlMs: TTL_24H });
+    const data = await apiCache.fetch<NominatimReverse>(url, { customTtlMs: TTL_24H });
     const addr: Record<string, string> = data?.address ?? {};
     const displayName: string = data?.display_name ?? '';
 

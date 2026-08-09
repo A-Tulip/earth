@@ -7,6 +7,7 @@ interface ImportMetaEnv {
   readonly VITE_LLM_PROVIDER?: string;
   readonly VITE_AMAP_KEY?: string;
   readonly VITE_TIANDITU_TOKEN?: string;
+  readonly VITE_API_BASE_URL?: string;
 }
 
 interface ImportMeta {

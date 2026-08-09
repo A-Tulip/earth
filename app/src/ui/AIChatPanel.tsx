@@ -365,7 +365,7 @@ export function AIChatPanel() {
           t.style.height = 'auto';
           t.style.height = `${Math.min(t.scrollHeight, 140)}px`;
           const L = t.value.length;
-          try { t.setSelectionRange(L, L); } catch (e) { console.warn('[EmptyCatch] ui/AIChatPanel.tsx:368', (e as any)?.message ?? e); }
+          try { t.setSelectionRange(L, L); } catch (e) { console.warn('[EmptyCatch] ui/AIChatPanel.tsx:368', e instanceof Error ? e.message : String(e)); }
         });
       }
       return;
