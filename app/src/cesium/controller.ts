@@ -746,13 +746,45 @@ export class CesiumController {
   async showElevationRamp(): Promise<void> {
     if (!this.viewer?.scene?.globe) return;
     await this.applyGlobeMaterial('globeMaterial', () => {
-      const globe = this.viewer.scene.globe;
-      globe.material = Cesium.Material.fromType('ElevationRamp', {
-        image: this.createElevationRampImage(),
-        minimumHeight: -10000,
-        maximumHeight: 9000,
+      // 高程分层设色：使用 createElevationBandMaterial（Cesium 官方推荐的现代 API）
+      // 支持多高度颜色带，在有真实地形数据时显示精细分层效果
+      // 教学标准：深海蓝→平原绿→丘陵黄→山地棕→极高山白
+      this.viewer.scene.globe.material = Cesium.createElevationBandMaterial({
+        scene: this.viewer.scene,
+        layers: [{
+          entries: [
+            { height: -8000, color: Cesium.Color.fromCssColorString('#003f80') },   // 深海
+            { height: -200, color: Cesium.Color.fromCssColorString('#3a7ea5') },    // 海床
+            { height: 0, color: Cesium.Color.fromCssColorString('#8ecae6') },       // 海岸线
+            { height: 200, color: Cesium.Color.fromCssColorString('#74c69d') },     // 平原
+            { height: 500, color: Cesium.Color.fromCssColorString('#b7e4c7') },     // 低地
+            { height: 1000, color: Cesium.Color.fromCssColorString('#f9e79f') },    // 丘陵
+            { height: 2000, color: Cesium.Color.fromCssColorString('#f5c26b') },    // 低山
+            { height: 3000, color: Cesium.Color.fromCssColorString('#c97c3c') },    // 高原
+            { height: 4500, color: Cesium.Color.fromCssColorString('#7f5539') },    // 山地
+            { height: 9000, color: Cesium.Color.fromCssColorString('#ffffff') },    // 极高山
+          ],
+          extendDownwards: true,
+          extendUpwards: true,
+        }],
       });
+      // 降低主底图透明度，让分层设色效果更清晰可见
+      try {
+        const layers = this.viewer.scene.imageryLayers;
+        for (let i = 0; i < layers.length; i++) {
+          const lyr = layers.get(i);
+          const lLabel = (lyr as unknown as { _label?: string })._label;
+          if (lLabel === '__fallbackOceanNoise__') continue;
+          const credit = (lyr as unknown as { _credit?: unknown })._credit ?? '';
+          const s = String(credit);
+          if (!s.includes('注记') && !s.includes('标注') && !/cva|style=8/.test(s)) {
+            lyr.alpha = 0.40;
+            break;
+          }
+        }
+      } catch (e) { console.warn('[EmptyCatch] cesium/controller.ts', (e as any)?.message ?? e); }
     });
+    this.viewer.scene.requestRender();
   }
 
   async showSlope(): Promise<void> {
@@ -1570,24 +1602,6 @@ export class CesiumController {
   }
 
   // ============ 私有：创建色带 ============
-
-  private createElevationRampImage(): HTMLCanvasElement {
-    const canvas = document.createElement('canvas');
-    canvas.width = 1;
-    canvas.height = 256;
-    const ctx = canvas.getContext('2d')!;
-    // 海拔色带：蓝(海) -> 绿(低) -> 黄 -> 棕 -> 白(高)
-    const gradient = ctx.createLinearGradient(0, 256, 0, 0);
-    gradient.addColorStop(0.0, '#0066cc');
-    gradient.addColorStop(0.3, '#4daf4a');
-    gradient.addColorStop(0.5, '#a6d96a');
-    gradient.addColorStop(0.65, '#ffffcc');
-    gradient.addColorStop(0.8, '#d73027');
-    gradient.addColorStop(1.0, '#ffffff');
-    ctx.fillStyle = gradient;
-    ctx.fillRect(0, 0, 1, 256);
-    return canvas;
-  }
 
   /** 灰度浮雕（relief）色带：深海深蓝→浅海灰白→平原灰→丘陵深灰→山脉近黑，形成"晕渲浮雕"感 */
   private createReliefRampImage(): HTMLCanvasElement {
