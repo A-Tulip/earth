@@ -1206,8 +1206,23 @@ export class StreamingASR implements ASRAdapter {
   /** 单次 WebSocket 握手尝试（打开→ready/fail） */
   private connectHandshake(): Promise<void> {
     return new Promise<void>((resolve, reject) => {
+      // 生产：Vercel 只重写 /api/*，不代理 /ws/*（`/(.*)→/index.html` 会吞掉 WS 握手）。
+      //   S2S 已通过 VITE_S2S_WS_URL 直连 Railway 后端，这里从同一 origin 推导 /ws/asr，
+      //   让空格 PushToTalk 的流式 ASR 也走同一后端。
+      // 开发：无 VITE_S2S_WS_URL 时回退同源，由 Vite 代理到 FastAPI:8787。
+      const s2sConfig = (import.meta.env.VITE_S2S_WS_URL as string | undefined)?.trim();
       const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
-      const wsUrl = `${proto}//${window.location.host}/ws/asr`;
+      let wsUrl: string;
+      if (s2sConfig && s2sConfig.length > 0) {
+        try {
+          const u = new URL(s2sConfig);
+          wsUrl = `${u.protocol}//${u.host}/ws/asr`;
+        } catch {
+          wsUrl = `${proto}//${window.location.host}/ws/asr`;
+        }
+      } else {
+        wsUrl = `${proto}//${window.location.host}/ws/asr`;
+      }
       const ws = new WebSocket(wsUrl);
       ws.binaryType = 'arraybuffer';
       this.ws = ws;
