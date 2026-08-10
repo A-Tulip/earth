@@ -244,6 +244,12 @@ export class RealtimeS2SChat {
   async start(): Promise<void> {
     if (this.ws && this.ws.readyState === WebSocket.OPEN) return;
     this.setStateRef('connecting', 'connecting');
+
+    // 🔥 生产 autoplay 修复：在用户点击开启（仍处于用户手势上下文）时立即创建并 resume
+    // AudioContext。否则 TTS 音频帧异步到达时才创建 playbackCtx，浏览器会判定其处于
+    // 手势之外，resume() 被拒绝 → ctx 保持 suspended → 音频排入队列但不出声（表现=无回复）。
+    this.ensurePlaybackCtx();
+
     // 生产：从 VITE_S2S_WS_URL 的 origin 推导同源 /ws/s2s，直连 Railway 后端
     const s2sConfig = (import.meta.env.VITE_S2S_WS_URL as string | undefined)?.trim();
     const proto = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
@@ -592,16 +598,25 @@ export class RealtimeS2SChat {
     }
   }
 
-  /** 播放 PCM 24k s16le 流（分片排程，支持打断） */
-  private playPcm(arrayBuffer: ArrayBuffer): void {
+  /**
+   * 预热/获取 TTS 播放 AudioContext。
+   * 必须在用户手势上下文内调用（start() 时），确保后续异步音频能正常播放。
+   */
+  private ensurePlaybackCtx(): AudioContext {
     if (!this.playbackCtx) {
-      this.playbackCtx = new AudioContext();
+      this.playbackCtx = new (window.AudioContext ||
+        (window as unknown as { webkitAudioContext: typeof AudioContext }).webkitAudioContext)();
       this.nextPlayTime = 0;
     }
-    const ctx = this.playbackCtx;
-    if (ctx.state === 'suspended') {
-      void ctx.resume().catch(() => undefined);
+    if (this.playbackCtx.state === 'suspended') {
+      void this.playbackCtx.resume().catch(() => undefined);
     }
+    return this.playbackCtx;
+  }
+
+  /** 播放 PCM 24k s16le 流（分片排程，支持打断） */
+  private playPcm(arrayBuffer: ArrayBuffer): void {
+    const ctx = this.ensurePlaybackCtx();
     const audioSR = 24000;
     const outSR = ctx.sampleRate;
     if (!this.playbackResampler) {

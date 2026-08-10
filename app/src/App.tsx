@@ -144,7 +144,7 @@ export default function App() {
   // 全双工 S2S（端到端实时语音，优先）。enabled 由 realtimeChatActive 驱动，停止/卸载时自动清理。
   const s2s = useRealtimeS2SChat({
     enabled: realtimeChatActive,
-    endSmoothWindowMs: 1500,
+    endSmoothWindowMs: 800,
   });
 
   // Push-to-Talk（实时对话模式启用时禁用）
