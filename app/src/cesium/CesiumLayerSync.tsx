@@ -26,8 +26,8 @@ import {
   getOceanCurrents,
   getMonsoonWinds,
   getAdminBounds,
-  getGdp,
-  getPopulation,
+  fetchGdp,
+  fetchPopulation,
   fetchTemperature,
   fetchPrecipitation,
 } from '../data/providers';
@@ -844,90 +844,98 @@ export function CesiumLayerSync() {
       { fireImmediately: true },
     );
 
-    // ============ GDP 数据图层 ============
+    // ============ GDP 数据图层（异步，World Bank API） ============
+    let gdpCancelled = false;
     const unsubGdp = useGeographyStore.subscribe(
       (s) => s.data.gdp,
-      (visible) => {
-        if (visible) {
-          ensureLayer('gdp', (viewer) =>
-            getGdp().map((g) => {
-              // 气泡大小按 GDP 映射
-              const size = Math.max(10, Math.min(30, g.gdp * 1.5));
-              // 颜色按人均 GDP 映射
-              const color = g.gdpPerCapita >= 4
-                ? Cesium.Color.fromBytes(34, 197, 94, 220)
-                : g.gdpPerCapita >= 1.5
-                  ? Cesium.Color.fromBytes(251, 191, 36, 220)
-                  : Cesium.Color.fromBytes(239, 68, 68, 220);
-              return viewer.entities.add({
-                id: `gdp-${g.iso3}`,
-                position: Cesium.Cartesian3.fromDegrees(getCountryCenter(g.iso3).lon, getCountryCenter(g.iso3).lat),
-                ellipse: {
-                  semiMajorAxis: size * 50000,
-                  semiMinorAxis: size * 50000,
-                  material: color,
-                  outline: true,
-                  outlineColor: Cesium.Color.WHITE,
-                },
-                label: {
-                  text: `${g.country}\n${g.gdp}万亿$`,
-                  font: '11px Noto Sans SC',
-                  fillColor: Cesium.Color.WHITE,
-                  outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-                  outlineWidth: 2,
-                  style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                  pixelOffset: new Cesium.Cartesian2(0, -size - 4),
-                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                },
-              });
-            }),
-          );
-        } else {
+      async (visible) => {
+        if (!visible) {
           clearLayer('gdp');
+          return;
         }
+        if (entities['gdp'] && entities['gdp'].length > 0) return;
+        await ensureLayerAsync('gdp', async (viewer) => {
+          const results = await fetchGdp();
+          if (gdpCancelled || !useGeographyStore.getState().data.gdp) return null;
+          return results.map((g) => {
+            // 气泡大小按 GDP 映射
+            const size = Math.max(10, Math.min(30, g.gdp * 1.5));
+            // 颜色按人均 GDP 映射
+            const color = g.gdpPerCapita >= 4
+              ? Cesium.Color.fromBytes(34, 197, 94, 220)
+              : g.gdpPerCapita >= 1.5
+                ? Cesium.Color.fromBytes(251, 191, 36, 220)
+                : Cesium.Color.fromBytes(239, 68, 68, 220);
+            return viewer.entities.add({
+              id: `gdp-${g.iso3}`,
+              position: Cesium.Cartesian3.fromDegrees(getCountryCenter(g.iso3).lon, getCountryCenter(g.iso3).lat),
+              ellipse: {
+                semiMajorAxis: size * 50000,
+                semiMinorAxis: size * 50000,
+                material: color,
+                outline: true,
+                outlineColor: Cesium.Color.WHITE,
+              },
+              label: {
+                text: `${g.country}\n${g.gdp}万亿$`,
+                font: '11px Noto Sans SC',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -size - 4),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+            });
+          });
+        });
       },
       { fireImmediately: true },
     );
 
-    // ============ 人口数据图层 ============
+    // ============ 人口数据图层（异步，World Bank API） ============
+    let populationCancelled = false;
     const unsubPopulation = useGeographyStore.subscribe(
       (s) => s.data.population,
-      (visible) => {
-        if (visible) {
-          ensureLayer('population', (viewer) =>
-            getPopulation().map((p) => {
-              const size = Math.max(8, Math.min(28, p.population * 2));
-              const color = p.density >= 300
-                ? Cesium.Color.fromBytes(239, 68, 68, 220)
-                : p.density >= 100
-                  ? Cesium.Color.fromBytes(251, 146, 60, 220)
-                  : Cesium.Color.fromBytes(96, 165, 250, 220);
-              return viewer.entities.add({
-                id: `pop-${p.iso3}`,
-                position: Cesium.Cartesian3.fromDegrees(getCountryCenter(p.iso3).lon, getCountryCenter(p.iso3).lat),
-                ellipse: {
-                  semiMajorAxis: size * 60000,
-                  semiMinorAxis: size * 60000,
-                  material: color,
-                  outline: true,
-                  outlineColor: Cesium.Color.WHITE,
-                },
-                label: {
-                  text: `${p.country}\n${p.population}亿`,
-                  font: '11px Noto Sans SC',
-                  fillColor: Cesium.Color.WHITE,
-                  outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
-                  outlineWidth: 2,
-                  style: Cesium.LabelStyle.FILL_AND_OUTLINE,
-                  pixelOffset: new Cesium.Cartesian2(0, -size - 4),
-                  disableDepthTestDistance: Number.POSITIVE_INFINITY,
-                },
-              });
-            }),
-          );
-        } else {
+      async (visible) => {
+        if (!visible) {
           clearLayer('population');
+          return;
         }
+        if (entities['population'] && entities['population'].length > 0) return;
+        await ensureLayerAsync('population', async (viewer) => {
+          const results = await fetchPopulation();
+          if (populationCancelled || !useGeographyStore.getState().data.population) return null;
+          return results.map((p) => {
+            const size = Math.max(8, Math.min(28, p.population * 2));
+            const color = p.density >= 300
+              ? Cesium.Color.fromBytes(239, 68, 68, 220)
+              : p.density >= 100
+                ? Cesium.Color.fromBytes(251, 146, 60, 220)
+                : Cesium.Color.fromBytes(96, 165, 250, 220);
+            return viewer.entities.add({
+              id: `pop-${p.iso3}`,
+              position: Cesium.Cartesian3.fromDegrees(getCountryCenter(p.iso3).lon, getCountryCenter(p.iso3).lat),
+              ellipse: {
+                semiMajorAxis: size * 60000,
+                semiMinorAxis: size * 60000,
+                material: color,
+                outline: true,
+                outlineColor: Cesium.Color.WHITE,
+              },
+              label: {
+                text: `${p.country}\n${p.population}亿`,
+                font: '11px Noto Sans SC',
+                fillColor: Cesium.Color.WHITE,
+                outlineColor: Cesium.Color.fromBytes(10, 15, 26, 220),
+                outlineWidth: 2,
+                style: Cesium.LabelStyle.FILL_AND_OUTLINE,
+                pixelOffset: new Cesium.Cartesian2(0, -size - 4),
+                disableDepthTestDistance: Number.POSITIVE_INFINITY,
+              },
+            });
+          });
+        });
       },
       { fireImmediately: true },
     );
@@ -1116,6 +1124,8 @@ export function CesiumLayerSync() {
       weatherCancelled = true;
       earthquakeCancelled = true;
       naturalEventsCancelled = true;
+      gdpCancelled = true;
+      populationCancelled = true;
       temperatureCancelled = true;
       precipitationCancelled = true;
       // 卸载时清理所有实体

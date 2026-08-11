@@ -301,8 +301,8 @@ export const DATA_PROVIDERS: DataProviderInfo[] = [
   { id: 'natural-events', name: '自然事件', source: 'NASA EONET', license: 'Public Domain', requiresNetwork: true, hasFallback: true },
   { id: 'geocoding', name: '地名查询（经纬度→国家/城市）', source: 'Nominatim (OpenStreetMap)', license: 'ODbL 1.0', requiresNetwork: true, hasFallback: true },
   { id: 'cities', name: '城市数据', source: '预置', license: '内部', requiresNetwork: false, hasFallback: true },
-  { id: 'gdp', name: 'GDP 数据', source: 'World Bank / 预置', license: 'CC BY 4.0', requiresNetwork: false, hasFallback: true },
-  { id: 'population', name: '人口数据', source: '预置', license: '内部', requiresNetwork: false, hasFallback: true },
+  { id: 'gdp', name: 'GDP 数据', source: 'World Bank', license: 'CC BY 4.0', requiresNetwork: true, hasFallback: true },
+  { id: 'population', name: '人口数据', source: 'World Bank', license: 'CC BY 4.0', requiresNetwork: true, hasFallback: true },
   { id: 'temperature', name: '温度数据', source: 'Open-Meteo Climate', license: 'CC BY 4.0', requiresNetwork: true, hasFallback: true },
   { id: 'precipitation', name: '降水数据', source: 'Open-Meteo Climate', license: 'CC BY 4.0', requiresNetwork: true, hasFallback: true },
   { id: 'plates', name: '板块边界', source: 'USGS / 预置', license: 'Public Domain', requiresNetwork: false, hasFallback: true },
@@ -331,8 +331,65 @@ const PRESET_GDP: GdpData[] = [
   { country: '澳大利亚', iso3: 'AUS', gdp: 1.69, gdpPerCapita: 6.45 },
 ];
 
-export function getGdp(): GdpData[] {
-  return PRESET_GDP;
+// ============ World Bank API（官方免费开放数据） ============
+
+/** World Bank 响应分页信息 */
+interface WorldBankPagination {
+  page?: number;
+  pages?: number;
+  per_page?: number;
+  total?: number;
+}
+
+/** World Bank 单条观测记录 */
+interface WorldBankRecord {
+  countryiso3code?: string;
+  country?: { value?: string };
+  date?: string;
+  value?: number | null;
+}
+
+/** World Bank 响应：`[分页信息, 记录数组]` */
+type WorldBankResponse = (WorldBankPagination | WorldBankRecord[])[];
+
+/** 从 World Bank 响应中提取 `<iso3, value>` 映射（仅保留有效数值） */
+function parseWorldBankValues(data: WorldBankResponse): Map<string, number> {
+  const map = new Map<string, number>();
+  const rows = Array.isArray(data?.[1]) ? (data[1] as WorldBankRecord[]) : [];
+  for (const r of rows) {
+    if (r?.countryiso3code && typeof r.value === 'number' && r.value > 0) {
+      map.set(r.countryiso3code, r.value);
+    }
+  }
+  return map;
+}
+
+const WORLD_BANK_BASE = 'https://api.worldbank.org/v2/country/all/indicator';
+
+/**
+ * 拉取 GDP 数据（World Bank 官方 API，2023 年，当前美元）。
+ * 以预置国家为准（保证 getCountryCenter 可达），API 有实时值则覆盖，网络失败回退预置。
+ */
+export async function fetchGdp(): Promise<GdpData[]> {
+  try {
+    const [gdpData, gdpCapData] = await Promise.all([
+      apiCache.fetch<WorldBankResponse>(`${WORLD_BANK_BASE}/NY.GDP.MKTP.CD?format=json&per_page=500&date=2023`, { customTtlMs: TTL_24H }),
+      apiCache.fetch<WorldBankResponse>(`${WORLD_BANK_BASE}/NY.GDP.PCAP.CD?format=json&per_page=500&date=2023`, { customTtlMs: TTL_24H }),
+    ]);
+    const gdpUsd = parseWorldBankValues(gdpData);
+    const gdpCapUsd = parseWorldBankValues(gdpCapData);
+    return PRESET_GDP.map((g) => {
+      const next: GdpData = { ...g };
+      const total = gdpUsd.get(g.iso3);
+      if (total !== undefined) next.gdp = total / 1e12; // 美元 → 万亿美元
+      const cap = gdpCapUsd.get(g.iso3);
+      if (cap !== undefined) next.gdpPerCapita = cap / 1e4; // 美元 → 万美元
+      return next;
+    });
+  } catch {
+    console.warn('[DataProvider] fetchGdp failed, fallback to preset');
+    return PRESET_GDP;
+  }
 }
 
 // ============ 人口数据（预置） ============
@@ -357,8 +414,30 @@ const PRESET_POPULATION: PopulationData[] = [
   { country: '日本', iso3: 'JPN', population: 1.24, density: 330 },
 ];
 
-export function getPopulation(): PopulationData[] {
-  return PRESET_POPULATION;
+/**
+ * 拉取人口数据（World Bank 官方 API，2023 年）。
+ * 以预置国家为准（保证 getCountryCenter 可达），API 有实时值则覆盖，网络失败回退预置。
+ */
+export async function fetchPopulation(): Promise<PopulationData[]> {
+  try {
+    const [popData, densData] = await Promise.all([
+      apiCache.fetch<WorldBankResponse>(`${WORLD_BANK_BASE}/SP.POP.TOTL?format=json&per_page=500&date=2023`, { customTtlMs: TTL_24H }),
+      apiCache.fetch<WorldBankResponse>(`${WORLD_BANK_BASE}/EN.POP.DNST?format=json&per_page=500&date=2023`, { customTtlMs: TTL_24H }),
+    ]);
+    const pop = parseWorldBankValues(popData);
+    const dens = parseWorldBankValues(densData);
+    return PRESET_POPULATION.map((p) => {
+      const next: PopulationData = { ...p };
+      const total = pop.get(p.iso3);
+      if (total !== undefined) next.population = total / 1e8; // 人 → 亿
+      const d = dens.get(p.iso3);
+      if (d !== undefined) next.density = Math.round(d); // 人/平方公里
+      return next;
+    });
+  } catch {
+    console.warn('[DataProvider] fetchPopulation failed, fallback to preset');
+    return PRESET_POPULATION;
+  }
 }
 
 // ============ 温度数据（Open-Meteo Climate API） ============
